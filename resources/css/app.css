@@ -1,0 +1,61 @@
+/* resources/css/app.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Removed Tailwind v4 CSS-first config directives (@source/@plugin) to avoid Vite/PostCSS import resolution issues. */
+/* If you need daisyUI, configure it in tailwind.config.js (plugin) instead of using @plugin here. */
+
+@plugin "daisyui" {
+    themes: forest --default, light, dark;
+}
+
+@layer base {
+    body {
+        font-family: 'Inter', sans-serif;
+    }
+}
+
+@layer utilities {
+    .font-inter {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .sidebar-transition {
+        transition: width 0.3s ease, transform 0.3s ease;
+    }
+}
+
+@layer components {
+    /* Slide in animation for page content */
+    .animate-slide-in {
+        animation: slideInRight 0.3s ease-out;
+    }
+
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    /* Fade in animation */
+    .animate-fadeIn {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
