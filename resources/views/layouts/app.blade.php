@@ -43,16 +43,14 @@
                     <!-- Logo -->
                     <div class="p-4 border-b border-base-300/50">
                         <a href="{{ route('home') }}" class="flex items-center gap-3 group">
-                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg group-hover:shadow-primary/50 transition-all duration-300 group-hover:scale-110">
-                                <svg class="w-6 h-6 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                                </svg>
+                            <div class="h-8 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg group-hover:shadow-primary/50 transition-all duration-300 group-hover:scale-105 overflow-hidden px-3">
+                                <img src="{{ asset('assets/images/logo-white.png') }}" alt="BMS VISHAY Logo" class="h-5 w-auto object-contain scale-150">
                             </div>
                             <div>
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                                     BMS VISHAY
                                 </div>
-                                <div class="text-xs opacity-70">Building Management</div>
+                                <div class="text-xs opacity-70">Machtrax - BMS</div>
                             </div>
                         </a>
                     </div>
@@ -81,11 +79,11 @@
                         </li>
 
                         <li>
-                            <a href="{{ route('tenants.index') }}" class="gap-3">
+                            <a href="{{ route('users.index') }}" class="gap-3" title="User Management — Roles & Permissions">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                                 </svg>
-                                Tenants
+                                Users
                             </a>
                         </li>
 
