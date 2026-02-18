@@ -41,7 +41,7 @@
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                                     BMS VISHAY
                                 </div>
-                                <div class="text-xs opacity-70">Machtrax - BMS</div>
+                                <div class="text-xs opacity-70">NextBuild - BMS</div>
                             </div>
                         </a>
                     </div>

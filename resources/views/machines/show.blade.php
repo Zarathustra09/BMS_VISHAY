@@ -545,7 +545,7 @@ document.addEventListener('alpine:init', () => {
             }
         ],
 
-        init() {
+        async init() {
             this.$watch('messages', () => {
                 this.$nextTick(() => {
                     if (this.$refs.messagesContainer) {
@@ -554,15 +554,17 @@ document.addEventListener('alpine:init', () => {
                 });
             });
 
-            this.loadSuggestedQuestions();
+            // Load suggested questions immediately
+            await this.loadSuggestedQuestions();
         },
 
         async loadSuggestedQuestions() {
             try {
-                const response = await fetch('/ai/questions/{{ $machine->id }}');
+                const response = await fetch('/api/ai/questions/{{ $machine->id }}');
                 const data = await response.json();
-                if (data.success) {
+                if (data.success && data.questions) {
                     this.suggestedQuestions = data.questions;
+                    console.log('Loaded questions:', this.suggestedQuestions);
                 }
             } catch (error) {
                 console.error('Failed to load questions:', error);
@@ -573,6 +575,10 @@ document.addEventListener('alpine:init', () => {
             this.isOpen = !this.isOpen;
             if (this.isOpen) {
                 this.hasUnread = false;
+                // Reload questions when opening chat
+                if (this.suggestedQuestions.length === 0) {
+                    this.loadSuggestedQuestions();
+                }
             }
         },
 
@@ -598,7 +604,7 @@ document.addEventListener('alpine:init', () => {
             this.isTyping = true;
 
             try {
-                const response = await fetch('/ai/chat', {
+                const response = await fetch('/api/ai/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -630,7 +636,7 @@ document.addEventListener('alpine:init', () => {
         startStatusCheck() {
             this.checkInterval = setInterval(async () => {
                 try {
-                    const response = await fetch('/ai/check-status', {
+                    const response = await fetch('/api/ai/check-status', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -648,6 +654,8 @@ document.addEventListener('alpine:init', () => {
                         this.isTyping = false;
                         clearInterval(this.checkInterval);
                         this.currentCacheKey = null;
+                        // Reload questions after getting response
+                        this.loadSuggestedQuestions();
                     }
                 } catch (error) {
                     console.error('Status check error:', error);
