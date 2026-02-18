@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ProcessAIInsight;
+use App\Jobs\ProcessMachineAIInsight;
 use App\Models\Machine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,7 +47,7 @@ class AIController extends Controller
         ], now()->addHours(1));
 
         // Dispatch the job to the queue
-        ProcessAIInsight::dispatch($machineId, $userMessage, $cacheKey);
+        ProcessMachineAIInsight::dispatch($machineId, $userMessage, $cacheKey);
 
         return response()->json([
             'success' => true,
