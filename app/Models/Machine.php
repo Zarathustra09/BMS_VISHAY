@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Machine model used by the Building Management System (manufacturing context).
@@ -21,8 +22,8 @@ class Machine extends Model
         'manufacturer',
         'model_number',
         'serial_number',
-        'location',
-        'zone',
+        'building_id',
+        'floor_id',
         'description',
         'status',
         'power_rating',
@@ -59,6 +60,8 @@ class Machine extends Model
         'head_m' => 'decimal:2',
         'cells' => 'integer',
         'makeup_valve' => 'boolean',
+        'building_id' => 'integer',
+        'floor_id' => 'integer',
     ];
 
     /**
@@ -95,6 +98,22 @@ class Machine extends Model
     }
 
     /**
+     * Belongs to Building
+     */
+    public function building(): BelongsTo
+    {
+        return $this->belongsTo(Building::class);
+    }
+
+    /**
+     * Belongs to Floor
+     */
+    public function floor(): BelongsTo
+    {
+        return $this->belongsTo(Floor::class);
+    }
+
+    /**
      * Scope for active machines
      */
     public function scopeActive($query)
@@ -111,10 +130,18 @@ class Machine extends Model
     }
 
     /**
-     * Scope by location
+     * Scope by building id
      */
-    public function scopeByLocation($query, string $location)
+    public function scopeByBuilding($query, int $buildingId)
     {
-        return $query->where('location', $location);
+        return $query->where('building_id', $buildingId);
+    }
+
+    /**
+     * Scope by floor id
+     */
+    public function scopeByFloor($query, int $floorId)
+    {
+        return $query->where('floor_id', $floorId);
     }
 }

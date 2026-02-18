@@ -19,8 +19,8 @@ return new class extends Migration
             $table->string('manufacturer')->nullable();
             $table->string('model_number')->nullable();
             $table->string('serial_number')->nullable();
-            $table->string('location'); // Building/Floor/Room
-            $table->string('zone')->nullable(); // Zone within building
+            $table->foreignId('building_id')->nullable()->constrained('buildings')->onDelete('set null');
+            $table->foreignId('floor_id')->nullable()->constrained('floors')->onDelete('set null');
             $table->text('description')->nullable();
             $table->enum('status', ['active', 'inactive', 'maintenance', 'fault'])->default('active');
             $table->decimal('power_rating', 10, 2)->nullable(); // in kW
@@ -45,7 +45,8 @@ return new class extends Migration
 
             // Indexes helpful for queries in a manufacturing BMS
             $table->index(['type']);
-            $table->index(['location']);
+            $table->index(['building_id']);
+            $table->index(['floor_id']);
             $table->index(['zone']);
             $table->index(['is_critical']);
             $table->index(['manufacturer']);

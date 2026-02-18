@@ -13,6 +13,19 @@ return new class extends Migration
     {
         Schema::create('buildings', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
+            $table->string('code')->nullable();
+            $table->string('type')->nullable();
+            $table->string('image')->nullable();
+            $table->string('address')->nullable();
+            $table->string('city')->nullable();
+            $table->string('state')->nullable();
+            $table->string('country')->nullable();
+            $table->integer('year_built')->nullable();
+            $table->string('emergency_contact_name')->nullable();
+            $table->string('emergency_contact_phone')->nullable();
+            $table->string('status')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

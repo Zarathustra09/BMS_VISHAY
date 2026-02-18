@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use App\Models\Machine;
+use App\Models\Building;
 use Carbon\Carbon;
 use Faker\Factory as Faker;
 
@@ -21,7 +22,34 @@ class MachineAndLogSeeder extends Seeder
         $severities = ['info', 'warning', 'error', 'critical'];
         $performedByOptions = ['system', 'John Technician', 'Mary Engineer', 'Mike Maintenance', 'External Vendor', null];
 
-        // Define 20 diverse machines for manufacturing BMS
+        // Get existing buildings
+        $buildings = Building::all();
+        if ($buildings->isEmpty()) {
+            $this->command->info('No buildings found, skipping machine seeding.');
+            return;
+        }
+
+        // map machine type -> preferred building types
+        $typeToBuildingTypes = [
+            'HVAC' => ['Office','Manufacturing','Data Center','Training'],
+            'AHU' => ['Office','Data Center','Training'],
+            'Generator' => ['Manufacturing','Warehouse','Data Center','Support'],
+            'Compressor' => ['Manufacturing','Warehouse'],
+            'Chiller' => ['Manufacturing','Data Center'],
+            'Boiler' => ['Manufacturing'],
+            'Pump' => ['Manufacturing','Warehouse'],
+            'CoolingTower' => ['Manufacturing','Data Center'],
+            'CNC Machine' => ['Manufacturing'],
+            'Injection Molding' => ['Manufacturing'],
+            'Robotic Arm' => ['Manufacturing'],
+            'Conveyor' => ['Manufacturing'],
+            'Elevator' => ['Office','Manufacturing','Support'],
+            'Transformer' => ['Manufacturing','Data Center'],
+            'UPS' => ['Data Center','Office'],
+            'AHU' => ['Office','Data Center','Training'],
+        ];
+
+        // Define 20 diverse machines for manufacturing BMS (location removed)
         $machines = [
             // HVAC Systems
             [
@@ -31,7 +59,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Trane',
                 'model_number' => 'CVH-1500',
                 'serial_number' => 'TRN-HVAC-2019-001',
-                'location' => 'Production Floor 1 / Ceiling',
                 'zone' => 'Manufacturing Zone A',
                 'description' => 'Primary climate control for main production area',
                 'status' => 'active',
@@ -52,7 +79,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Carrier',
                 'model_number' => 'AquaEdge 19DV',
                 'serial_number' => 'CAR-HVAC-2020-045',
-                'location' => 'Assembly Building / Roof',
                 'zone' => 'Assembly Zone',
                 'description' => 'Climate control for precision assembly operations',
                 'status' => 'active',
@@ -75,7 +101,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Cummins',
                 'model_number' => 'C1000D5',
                 'serial_number' => 'CUM-GEN-2018-101',
-                'location' => 'Generator Building / Ground',
                 'zone' => 'Power Generation',
                 'description' => 'Primary emergency power backup for entire facility',
                 'status' => 'active',
@@ -97,7 +122,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Caterpillar',
                 'model_number' => 'CAT-750',
                 'serial_number' => 'CAT-GEN-2019-055',
-                'location' => 'Generator Building / Ground',
                 'zone' => 'Power Generation',
                 'description' => 'Secondary backup generator',
                 'status' => 'active',
@@ -121,7 +145,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Atlas Copco',
                 'model_number' => 'GA-315',
                 'serial_number' => 'ATC-COMP-2020-078',
-                'location' => 'Compressor Room / Ground',
                 'zone' => 'Utilities',
                 'description' => 'Primary compressed air supply for pneumatic tools',
                 'status' => 'active',
@@ -141,7 +164,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Ingersoll Rand',
                 'model_number' => 'R-Series 250',
                 'serial_number' => 'IR-COMP-2021-033',
-                'location' => 'Compressor Room / Ground',
                 'zone' => 'Utilities',
                 'description' => 'Backup compressed air system',
                 'status' => 'active',
@@ -163,7 +185,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Daikin',
                 'model_number' => 'WME-Z3000',
                 'serial_number' => 'DAI-CHILL-2019-012',
-                'location' => 'Chiller Plant / Ground',
                 'zone' => 'Cooling',
                 'description' => 'Main process cooling for manufacturing equipment',
                 'status' => 'active',
@@ -186,7 +207,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Cleaver-Brooks',
                 'model_number' => 'CB-700-500',
                 'serial_number' => 'CB-BOIL-2017-089',
-                'location' => 'Boiler Room / Ground',
                 'zone' => 'Heating',
                 'description' => 'Primary steam generation for process heating',
                 'status' => 'active',
@@ -209,7 +229,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Grundfos',
                 'model_number' => 'NB-200',
                 'serial_number' => 'GRU-PUMP-2020-156',
-                'location' => 'Pump Room / Basement',
                 'zone' => 'HVAC Distribution',
                 'description' => 'Primary chilled water circulation',
                 'status' => 'active',
@@ -231,7 +250,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Xylem',
                 'model_number' => 'e-SV 50',
                 'serial_number' => 'XYL-PUMP-2021-067',
-                'location' => 'Process Area / Ground',
                 'zone' => 'Manufacturing',
                 'description' => 'Process water supply pump',
                 'status' => 'active',
@@ -255,7 +273,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Baltimore Aircoil',
                 'model_number' => 'VTI-1500',
                 'serial_number' => 'BAC-CT-2018-044',
-                'location' => 'North Service Yard',
                 'zone' => 'Cooling',
                 'description' => 'Main cooling tower for process heat rejection',
                 'status' => 'active',
@@ -276,7 +293,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Evapco',
                 'model_number' => 'AT-1200',
                 'serial_number' => 'EVA-CT-2019-088',
-                'location' => 'South Service Yard',
                 'zone' => 'Cooling',
                 'description' => 'Secondary cooling tower',
                 'status' => 'active',
@@ -299,7 +315,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Haas',
                 'model_number' => 'VF-6/50',
                 'serial_number' => 'HAAS-CNC-2020-234',
-                'location' => 'Machining Floor / Bay 1',
                 'zone' => 'Precision Manufacturing',
                 'description' => '5-axis CNC machining center',
                 'status' => 'active',
@@ -319,7 +334,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Engel',
                 'model_number' => 'e-victory 500',
                 'serial_number' => 'ENG-INJ-2019-077',
-                'location' => 'Molding Floor / Line A',
                 'zone' => 'Plastics Manufacturing',
                 'description' => 'High-precision injection molding machine',
                 'status' => 'active',
@@ -339,7 +353,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'ABB',
                 'model_number' => 'IRB 6700',
                 'serial_number' => 'ABB-ROB-2021-145',
-                'location' => 'Assembly Line 3',
                 'zone' => 'Automated Assembly',
                 'description' => '6-axis industrial robot for assembly operations',
                 'status' => 'active',
@@ -359,7 +372,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Dorner',
                 'model_number' => '2200 Series',
                 'serial_number' => 'DOR-CONV-2020-099',
-                'location' => 'Production Floor / Central',
                 'zone' => 'Material Handling',
                 'description' => 'Main production line conveyor system',
                 'status' => 'active',
@@ -381,7 +393,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Otis',
                 'model_number' => 'GeN2-MRL',
                 'serial_number' => 'OTIS-ELEV-2018-234',
-                'location' => 'Building A / Shaft 1',
                 'zone' => 'Vertical Transport',
                 'description' => 'Heavy-duty freight elevator',
                 'status' => 'active',
@@ -405,7 +416,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'ABB',
                 'model_number' => 'RESIBLOC 2500',
                 'serial_number' => 'ABB-TRANS-2017-056',
-                'location' => 'Electrical Substation',
                 'zone' => 'Power Distribution',
                 'description' => 'Main power distribution transformer',
                 'status' => 'active',
@@ -425,7 +435,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'Eaton',
                 'model_number' => '9395',
                 'serial_number' => 'EAT-UPS-2019-123',
-                'location' => 'Server Room / Ground',
                 'zone' => 'Critical Power',
                 'description' => 'Uninterruptible power supply for critical systems',
                 'status' => 'active',
@@ -445,7 +454,6 @@ class MachineAndLogSeeder extends Seeder
                 'manufacturer' => 'York',
                 'model_number' => 'YVAA-120',
                 'serial_number' => 'YORK-AHU-2020-188',
-                'location' => 'Floor 2 / Mechanical Room',
                 'zone' => 'Office HVAC',
                 'description' => 'Air handling unit for office areas',
                 'status' => 'active',
@@ -465,6 +473,29 @@ class MachineAndLogSeeder extends Seeder
         $insertChunkSize = 250;
 
         foreach ($machines as $mData) {
+            // determine building for this machine type
+            $preferredTypes = $typeToBuildingTypes[$mData['type']] ?? null;
+            $building = null;
+
+            if ($preferredTypes) {
+                $building = $buildings->first(function ($b) use ($preferredTypes) {
+                    return in_array($b->type, $preferredTypes);
+                });
+            }
+
+            // fallback to any building
+            if (!$building) {
+                $building = $buildings->random();
+            }
+
+            // pick a random floor for that building if available
+            $floor = $building->floors()->inRandomOrder()->first();
+
+            // attach ids to payload
+            $mData['building_id'] = $building->id;
+            $mData['floor_id'] = $floor ? $floor->id : null;
+
+            // create machine (location string removed)
             $machine = Machine::create($mData);
 
             $logs = [];
