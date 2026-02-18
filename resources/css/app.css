@@ -58,4 +58,30 @@
             transform: translateY(0);
         }
     }
+
+    /* Content loading states */
+    .content-loading {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .content-hidden {
+        opacity: 0;
+        display: none;
+    }
+
+    .content-visible {
+        opacity: 1;
+        animation: fadeInContent 0.5s ease-out;
+    }
+
+    @keyframes fadeInContent {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 }

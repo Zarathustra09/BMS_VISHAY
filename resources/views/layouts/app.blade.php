@@ -27,19 +27,7 @@
         <div class="drawer lg:drawer-open">
             <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
-            <!-- Main Content Area -->
-            <div class="drawer-content flex flex-col">
-                @include('layouts.header')
-
-                <!-- Page Content -->
-                <main class="flex-1 p-4 lg:p-6 animate-slide-in">
-                    @yield('content')
-                </main>
-
-                @include('layouts.footer')
-            </div>
-
-            <!-- Sidebar -->
+            <!-- Sidebar - Rendered First -->
             <div class="drawer-side z-50">
                 <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
                 <aside class="min-h-screen w-72 bg-base-100 border-r border-base-300/50 flex flex-col">
@@ -164,7 +152,36 @@
                     </div>
                 </aside>
             </div>
+
+            <!-- Main Content Area - Rendered After Sidebar -->
+            <div class="drawer-content flex flex-col">
+                @include('layouts.header')
+
+                <!-- Page Content with Loading State -->
+                <main class="flex-1 p-4 lg:p-6 animate-slide-in">
+                    <div id="content-loader" class="content-loading">
+                        @include('components.skeleton-loader')
+                    </div>
+                    <div id="actual-content" class="content-hidden">
+                        @yield('content')
+                    </div>
+                </main>
+
+                @include('layouts.footer')
+            </div>
         </div>
     </div>
+
+    <script>
+        // Hide skeleton loader and show actual content when page is fully loaded
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.getElementById('content-loader').style.display = 'none';
+                const actualContent = document.getElementById('actual-content');
+                actualContent.classList.remove('content-hidden');
+                actualContent.classList.add('content-visible');
+            }, 300);
+        });
+    </script>
 </body>
 </html>
