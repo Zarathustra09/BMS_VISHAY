@@ -6,9 +6,9 @@
 /* Removed Tailwind v4 CSS-first config directives (@source/@plugin) to avoid Vite/PostCSS import resolution issues. */
 /* If you need daisyUI, configure it in tailwind.config.js (plugin) instead of using @plugin here. */
 
-/*@plugin "daisyui" {*/
-/*    themes: forest --default, light, dark;*/
-/*}*/
+@plugin "daisyui" {
+    themes: forest --default, light, dark;
+}
 
 @layer base {
     body {
@@ -57,33 +57,5 @@
             opacity: 1;
             transform: translateY(0);
         }
-    }
-
-    /* Alpine.js cloak */
-    [x-cloak] {
-        display: none !important;
-    }
-
-    /* Skeleton pulse animation */
-    .skeleton {
-        animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-
-    @keyframes skeleton-pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.5;
-        }
-    }
-
-    /* Ensure sidebar renders before content */
-    .drawer-side {
-        z-index: 50;
-    }
-
-    .drawer-content {
-        z-index: 10;
     }
 }

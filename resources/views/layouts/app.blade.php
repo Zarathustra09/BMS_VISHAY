@@ -22,13 +22,25 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-gradient-to-br from-base-300 via-base-200 to-base-300" x-data="{ pageLoading: false }">
+<body class="min-h-screen bg-gradient-to-br from-base-300 via-base-200 to-base-300">
     <div id="app" class="min-h-screen">
         <div class="drawer lg:drawer-open">
             <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
 
-            <!-- Sidebar (Prioritized for loading) -->
-            <div class="drawer-side z-50" style="display: block;">
+            <!-- Main Content Area -->
+            <div class="drawer-content flex flex-col">
+                @include('layouts.header')
+
+                <!-- Page Content -->
+                <main class="flex-1 p-4 lg:p-6 animate-slide-in">
+                    @yield('content')
+                </main>
+
+                @include('layouts.footer')
+            </div>
+
+            <!-- Sidebar -->
+            <div class="drawer-side z-50">
                 <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
                 <aside class="min-h-screen w-72 bg-base-100 border-r border-base-300/50 flex flex-col">
                     <!-- Logo -->
@@ -41,7 +53,7 @@
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                                     BMS VISHAY
                                 </div>
-                                <div class="text-xs opacity-70">NextBuild - BMS</div>
+                                <div class="text-xs opacity-70">Machtrax - BMS</div>
                             </div>
                         </a>
                     </div>
@@ -152,173 +164,7 @@
                     </div>
                 </aside>
             </div>
-
-            <!-- Main Content Area -->
-            <div class="drawer-content flex flex-col">
-                @include('layouts.header')
-
-                <!-- Page Content with Loading State -->
-                <main class="flex-1 p-4 lg:p-6" x-show="!pageLoading" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
-                    @yield('content')
-                </main>
-
-                <!-- Skeleton Loader -->
-                <div class="flex-1 p-4 lg:p-6 space-y-6" x-show="pageLoading" x-cloak>
-                    <!-- Welcome Section Skeleton -->
-                    <div class="card bg-base-100 border border-base-300/50 shadow-lg">
-                        <div class="card-body">
-                            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                                <div class="flex-1 space-y-3">
-                                    <div class="skeleton h-8 w-64"></div>
-                                    <div class="skeleton h-4 w-48"></div>
-                                </div>
-                                <div class="flex gap-2">
-                                    <div class="skeleton h-12 w-40"></div>
-                                    <div class="skeleton h-12 w-32"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Key Metrics Skeleton -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body">
-                                <div class="flex items-center gap-4">
-                                    <div class="skeleton h-12 w-12 rounded-xl shrink-0"></div>
-                                    <div class="flex-1 space-y-2">
-                                        <div class="skeleton h-4 w-32"></div>
-                                        <div class="skeleton h-8 w-20"></div>
-                                        <div class="skeleton h-3 w-24"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body">
-                                <div class="flex items-center gap-4">
-                                    <div class="skeleton h-12 w-12 rounded-xl shrink-0"></div>
-                                    <div class="flex-1 space-y-2">
-                                        <div class="skeleton h-4 w-32"></div>
-                                        <div class="skeleton h-8 w-20"></div>
-                                        <div class="skeleton h-3 w-24"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body">
-                                <div class="flex items-center gap-4">
-                                    <div class="skeleton h-12 w-12 rounded-xl shrink-0"></div>
-                                    <div class="flex-1 space-y-2">
-                                        <div class="skeleton h-4 w-32"></div>
-                                        <div class="skeleton h-8 w-20"></div>
-                                        <div class="skeleton h-3 w-24"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body">
-                                <div class="flex items-center gap-4">
-                                    <div class="skeleton h-12 w-12 rounded-xl shrink-0"></div>
-                                    <div class="flex-1 space-y-2">
-                                        <div class="skeleton h-4 w-32"></div>
-                                        <div class="skeleton h-8 w-20"></div>
-                                        <div class="skeleton h-3 w-24"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Charts Section Skeleton -->
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-2 card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div class="skeleton h-6 w-40"></div>
-                                    <div class="skeleton h-10 w-32"></div>
-                                </div>
-                                <div class="skeleton h-64 w-full"></div>
-                            </div>
-                        </div>
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body space-y-4">
-                                <div class="skeleton h-6 w-40"></div>
-                                <div class="skeleton h-8 w-full"></div>
-                                <div class="skeleton h-8 w-full"></div>
-                                <div class="skeleton h-8 w-full"></div>
-                                <div class="divider"></div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="skeleton h-20 w-full"></div>
-                                    <div class="skeleton h-20 w-full"></div>
-                                    <div class="skeleton h-20 w-full"></div>
-                                    <div class="skeleton h-20 w-full"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Additional Content Skeletons -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body space-y-4">
-                                <div class="skeleton h-6 w-40"></div>
-                                <div class="skeleton h-20 w-full"></div>
-                                <div class="skeleton h-20 w-full"></div>
-                                <div class="skeleton h-20 w-full"></div>
-                            </div>
-                        </div>
-                        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-                            <div class="card-body space-y-4">
-                                <div class="skeleton h-6 w-40"></div>
-                                <div class="skeleton h-24 w-full"></div>
-                                <div class="skeleton h-24 w-full"></div>
-                                <div class="skeleton h-24 w-full"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                @include('layouts.footer')
-            </div>
         </div>
     </div>
-
-    <script>
-        // Handle navigation clicks to show loading state
-        document.addEventListener('DOMContentLoaded', function() {
-            // Get all sidebar navigation links
-            const navLinks = document.querySelectorAll('.drawer-side a[href]');
-
-            navLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    // Don't show loader for same page or anchor links
-                    if (this.href === window.location.href || this.href.includes('#')) {
-                        return;
-                    }
-
-                    // Trigger loading state
-                    Alpine.store('pageLoading', true);
-
-                    // Close mobile drawer
-                    document.getElementById('sidebar-drawer').checked = false;
-                });
-            });
-
-            // Hide loader when page is fully loaded
-            window.addEventListener('load', function() {
-                setTimeout(() => {
-                    Alpine.store('pageLoading', false);
-                }, 100);
-            });
-        });
-
-        // Alpine.js global store
-        document.addEventListener('alpine:init', () => {
-            Alpine.store('pageLoading', false);
-        });
-    </script>
 </body>
 </html>
