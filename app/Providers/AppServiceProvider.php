@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Interfaces\AIInterface;
+use App\Services\OpenAIService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(AIInterface::class, OpenAIService::class);
+        $this->app->singleton(OpenAIService::class);
     }
 
     /**

@@ -404,7 +404,7 @@
                     <div class="font-bold text-base-100">BMS AI Assistant</div>
                     <div class="text-xs text-base-100/80 flex items-center gap-1">
                         <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
-                        Powered by Gemini 2.0 Flash
+                        Powered by OpenAI GPT
                     </div>
                 </div>
             </div>
@@ -490,7 +490,7 @@
                 </button>
             </form>
             <div class="text-xs opacity-50 mt-2 text-center">
-                Press Enter to send • Powered by Gemini 2.0 Flash
+                Press Enter to send • Powered by OpenAI GPT
             </div>
         </div>
     </div>
@@ -540,7 +540,7 @@ document.addEventListener('alpine:init', () => {
         messages: [
             {
                 type: 'bot',
-                text: '👋 Hello! I\'m your AI assistant powered by Google Gemini 2.0 Flash.\n\nI can analyze {{ $machine->name }} logs and provide insights about:\n\n• Health & performance trends\n• Anomaly detection\n• Maintenance recommendations\n• Power consumption analysis\n• Risk assessment\n\nClick on a suggested question or ask me anything!',
+                text: '👋 Hello! I\'m your AI assistant powered by OpenAI GPT.\n\nI can analyze {{ $machine->name }} logs and provide insights about:\n\n• Health & performance trends\n• Anomaly detection\n• Maintenance recommendations\n• Power consumption analysis\n• Risk assessment\n\nClick on a suggested question or ask me anything!',
                 time: 'just now'
             }
         ],

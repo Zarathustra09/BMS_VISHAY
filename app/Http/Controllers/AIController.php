@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\GenerateAIInsightJob;
+use App\Jobs\ProcessAIInsight;
 use App\Models\Machine;
-use App\Services\GeminiService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -12,274 +12,184 @@ use Illuminate\Support\Str;
 
 class AIController extends Controller
 {
-    protected $geminiService;
-
-    public function __construct(GeminiService $geminiService)
-    {
-        $this->geminiService = $geminiService;
-    }
-
     /**
-     * Get predefined insight questions
+     * Handle chat message and dispatch AI processing job
      */
-    public function getInsightQuestions(Machine $machine)
-    {
-        Log::info('Fetching AI insight questions', [
-            'machine_id' => $machine->id,
-            'machine_code' => $machine->machine_code,
-        ]);
-
-        $questions = [
-            [
-                'id' => 'health',
-                'question' => 'What is the overall health status of this machine?',
-                'icon' => '❤️',
-                'category' => 'Health Analysis'
-            ],
-            [
-                'id' => 'anomalies',
-                'question' => 'Are there any anomalies or unusual patterns in recent logs?',
-                'icon' => '🔍',
-                'category' => 'Anomaly Detection'
-            ],
-            [
-                'id' => 'performance',
-                'question' => 'How has the machine performance trended over the last week?',
-                'icon' => '📈',
-                'category' => 'Performance'
-            ],
-            [
-                'id' => 'maintenance',
-                'question' => 'Should I schedule maintenance soon? What are the indicators?',
-                'icon' => '🔧',
-                'category' => 'Maintenance'
-            ],
-            [
-                'id' => 'critical',
-                'question' => 'What are the most critical issues that need immediate attention?',
-                'icon' => '⚠️',
-                'category' => 'Critical Issues'
-            ],
-            [
-                'id' => 'power',
-                'question' => 'How does current power consumption compare to normal levels?',
-                'icon' => '⚡',
-                'category' => 'Power Analysis'
-            ],
-            [
-                'id' => 'recommendations',
-                'question' => 'What are your top 3 recommendations for this machine?',
-                'icon' => '💡',
-                'category' => 'Recommendations'
-            ],
-            [
-                'id' => 'failures',
-                'question' => 'What are potential failure points based on the log data?',
-                'icon' => '🚨',
-                'category' => 'Risk Assessment'
-            ],
-        ];
-
-        return response()->json([
-            'success' => true,
-            'questions' => $questions,
-            'machine' => [
-                'id' => $machine->id,
-                'name' => $machine->name,
-                'code' => $machine->machine_code
-            ]
-        ]);
-    }
-
-    /**
-     * Send chat message and get AI response
-     */
-    public function chat(Request $request)
+    public function chat(Request $request): JsonResponse
     {
         $request->validate([
             'machine_id' => 'required|exists:machines,id',
             'message' => 'required|string|max:1000',
         ]);
 
-        $machineId = $request->machine_id;
-        $message = $request->message;
+        $machineId = $request->input('machine_id');
+        $userMessage = $request->input('message');
 
-        // Create unique cache key
-        $cacheKey = 'ai_insight_' . $machineId . '_' . md5($message);
+        // Generate a unique cache key for this request
+        $cacheKey = 'ai_insight_' . Str::uuid()->toString();
 
-        Log::info('AI Chat Request Received', [
-            'machine_id' => $machineId,
-            'message' => $message,
-            'message_length' => strlen($message),
-            'cache_key' => $cacheKey,
-            'user_ip' => $request->ip(),
-        ]);
+        // Check if we have a recent cached response for similar queries
+        $cachedResponseKey = 'ai_cache_' . md5($machineId . '_' . $userMessage);
+        $cachedResponse = Cache::get($cachedResponseKey);
 
-        // Check if result already exists in cache
-        if (Cache::has($cacheKey)) {
-            $result = Cache::get($cacheKey);
-
-            Log::info('AI Chat Response From Cache', [
-                'machine_id' => $machineId,
-                'cache_key' => $cacheKey,
-                'success' => $result['success'] ?? false,
-            ]);
-
+        if ($cachedResponse) {
             return response()->json([
                 'success' => true,
-                'message' => $result['text'] ?? 'Processing...',
                 'cached' => true,
-                'processing' => false
+                'message' => $cachedResponse,
             ]);
         }
 
-        // Check if currently processing
-        if (Cache::has($cacheKey . '_status')) {
-            Log::debug('AI Chat Already Processing', [
-                'machine_id' => $machineId,
-                'cache_key' => $cacheKey,
-            ]);
+        // Initialize cache entry as processing
+        Cache::put($cacheKey, [
+            'ready' => false,
+            'message' => null,
+        ], now()->addHours(1));
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Your request is being processed by our AI. Please wait...',
-                'processing' => true,
-                'cache_key' => $cacheKey
-            ]);
-        }
-
-        // Dispatch job to queue
-        Log::info('Dispatching AI Insight Job', [
-            'machine_id' => $machineId,
-            'message' => $message,
-            'cache_key' => $cacheKey,
-        ]);
-
-        GenerateAIInsightJob::dispatch($machineId, $message, $cacheKey);
+        // Dispatch the job to the queue
+        ProcessAIInsight::dispatch($machineId, $userMessage, $cacheKey);
 
         return response()->json([
             'success' => true,
-            'message' => 'Processing your request with AI. This may take a few moments...',
             'processing' => true,
-            'cache_key' => $cacheKey
+            'cache_key' => $cacheKey,
+            'message' => 'Your request is being processed...',
         ]);
     }
 
     /**
-     * Check status of AI processing
+     * Check the status of an AI processing request
      */
-    public function checkStatus(Request $request)
+    public function checkStatus(Request $request): JsonResponse
     {
         $request->validate([
             'cache_key' => 'required|string',
         ]);
 
-        $cacheKey = $request->cache_key;
+        $cacheKey = $request->input('cache_key');
+        $cached = Cache::get($cacheKey);
 
-        Log::debug('Checking AI processing status', [
-            'cache_key' => $cacheKey,
-        ]);
-
-        // Check if still processing
-        if (Cache::has($cacheKey . '_status')) {
+        if (!$cached) {
             return response()->json([
-                'success' => true,
                 'ready' => false,
-                'processing' => true,
-                'message' => 'Still analyzing machine data...'
+                'message' => 'Request not found or expired.',
             ]);
         }
 
-        // Check if result is ready
-        if (Cache::has($cacheKey)) {
-            $result = Cache::get($cacheKey);
-
-            Log::info('AI processing completed', [
-                'cache_key' => $cacheKey,
-                'success' => $result['success'] ?? false,
-            ]);
+        if ($cached['ready']) {
+            // Cache the response for similar future queries if not an error
+            if (!isset($cached['error'])) {
+                // We don't have the original query here, so skip caching for similar queries
+            }
 
             return response()->json([
-                'success' => true,
                 'ready' => true,
-                'processing' => false,
-                'message' => $result['text'] ?? 'Response ready',
-                'data' => $result
+                'message' => $cached['message'],
             ]);
         }
-
-        Log::warning('AI result not found', [
-            'cache_key' => $cacheKey,
-        ]);
 
         return response()->json([
-            'success' => false,
             'ready' => false,
-            'processing' => false,
-            'message' => 'No result found. Please try again.'
+            'message' => 'Still processing...',
         ]);
     }
 
     /**
-     * Quick insight - process immediately without queue
+     * Get suggested questions for a machine
      */
-    public function quickInsight(Request $request, Machine $machine)
+    public function getSuggestedQuestions(Machine $machine): JsonResponse
     {
-        $request->validate([
-            'question' => 'required|string|max:500',
+        $questions = $this->generateSuggestedQuestions($machine);
+
+        return response()->json([
+            'success' => true,
+            'questions' => $questions,
         ]);
+    }
 
-        try {
-            $machine->load(['logs' => function($query) {
-                $query->orderBy('logged_at', 'desc')->limit(20);
-            }]);
+    /**
+     * Generate context-aware suggested questions based on machine state
+     */
+    protected function generateSuggestedQuestions(Machine $machine): array
+    {
+        $questions = [];
 
-            $machineData = [
-                'name' => $machine->name,
-                'machine_code' => $machine->machine_code,
-                'type' => $machine->type,
-                'status' => $machine->status,
-                'location' => $machine->location,
-                'power_rating' => $machine->power_rating,
+        // Always include general health question
+        $questions[] = [
+            'icon' => '🔍',
+            'question' => 'What is the overall health status of this machine?',
+        ];
+
+        // Check for recent critical alerts
+        $criticalCount = $machine->logs()
+            ->where('severity', 'critical')
+            ->where('logged_at', '>=', now()->subWeek())
+            ->count();
+
+        if ($criticalCount > 0) {
+            $questions[] = [
+                'icon' => '🚨',
+                'question' => 'Analyze the recent critical alerts and suggest solutions',
             ];
-
-            $logsData = [
-                'total' => $machine->logs()->count(),
-                'critical' => $machine->logs()->where('severity', 'critical')->count(),
-                'errors' => $machine->logs()->where('severity', 'error')->count(),
-                'warnings' => $machine->logs()->where('severity', 'warning')->count(),
-                'today' => $machine->logs()->whereDate('logged_at', today())->count(),
-                'week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
-                'recent_logs' => $machine->logs->take(10)->map(function($log) {
-                    return [
-                        'severity' => $log->severity,
-                        'event' => $log->event,
-                        'logged_at' => $log->logged_at->format('Y-m-d H:i:s'),
-                        'temperature' => $log->temperature,
-                        'power_consumption' => $log->power_consumption,
-                    ];
-                })->toArray(),
-            ];
-
-            $prompt = $this->geminiService->buildAnalysisPrompt(
-                $machineData,
-                $logsData,
-                $request->question
-            );
-
-            $result = $this->geminiService->generateContent($prompt);
-
-            return response()->json([
-                'success' => $result['success'],
-                'message' => $result['text'],
-                'cached' => false
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to generate insight: ' . $e->getMessage()
-            ], 500);
         }
+
+        // Check maintenance status
+        if ($machine->next_maintenance_date) {
+            $daysUntil = now()->diffInDays($machine->next_maintenance_date, false);
+            if ($daysUntil < 0) {
+                $questions[] = [
+                    'icon' => '🔧',
+                    'question' => 'What maintenance tasks are overdue and what are the risks?',
+                ];
+            } elseif ($daysUntil <= 7) {
+                $questions[] = [
+                    'icon' => '📅',
+                    'question' => 'What should be checked in the upcoming maintenance?',
+                ];
+            }
+        }
+
+        // Add sensor-related questions based on available data
+        $recentLog = $machine->logs()->latest('logged_at')->first();
+
+        if ($recentLog) {
+            if ($recentLog->temperature !== null) {
+                $questions[] = [
+                    'icon' => '🌡️',
+                    'question' => 'Are there any temperature anomalies or trends?',
+                ];
+            }
+
+            if ($recentLog->power_consumption !== null) {
+                $questions[] = [
+                    'icon' => '⚡',
+                    'question' => 'Analyze power consumption patterns and efficiency',
+                ];
+            }
+
+            if ($recentLog->vibration_rms !== null) {
+                $questions[] = [
+                    'icon' => '📊',
+                    'question' => 'Are vibration levels within normal range?',
+                ];
+            }
+        }
+
+        // Add performance question
+        $questions[] = [
+            'icon' => '📈',
+            'question' => 'What optimizations can improve this machine\'s performance?',
+        ];
+
+        // Add risk assessment for critical machines
+        if ($machine->is_critical) {
+            $questions[] = [
+                'icon' => '⚠️',
+                'question' => 'What are the current risk factors for this critical system?',
+            ];
+        }
+
+        // Limit to 6 questions max
+        return array_slice($questions, 0, 6);
     }
 }
