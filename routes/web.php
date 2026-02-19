@@ -12,13 +12,14 @@ Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name
 
 // Building Routes
 Route::resource('buildings', App\Http\Controllers\BuildingController::class);
+Route::get('/buildings/{building}/delete', [App\Http\Controllers\BuildingController::class, 'confirmDelete'])->name('buildings.confirm-delete');
 
 //Route::get('/tenants', [App\Http\Controllers\TenantController::class, 'index'])->name('tenants.index');
 Route::get('/machines', [App\Http\Controllers\MachineController::class, 'index'])->name('machines.index');
 Route::get('/machines/{machine}', [App\Http\Controllers\MachineController::class, 'show'])->name('machines.show');
 Route::get('/work-orders', [App\Http\Controllers\WorkOrderController::class, 'index'])->name('work-orders.index');
 Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
-Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
+//Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
 Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
 Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'index'])->name('profile.index');
 Route::get('/users', [App\Http\Controllers\UserController::class, 'index'])->name('users.index');

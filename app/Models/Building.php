@@ -21,6 +21,17 @@ class Building extends Model
         'notes',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Delete related floors and machines when building is deleted
+        static::deleting(function ($building) {
+            $building->floors()->delete();
+            $building->machines()->delete();
+        });
+    }
+
     public function floors()
     {
         return $this->hasMany(Floor::class);

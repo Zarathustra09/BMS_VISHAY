@@ -129,10 +129,33 @@ class BuildingController extends Controller
             ->with('success', 'Building "' . $validated['name'] . '" updated successfully!');
     }
 
-    public function destroy($id)
+    public function confirmDelete($id)
+    {
+        $building = $this->buildingService->getBuildingById($id);
+        return view('buildings.delete', compact('building'));
+    }
+
+    public function destroy(Request $request, $id)
     {
         $building = $this->buildingService->getBuildingById($id);
         $buildingName = $building->name ?? 'Building';
+
+        // Validate confirmation input
+        $request->validate([
+            'confirmation_name' => [
+                'required',
+                'string',
+                function ($attribute, $value, $fail) use ($buildingName) {
+                    if (trim($value) !== $buildingName) {
+                        $fail('The building name does not match. Please type "' . $buildingName . '" exactly to confirm deletion.');
+                    }
+                },
+            ],
+        ]);
+
+        // Count related records before deletion
+        $floorCount = $building->floors?->count() ?? 0;
+        $machineCount = $building->machines?->count() ?? 0;
 
         // Delete image if exists
         if ($building->image && Storage::disk('public')->exists($building->image)) {
@@ -142,6 +165,6 @@ class BuildingController extends Controller
         $this->buildingService->deleteBuilding($id);
 
         return redirect()->route('buildings.index')
-            ->with('success', 'Building "' . $buildingName . '" deleted successfully!');
+            ->with('success', "Building \"$buildingName\" and its $floorCount floor(s) and $machineCount machine(s) have been permanently deleted.");
     }
 }

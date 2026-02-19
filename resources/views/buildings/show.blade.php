@@ -63,11 +63,9 @@
                                     <li><a>Maintenance Schedule</a></li>
                                     <div class="divider my-0"></div>
                                     <li>
-                                        <form action="{{ route('buildings.destroy', $building->id ?? 0) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this building?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="text-error w-full text-left">Delete Building</button>
-                                        </form>
+                                        <a href="{{ route('buildings.confirm-delete', $building->id ?? 0) }}" class="text-error">
+                                            Delete Building
+                                        </a>
                                     </li>
                                 </ul>
                             </div>
