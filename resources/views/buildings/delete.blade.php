@@ -214,7 +214,8 @@
                            id="confirmationInput"
                            placeholder="Type the building name exactly as shown above"
                            class="input input-bordered @error('confirmation_name') input-error @enderror"
-                           autocomplete="off" />
+                           autocomplete="off"
+                           required />
                     @error('confirmation_name')
                         <label class="label">
                             <span class="label-text-alt text-error">{{ $message }}</span>
@@ -230,19 +231,19 @@
                 <div class="space-y-3">
                     <div class="form-control">
                         <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge1" />
+                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge1" name="acknowledge1" required />
                             <span class="label-text">I understand that this action cannot be undone</span>
                         </label>
                     </div>
                     <div class="form-control">
                         <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge2" />
+                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge2" name="acknowledge2" required />
                             <span class="label-text">I acknowledge that all floors ({{ $building->floors?->count() ?? 0 }}) will be permanently deleted</span>
                         </label>
                     </div>
                     <div class="form-control">
                         <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge3" />
+                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge3" name="acknowledge3" required />
                             <span class="label-text">I acknowledge that all machines ({{ $building->machines?->count() ?? 0 }}) will be permanently deleted</span>
                         </label>
                     </div>
@@ -256,115 +257,15 @@
                         </svg>
                         Cancel & Go Back
                     </a>
-                    <button type="submit" class="btn btn-error gap-2" id="deleteButton">
+                    <button type="submit" class="btn btn-error gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
-                        <span class="loading loading-spinner loading-sm hidden" id="loadingSpinner"></span>
-                        <span id="buttonText">Permanently Delete Building</span>
+                        Permanently Delete Building
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Real-time validation
-    const buildingName = {!! json_encode($building->name ?? '') !!};
-    const confirmationInput = document.getElementById('confirmationInput');
-    const deleteButton = document.getElementById('deleteButton');
-    const acknowledge1 = document.getElementById('acknowledge1');
-    const acknowledge2 = document.getElementById('acknowledge2');
-    const acknowledge3 = document.getElementById('acknowledge3');
-    const deleteForm = document.getElementById('deleteForm');
-    const buttonText = document.getElementById('buttonText');
-    const loadingSpinner = document.getElementById('loadingSpinner');
-
-    console.log('Building name to match:', buildingName);
-
-    // Set initial state
-    deleteButton.disabled = true;
-
-    function validateForm() {
-        const inputValue = confirmationInput.value;
-        const nameMatches = inputValue === buildingName;
-        const allChecked = acknowledge1.checked && acknowledge2.checked && acknowledge3.checked;
-
-        console.log('Input value:', inputValue);
-        console.log('Building name:', buildingName);
-        console.log('Name matches:', nameMatches);
-        console.log('Checkbox 1:', acknowledge1.checked);
-        console.log('Checkbox 2:', acknowledge2.checked);
-        console.log('Checkbox 3:', acknowledge3.checked);
-        console.log('All checked:', allChecked);
-        console.log('Should enable:', nameMatches && allChecked);
-
-        // Enable or disable button
-        if (nameMatches && allChecked) {
-            deleteButton.disabled = false;
-            deleteButton.classList.remove('btn-disabled');
-        } else {
-            deleteButton.disabled = true;
-            deleteButton.classList.add('btn-disabled');
-        }
-
-        // Visual feedback for input
-        if (inputValue.length > 0) {
-            if (nameMatches) {
-                confirmationInput.classList.remove('input-error');
-                confirmationInput.classList.add('input-success');
-            } else {
-                confirmationInput.classList.remove('input-success');
-                confirmationInput.classList.add('input-error');
-            }
-        } else {
-            confirmationInput.classList.remove('input-success', 'input-error');
-        }
-    }
-
-    // Add event listeners
-    confirmationInput.addEventListener('input', validateForm);
-    confirmationInput.addEventListener('paste', function() {
-        setTimeout(validateForm, 10);
-    });
-    acknowledge1.addEventListener('change', validateForm);
-    acknowledge2.addEventListener('change', validateForm);
-    acknowledge3.addEventListener('change', validateForm);
-
-    // Form submission
-    deleteForm.addEventListener('submit', function(e) {
-        const inputValue = confirmationInput.value;
-        const nameMatches = inputValue === buildingName;
-        const allChecked = acknowledge1.checked && acknowledge2.checked && acknowledge3.checked;
-
-        if (!nameMatches || !allChecked) {
-            e.preventDefault();
-            alert('Please confirm all requirements before deleting.');
-            return false;
-        }
-
-        buttonText.textContent = 'Deleting...';
-        loadingSpinner.classList.remove('hidden');
-        deleteButton.disabled = true;
-    });
-
-    // Prevent accidental navigation
-    let formModified = false;
-    confirmationInput.addEventListener('input', function() {
-        formModified = this.value.length > 0;
-    });
-
-    window.addEventListener('beforeunload', function(e) {
-        if (formModified && confirmationInput.value !== buildingName) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
-    });
-});
-</script>
-@endpush
 @endsection
-

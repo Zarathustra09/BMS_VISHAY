@@ -140,7 +140,6 @@ class BuildingController extends Controller
         $building = $this->buildingService->getBuildingById($id);
         $buildingName = $building->name ?? 'Building';
 
-        // Validate confirmation input
         $request->validate([
             'confirmation_name' => [
                 'required',
@@ -151,6 +150,16 @@ class BuildingController extends Controller
                     }
                 },
             ],
+            'acknowledge1' => ['required', 'accepted'],
+            'acknowledge2' => ['required', 'accepted'],
+            'acknowledge3' => ['required', 'accepted'],
+        ], [
+            'acknowledge1.required' => 'You must acknowledge that this action cannot be undone.',
+            'acknowledge1.accepted' => 'You must acknowledge that this action cannot be undone.',
+            'acknowledge2.required' => 'You must acknowledge that all floors will be deleted.',
+            'acknowledge2.accepted' => 'You must acknowledge that all floors will be deleted.',
+            'acknowledge3.required' => 'You must acknowledge that all machines will be deleted.',
+            'acknowledge3.accepted' => 'You must acknowledge that all machines will be deleted.',
         ]);
 
         // Count related records before deletion
