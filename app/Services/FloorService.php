@@ -3,15 +3,16 @@
 namespace App\Services;
 
 use App\Models\Floor;
+use App\Interfaces\FloorInterface;
 
-class FloorService
+class FloorService implements FloorInterface
 {
         /**
         * Get all floors for a building
         */
         public function getAllFloors($buildingId)
         {
-            return Floor::where('building_id', $buildingId)->with('machines')->get();
+            return Floor::where('building_id', $buildingId)->with('machines')->orderBy('floor_number')->get();
         }
 
         /**

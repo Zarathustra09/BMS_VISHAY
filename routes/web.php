@@ -14,6 +14,14 @@ Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name
 Route::resource('buildings', App\Http\Controllers\BuildingController::class);
 Route::get('/buildings/{building}/delete', [App\Http\Controllers\BuildingController::class, 'confirmDelete'])->name('buildings.confirm-delete');
 
+// Floor Routes
+Route::prefix('floors')->name('floors.')->group(function () {
+    Route::post('/', [App\Http\Controllers\FloorController::class, 'store'])->name('store');
+    Route::get('/{floor}', [App\Http\Controllers\FloorController::class, 'show'])->name('show');
+    Route::put('/{floor}', [App\Http\Controllers\FloorController::class, 'update'])->name('update');
+    Route::delete('/{floor}', [App\Http\Controllers\FloorController::class, 'destroy'])->name('destroy');
+});
+
 //Route::get('/tenants', [App\Http\Controllers\TenantController::class, 'index'])->name('tenants.index');
 Route::get('/machines', [App\Http\Controllers\MachineController::class, 'index'])->name('machines.index');
 Route::get('/machines/{machine}', [App\Http\Controllers\MachineController::class, 'show'])->name('machines.show');
