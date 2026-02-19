@@ -19,7 +19,7 @@ Route::get('/machines', [App\Http\Controllers\MachineController::class, 'index']
 Route::get('/machines/{machine}', [App\Http\Controllers\MachineController::class, 'show'])->name('machines.show');
 Route::get('/work-orders', [App\Http\Controllers\WorkOrderController::class, 'index'])->name('work-orders.index');
 Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
-//Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
+Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
 Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
 Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'index'])->name('profile.index');
 Route::get('/users', [App\Http\Controllers\UserController::class, 'index'])->name('users.index');
