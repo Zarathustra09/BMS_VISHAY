@@ -10,7 +10,9 @@ Auth::routes();
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
-Route::get('/buildings', [App\Http\Controllers\BuildingController::class, 'index'])->name('buildings.index');
+// Building Routes
+Route::resource('buildings', App\Http\Controllers\BuildingController::class);
+
 //Route::get('/tenants', [App\Http\Controllers\TenantController::class, 'index'])->name('tenants.index');
 Route::get('/machines', [App\Http\Controllers\MachineController::class, 'index'])->name('machines.index');
 Route::get('/machines/{machine}', [App\Http\Controllers\MachineController::class, 'show'])->name('machines.show');

@@ -47,7 +47,6 @@ return new class extends Migration
             $table->index(['type']);
             $table->index(['building_id']);
             $table->index(['floor_id']);
-            $table->index(['zone']);
             $table->index(['is_critical']);
             $table->index(['manufacturer']);
         });

@@ -17,7 +17,7 @@ class Building extends Model
         'state',
         'emergency_contact_name',
         'emergency_contact_phone',
-        'building_status',
+        'status',
         'notes',
     ];
 
