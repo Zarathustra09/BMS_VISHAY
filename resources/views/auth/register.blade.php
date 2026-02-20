@@ -1,219 +1,190 @@
 @extends('layouts.guest.app')
 
+@section('title', 'Create Account')
+
 @section('content')
-<div class="w-full max-w-6xl">
-    <div class="card bg-base-100 shadow-2xl border border-base-300/50 overflow-hidden backdrop-blur-sm">
-        <div class="grid lg:grid-cols-2">
-            <!-- Left Side - Branding -->
-            <div class="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-secondary/10 via-accent/5 to-primary/10 border-r border-base-300/50 relative overflow-hidden">
-                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDE0YzMuMzEgMCA2IDIuNjkgNiA2cy0yLjY5IDYtNiA2LTYtMi42OS02LTYgMi42OS02IDYtNnpNNiAzNGMzLjMxIDAgNiAyLjY5IDYgNnMtMi42OSA2LTYgNi02LTIuNjktNi02IDIuNjktNiA2LTZ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-50"></div>
+<div class="w-full max-w-5xl">
+    <div class="card bg-base-100 shadow-2xl border border-base-300/30 overflow-hidden rounded-2xl">
+        <div class="grid lg:grid-cols-5">
 
-                <div class="relative z-10">
-                    <div class="flex items-center gap-3 group cursor-pointer">
-                        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-secondary to-accent flex items-center justify-center shadow-lg group-hover:shadow-secondary/50 transition-all duration-300 group-hover:scale-110">
-                            <svg class="w-8 h-8 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="text-2xl font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">
-                                {{ config('app.name', 'Laravel') }}
-                            </div>
-                            <div class="text-sm opacity-70">Get started today</div>
-                        </div>
+            {{-- ── Left Panel (Branding) ──────────────────────────────────── --}}
+            <div class="hidden lg:flex lg:col-span-2 flex-col justify-between p-10 bg-base-content text-base-100 relative overflow-hidden">
+                {{-- Subtle grid pattern --}}
+                <div class="absolute inset-0 opacity-[0.04]"
+                     style="background-image: linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px); background-size: 32px 32px;">
+                </div>
+                {{-- Glowing orb --}}
+                <div class="absolute -top-24 -right-24 w-72 h-72 bg-primary/20 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="relative z-10 space-y-8">
+                    {{-- Logo + Wordmark --}}
+                    <div class="space-y-1">
+                        <img src="{{ asset('assets/images/logo-white.png') }}"
+                             alt="NextBuild BMS"
+                             class="h-9 w-auto object-contain"
+                             onerror="this.onerror=null;this.src='{{ asset('assets/images/logo-black.png') }}'">
+                        <p class="text-[10px] tracking-widest uppercase opacity-40 pl-0.5">Building Management System</p>
                     </div>
 
-                    <div class="mt-12 space-y-6">
-                        <div class="flex items-start gap-4 group">
-                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all">
-                                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <div class="font-semibold">Secure by Default</div>
-                                <div class="text-sm opacity-70">Your data is encrypted and protected</div>
-                            </div>
-                        </div>
-                        <div class="flex items-start gap-4 group">
-                            <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center group-hover:bg-secondary/20 transition-all">
-                                <svg class="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <div class="font-semibold">Quick Setup</div>
-                                <div class="text-sm opacity-70">Start in less than 2 minutes</div>
-                            </div>
-                        </div>
-                        <div class="flex items-start gap-4 group">
-                            <div class="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-all">
-                                <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <div class="font-semibold">Free to Start</div>
-                                <div class="text-sm opacity-70">No credit card required</div>
-                            </div>
-                        </div>
+                    {{-- Headline --}}
+                    <div class="space-y-2">
+                        <h2 class="text-3xl font-bold leading-snug tracking-tight">
+                            Built for<br>industry.
+                        </h2>
+                        <p class="text-sm opacity-60 leading-relaxed">
+                            Purpose-built for manufacturing companies and the semiconductor industry. Get your facility online in minutes.
+                        </p>
                     </div>
+
+                    {{-- Feature list --}}
+                    <ul class="space-y-4 text-sm">
+                        @foreach ([
+                            ['icon' => 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18',
+                              'label' => 'Multi-site facility oversight'],
+                            ['icon' => 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z',
+                              'label' => 'Real-time dashboards & reporting'],
+                            ['icon' => 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
+                              'label' => 'Role-based access & audit trail'],
+                        ] as $feature)
+                            <li class="flex items-center gap-3 opacity-80">
+                                <span class="flex-shrink-0 w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
+                                    <svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $feature['icon'] }}"></path>
+                                    </svg>
+                                </span>
+                                {{ $feature['label'] }}
+                            </li>
+                        @endforeach
+                    </ul>
                 </div>
 
+                {{-- Bottom badge --}}
                 <div class="relative z-10">
-                    <div class="alert alert-info">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <div class="inline-flex items-center gap-2 bg-base-100/10 backdrop-blur-sm border border-base-100/20 rounded-full px-4 py-2 text-xs opacity-70">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                         </svg>
-                        <span class="text-sm">Join thousands of satisfied users worldwide</span>
+                        Trusted across manufacturing facilities
                     </div>
                 </div>
             </div>
 
-            <!-- Right Side - Form -->
-            <div class="p-8 lg:p-12">
+            {{-- ── Right Panel (Form) ─────────────────────────────────────── --}}
+            <div class="lg:col-span-3 p-8 lg:p-12 flex flex-col justify-center">
+                {{-- Mobile logo --}}
+                <div class="lg:hidden mb-8 flex flex-col items-center gap-1">
+                    <img src="{{ asset('assets/images/logo-white.png') }}"
+                         alt="NextBuild BMS"
+                         class="h-8 w-auto object-contain"
+                         onerror="this.onerror=null;this.src='{{ asset('assets/images/logo-black.png') }}'">
+                    <span class="text-[10px] tracking-widest uppercase opacity-40">Building Management System</span>
+                </div>
+
                 <div class="mb-8">
-                    <h1 class="text-3xl font-bold tracking-tight">{{ __('Create Account') }}</h1>
-                    <p class="mt-2 text-sm opacity-70">Fill in your details to get started</p>
+                    <h1 class="text-2xl font-bold tracking-tight">Create your account</h1>
+                    <p class="mt-1.5 text-sm opacity-60">Fill in the details below to get started</p>
                 </div>
 
                 <form method="POST" action="{{ route('register') }}" class="space-y-5">
                     @csrf
 
-                    <!-- Name Input -->
-                    <div class="form-control">
-                        <label class="label" for="name">
-                            <span class="label-text font-medium">{{ __('Full Name') }}</span>
+                    {{-- Full Name --}}
+                    <div class="form-control gap-1.5">
+                        <label class="label py-0" for="name">
+                            <span class="label-text text-sm font-medium">Full name</span>
                         </label>
-                        <label class="input input-bordered flex items-center gap-2 @error('name') input-error @enderror focus-within:input-primary transition-all">
-                            <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <label class="input input-bordered flex items-center gap-2.5 @error('name') input-error @enderror">
+                            <svg class="w-4 h-4 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                             </svg>
-                            <input
-                                id="name"
-                                type="text"
-                                name="name"
-                                value="{{ old('name') }}"
-                                required
-                                autocomplete="name"
-                                autofocus
-                                class="grow"
-                                placeholder="John Doe"
-                            />
+                            <input id="name" type="text" name="name" value="{{ old('name') }}"
+                                   required autocomplete="name" autofocus class="grow text-sm"
+                                   placeholder="John Doe" />
                         </label>
                         @error('name')
-                            <label class="label">
-                                <span class="label-text-alt text-error">{{ $message }}</span>
-                            </label>
+                            <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <!-- Email Input -->
-                    <div class="form-control">
-                        <label class="label" for="email">
-                            <span class="label-text font-medium">{{ __('Email Address') }}</span>
+                    {{-- Email --}}
+                    <div class="form-control gap-1.5">
+                        <label class="label py-0" for="email">
+                            <span class="label-text text-sm font-medium">Email address</span>
                         </label>
-                        <label class="input input-bordered flex items-center gap-2 @error('email') input-error @enderror focus-within:input-primary transition-all">
-                            <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+                        <label class="input input-bordered flex items-center gap-2.5 @error('email') input-error @enderror">
+                            <svg class="w-4 h-4 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                             </svg>
-                            <input
-                                id="email"
-                                type="email"
-                                name="email"
-                                value="{{ old('email') }}"
-                                required
-                                autocomplete="email"
-                                class="grow"
-                                placeholder="you@example.com"
-                            />
+                            <input id="email" type="email" name="email" value="{{ old('email') }}"
+                                   required autocomplete="email" class="grow text-sm"
+                                   placeholder="you@company.com" />
                         </label>
                         @error('email')
-                            <label class="label">
-                                <span class="label-text-alt text-error">{{ $message }}</span>
-                            </label>
+                            <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <!-- Password Input -->
-                    <div class="form-control">
-                        <label class="label" for="password">
-                            <span class="label-text font-medium">{{ __('Password') }}</span>
+                    {{-- Password --}}
+                    <div class="form-control gap-1.5">
+                        <label class="label py-0" for="password">
+                            <span class="label-text text-sm font-medium">Password</span>
                         </label>
-                        <label class="input input-bordered flex items-center gap-2 @error('password') input-error @enderror focus-within:input-primary transition-all">
-                            <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <label class="input input-bordered flex items-center gap-2.5 @error('password') input-error @enderror">
+                            <svg class="w-4 h-4 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                             </svg>
-                            <input
-                                id="password"
-                                type="password"
-                                name="password"
-                                required
-                                autocomplete="new-password"
-                                class="grow"
-                                placeholder="••••••••"
-                            />
+                            <input id="password" type="password" name="password"
+                                   required autocomplete="new-password" class="grow text-sm"
+                                   placeholder="Min. 8 characters" />
                         </label>
                         @error('password')
-                            <label class="label">
-                                <span class="label-text-alt text-error">{{ $message }}</span>
-                            </label>
+                            <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <!-- Confirm Password Input -->
-                    <div class="form-control">
-                        <label class="label" for="password-confirm">
-                            <span class="label-text font-medium">{{ __('Confirm Password') }}</span>
+                    {{-- Confirm Password --}}
+                    <div class="form-control gap-1.5">
+                        <label class="label py-0" for="password-confirm">
+                            <span class="label-text text-sm font-medium">Confirm password</span>
                         </label>
-                        <label class="input input-bordered flex items-center gap-2 focus-within:input-primary transition-all">
-                            <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <label class="input input-bordered flex items-center gap-2.5">
+                            <svg class="w-4 h-4 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                             </svg>
-                            <input
-                                id="password-confirm"
-                                type="password"
-                                name="password_confirmation"
-                                required
-                                autocomplete="new-password"
-                                class="grow"
-                                placeholder="••••••••"
-                            />
+                            <input id="password-confirm" type="password" name="password_confirmation"
+                                   required autocomplete="new-password" class="grow text-sm"
+                                   placeholder="Repeat your password" />
                         </label>
                     </div>
 
-                    <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary w-full group shadow-lg hover:shadow-primary/50 transition-all">
-                        <span class="flex items-center gap-2">
-                            {{ __('Create Account') }}
-                            <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                            </svg>
-                        </span>
+                    {{-- Submit --}}
+                    <button type="submit" class="btn btn-primary w-full font-semibold shadow-lg shadow-primary/20">
+                        Create Account
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                        </svg>
                     </button>
 
-                    <!-- Terms -->
-                    <p class="text-xs text-center opacity-70">
-                        By creating an account, you agree to our
-                        <a href="#" class="link link-primary">Terms of Service</a>
+                    {{-- Terms --}}
+                    <p class="text-center text-xs opacity-50 leading-relaxed">
+                        By creating an account you agree to our
+                        <a href="#" class="text-primary hover:underline">Terms of Service</a>
                         and
-                        <a href="#" class="link link-primary">Privacy Policy</a>
+                        <a href="#" class="text-primary hover:underline">Privacy Policy</a>.
                     </p>
 
-                    <!-- Divider -->
+                    {{-- Login link --}}
                     @if (Route::has('login'))
-                        <div class="divider text-xs opacity-50">ALREADY REGISTERED?</div>
-
-                        <!-- Login Link -->
-                        <div class="text-center">
-                            <span class="text-sm opacity-70">Already have an account?</span>
-                            <a class="link link-primary link-hover ml-1 font-medium" href="{{ route('login') }}">
-                                {{ __('Sign in') }}
+                        <p class="text-center text-sm opacity-60 pt-1">
+                            Already have an account?
+                            <a href="{{ route('login') }}" class="text-primary font-medium hover:underline ml-1">
+                                Sign in
                             </a>
-                        </div>
+                        </p>
                     @endif
                 </form>
             </div>
+
         </div>
     </div>
 </div>
