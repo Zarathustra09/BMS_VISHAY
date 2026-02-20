@@ -48,18 +48,18 @@
             </div>
         </div>
         <div class="flex gap-2">
-            <button class="btn btn-outline gap-2">
+            <a href="{{ route('machines.edit', $machine) }}" class="btn btn-outline gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                 </svg>
                 Edit
-            </button>
-            <button class="btn btn-primary gap-2">
+            </a>
+            <a href="{{ route('machines.confirm-delete', $machine) }}" class="btn btn-error btn-outline gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
-                Schedule Maintenance
-            </button>
+                Delete
+            </a>
         </div>
     </div>
 
@@ -89,19 +89,23 @@
                     </div>
                     <div class="divider my-2"></div>
                     <div class="flex justify-between">
-                        <span class="opacity-70">Location:</span>
-                        <span class="font-medium">{{ $machine->location }}</span>
+                        <span class="opacity-70">Building:</span>
+                        <span class="font-medium">{{ $machine->building?->name ?? 'N/A' }}</span>
                     </div>
-                    @if($machine->zone)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Zone:</span>
-                            <span class="font-medium">{{ $machine->zone }}</span>
-                        </div>
-                    @endif
+                    <div class="flex justify-between">
+                        <span class="opacity-70">Floor:</span>
+                        <span class="font-medium">{{ $machine->floor?->name ?? 'N/A' }}</span>
+                    </div>
                     @if($machine->ip_address)
                         <div class="flex justify-between">
                             <span class="opacity-70">IP Address:</span>
                             <span class="font-medium font-mono text-xs">{{ $machine->ip_address }}</span>
+                        </div>
+                    @endif
+                    @if($machine->description)
+                        <div class="pt-2">
+                            <span class="opacity-70 block mb-1">Description:</span>
+                            <p class="text-sm">{{ $machine->description }}</p>
                         </div>
                     @endif
                 </div>
@@ -160,6 +164,27 @@
                             <span class="font-medium">{{ $machine->speed_m_s }} m/s</span>
                         </div>
                     @endif
+                    @if($machine->head_m)
+                        <div class="flex justify-between">
+                            <span class="opacity-70">Head:</span>
+                            <span class="font-medium">{{ $machine->head_m }} m</span>
+                        </div>
+                    @endif
+                    @if($machine->cells)
+                        <div class="flex justify-between">
+                            <span class="opacity-70">Cells:</span>
+                            <span class="font-medium">{{ $machine->cells }}</span>
+                        </div>
+                    @endif
+                    <div class="divider my-2"></div>
+                    <div class="flex justify-between">
+                        <span class="opacity-70">Autostart:</span>
+                        <span class="font-medium">{{ $machine->autostart ? 'Yes' : 'No' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="opacity-70">Makeup Valve:</span>
+                        <span class="font-medium">{{ $machine->makeup_valve ? 'Yes' : 'No' }}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -447,7 +472,12 @@
                     <div class="w-10 rounded-full bg-secondary">
                         <div class="w-full h-full flex items-center justify-center text-base-100">
                             <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3
+                                         m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547
+                                         A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531
+                                         c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
                         </div>
                     </div>
                 </div>
@@ -560,11 +590,11 @@ document.addEventListener('alpine:init', () => {
 
         async loadSuggestedQuestions() {
             try {
-                const response = await fetch('/api/ai/questions/{{ $machine->id }}');
+                // Fixed: /api -> /ai routes
+                const response = await fetch('{{ route('ai.questions', $machine) }}');
                 const data = await response.json();
                 if (data.success && data.questions) {
                     this.suggestedQuestions = data.questions;
-                    console.log('Loaded questions:', this.suggestedQuestions);
                 }
             } catch (error) {
                 console.error('Failed to load questions:', error);
@@ -604,7 +634,7 @@ document.addEventListener('alpine:init', () => {
             this.isTyping = true;
 
             try {
-                const response = await fetch('/api/ai/chat', {
+                const response = await fetch('{{ route('ai.chat') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -636,7 +666,7 @@ document.addEventListener('alpine:init', () => {
         startStatusCheck() {
             this.checkInterval = setInterval(async () => {
                 try {
-                    const response = await fetch('/api/ai/check-status', {
+                    const response = await fetch('{{ route('ai.check-status') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

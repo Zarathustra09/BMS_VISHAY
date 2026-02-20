@@ -19,6 +19,7 @@
 
     <!-- Alpine.js for reactive components -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    @stack('styles')
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -172,6 +173,7 @@
         </div>
     </div>
 
+    @stack('scripts')
     <script>
         // Hide skeleton loader and show actual content when page is fully loaded
         window.addEventListener('load', function() {

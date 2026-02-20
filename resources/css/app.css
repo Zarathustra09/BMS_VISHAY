@@ -6,9 +6,42 @@
 /* Removed Tailwind v4 CSS-first config directives (@source/@plugin) to avoid Vite/PostCSS import resolution issues. */
 /* If you need daisyUI, configure it in tailwind.config.js (plugin) instead of using @plugin here. */
 
-@plugin "daisyui" {
-    themes: forest --default, light, dark;
+
+@plugin "daisyui/theme" {
+    name: "forest";
+    default: false;
+    prefersdark: false;
+    color-scheme: "dark";
+    --color-base-100: oklch(14% 0 0);
+    --color-base-200: oklch(20% 0 0);
+    --color-base-300: oklch(26% 0 0);
+    --color-base-content: oklch(97% 0 0);
+    --color-primary: oklch(71% 0.202 349.761);
+    --color-primary-content: oklch(28% 0.109 3.907);
+    --color-secondary: oklch(74% 0.238 322.16);
+    --color-secondary-content: oklch(29% 0.136 325.661);
+    --color-accent: oklch(84% 0.238 128.85);
+    --color-accent-content: oklch(27% 0.072 132.109);
+    --color-neutral: oklch(37% 0 0);
+    --color-neutral-content: oklch(98% 0 0);
+    --color-info: oklch(54% 0.245 262.881);
+    --color-info-content: oklch(97% 0.014 254.604);
+    --color-success: oklch(62% 0.194 149.214);
+    --color-success-content: oklch(98% 0.018 155.826);
+    --color-warning: oklch(68% 0.162 75.834);
+    --color-warning-content: oklch(98% 0.026 102.212);
+    --color-error: oklch(57% 0.245 27.325);
+    --color-error-content: oklch(97% 0.013 17.38);
+    --radius-selector: 2rem;
+    --radius-field: 0rem;
+    --radius-box: 2rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
 }
+
 
 @layer base {
     body {

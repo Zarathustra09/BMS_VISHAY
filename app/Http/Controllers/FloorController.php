@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Floor;
 use Illuminate\Http\Request;
 use App\Services\FloorService;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +14,20 @@ class FloorController extends Controller
     public function __construct(FloorService $floorService)
     {
         $this->floorService = $floorService;
+    }
+
+    public function index(Request $request)
+    {
+        $floors = Floor::when($request->building_id, fn($q, $id) => $q->where('building_id', $id))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        if ($request->expectsJson()) {
+            return response()->json($floors);
+        }
+
+        // fallback if needed
+        return response()->json($floors);
     }
 
     /**
@@ -100,4 +115,5 @@ class FloorController extends Controller
             return response()->json(['error' => 'Failed to delete floor'], 500);
         }
     }
+
 }

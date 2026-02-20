@@ -21,12 +21,13 @@
             </h1>
             <p class="text-sm opacity-70 mt-2">Monitor and manage all manufacturing equipment</p>
         </div>
-        <button class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
+        {{-- Fixed: button -> link --}}
+        <a href="{{ route('machines.create') }}" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
             </svg>
             Add Machine
-        </button>
+        </a>
     </div>
 
     <!-- Stats Overview -->
@@ -107,11 +108,13 @@
                     @endforeach
                 </select>
 
-                <!-- Zone Filter -->
-                <select name="zone" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
-                    <option value="all" {{ request('zone', 'all') === 'all' ? 'selected' : '' }}>All Zones</option>
-                    @foreach($zones as $zone)
-                        <option value="{{ $zone }}" {{ request('zone') === $zone ? 'selected' : '' }}>{{ $zone }}</option>
+                <!-- Building Filter (replaces zone) -->
+                <select name="building_id" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
+                    <option value="all" {{ request('building_id', 'all') === 'all' ? 'selected' : '' }}>All Buildings</option>
+                    @foreach($buildings as $building)
+                        <option value="{{ $building->id }}" {{ request('building_id') == $building->id ? 'selected' : '' }}>
+                            {{ $building->name }}
+                        </option>
                     @endforeach
                 </select>
 
@@ -187,16 +190,16 @@
                                 <span class="opacity-70">Type</span>
                                 <span class="font-medium">{{ $machine->type }}</span>
                             </div>
+                            {{-- Fixed: Location -> Building/Floor --}}
                             <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Location</span>
-                                <span class="font-medium">{{ $machine->location }}</span>
+                                <span class="opacity-70">Building</span>
+                                <span class="font-medium">{{ $machine->building?->name ?? 'N/A' }}</span>
                             </div>
-                            @if($machine->zone)
-                                <div class="flex items-center justify-between text-sm">
-                                    <span class="opacity-70">Zone</span>
-                                    <span class="font-medium">{{ $machine->zone }}</span>
-                                </div>
-                            @endif
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="opacity-70">Floor</span>
+                                <span class="font-medium">{{ $machine->floor?->name ?? 'N/A' }}</span>
+                            </div>
+                            {{-- Removed: zone (not in model) --}}
                             <div class="flex items-center justify-between text-sm">
                                 <span class="opacity-70">Manufacturer</span>
                                 <span class="font-medium">{{ $machine->manufacturer ?? 'N/A' }}</span>
@@ -282,9 +285,9 @@
             @endforeach
         </div>
 
-        <!-- Pagination -->
+        <!-- Pagination (preserve filters) -->
         <div class="flex justify-center mt-8">
-            {{ $machines->links() }}
+            {{ $machines->appends(request()->query())->links() }}
         </div>
     @endif
 </div>

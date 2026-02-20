@@ -2,94 +2,128 @@
 
 namespace App\Http\Controllers;
 
+use App\Interfaces\MachineInterface;
+use App\Models\Building;
+use App\Models\Floor;
 use App\Models\Machine;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class MachineController extends Controller
 {
+    public function __construct(protected MachineInterface $machineService) {}
+
     public function index(Request $request)
     {
-        $query = Machine::with(['logs' => function($query) {
-            $query->latest('logged_at')->limit(1);
-        }]);
+        $filters   = $request->only(['search', 'status', 'type', 'building_id', 'floor_id']);
+        $machines  = $this->machineService->getAllPaginated($filters);
+        $stats     = $this->machineService->getStats();
+        $types     = $this->machineService->getDistinctTypes();
+        $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
-        // Search filter
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('machine_code', 'like', "%{$search}%")
-                  ->orWhere('model_number', 'like', "%{$search}%")
-                  ->orWhere('location', 'like', "%{$search}%");
-            });
-        }
+        return view('machines.index', compact('machines', 'stats', 'types', 'buildings'));
+    }
 
-        // Status filter
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
+    public function create()
+    {
+        $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
-        // Type filter
-        if ($request->filled('type') && $request->type !== 'all') {
-            $query->where('type', $request->type);
-        }
+        return view('machines.create', compact('buildings'));
+    }
 
-        // Zone filter
-        if ($request->filled('zone') && $request->zone !== 'all') {
-            $query->where('zone', $request->zone);
-        }
+    public function store(Request $request)
+    {
+        Log::info('Creating machine with data: ' . json_encode($request->all()));
+        $validated = $this->validateMachine($request);
 
-        $machines = $query->paginate(12);
+        $machine = $this->machineService->create($validated);
 
-        // Stats
-        $stats = [
-            'total' => Machine::count(),
-            'active' => Machine::where('status', 'active')->count(),
-            'maintenance' => Machine::where('status', 'maintenance')->count(),
-            'fault' => Machine::where('status', 'fault')->count(),
-            'inactive' => Machine::where('status', 'inactive')->count(),
-            'critical' => Machine::where('is_critical', true)->count(),
-        ];
-
-        // Get unique values for filters
-        $types = Machine::select('type')->distinct()->pluck('type');
-        $zones = Machine::select('zone')->distinct()->whereNotNull('zone')->pluck('zone');
-
-        return view('machines.index', compact('machines', 'stats', 'types', 'zones'));
+        return redirect()->route('machines.show', $machine)
+            ->with('success', 'Machine created successfully.');
     }
 
     public function show(Machine $machine)
     {
-        $machine->load(['logs' => function($query) {
-            $query->orderBy('logged_at', 'desc');
-        }]);
+        $machine->load(['building', 'floor']);
 
-        // Get logs with pagination
-        $logs = $machine->logs()->orderBy('logged_at', 'desc')->paginate(50);
-
-        // Log statistics
-        $logStats = [
-            'total' => $machine->logs()->count(),
-            'today' => $machine->logs()->whereDate('logged_at', today())->count(),
-            'week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
-            'critical' => $machine->logs()->where('severity', 'critical')->count(),
-            'errors' => $machine->logs()->where('severity', 'error')->count(),
-            'warnings' => $machine->logs()->where('severity', 'warning')->count(),
-        ];
-
-        // Recent critical/error logs
-        $recentAlerts = $machine->logs()
-            ->whereIn('severity', ['critical', 'error'])
-            ->orderBy('logged_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // Log type distribution
-        $logTypeDistribution = $machine->logs()
-            ->selectRaw('log_type, COUNT(*) as count')
-            ->groupBy('log_type')
-            ->pluck('count', 'log_type');
+        $logs                = $this->machineService->getLogsForMachine($machine);
+        $logStats            = $this->machineService->getLogStats($machine);
+        $recentAlerts        = $this->machineService->getRecentAlerts($machine);
+        $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
 
         return view('machines.show', compact('machine', 'logs', 'logStats', 'recentAlerts', 'logTypeDistribution'));
+    }
+
+    public function edit(Machine $machine)
+    {
+        $buildings = Building::select('id', 'name')->orderBy('name')->get();
+        $floors    = $machine->building_id
+            ? Floor::where('building_id', $machine->building_id)->get()
+            : collect();
+
+        return view('machines.edit', compact('machine', 'buildings', 'floors'));
+    }
+
+    public function update(Request $request, Machine $machine)
+    {
+        $validated = $this->validateMachine($request, $machine->id);
+
+        $this->machineService->update($machine, $validated);
+
+        return redirect()->route('machines.show', $machine)
+            ->with('success', 'Machine updated successfully.');
+    }
+
+    public function confirmDelete(Machine $machine)
+    {
+        return view('machines.delete', compact('machine'));
+    }
+
+    public function destroy(Machine $machine)
+    {
+        $this->machineService->delete($machine);
+
+        return redirect()->route('machines.index')
+            ->with('success', 'Machine deleted successfully.');
+    }
+
+    private function validateMachine(Request $request, ?int $ignoreId = null): array
+    {
+        $validated = $request->validate([
+            'name'                      => 'required|string|max:255',
+            'machine_code'              => 'required|string|max:100|unique:machines,machine_code' . ($ignoreId ? ",{$ignoreId}" : ''),
+            'type'                      => 'required|string|max:100',
+            'manufacturer'              => 'nullable|string|max:255',
+            'model_number'              => 'nullable|string|max:255',
+            'serial_number'             => 'nullable|string|max:255',
+            'building_id'               => 'nullable|exists:buildings,id',
+            'floor_id'                  => 'nullable|exists:floors,id',
+            'description'               => 'nullable|string',
+            'status'                    => 'required|in:active,inactive,maintenance,fault',
+            'power_rating'              => 'nullable|numeric|min:0',
+            'ip_address'                => 'nullable|string|max:255',
+            'installation_date'         => 'nullable|date',
+            'last_maintenance_date'     => 'nullable|date',
+            'next_maintenance_date'     => 'nullable|date',
+            'maintenance_interval_days' => 'nullable|integer|min:1',
+            'capacity_tons'             => 'nullable|numeric|min:0',
+            'spec_voltage'              => 'nullable|numeric|min:0',
+            'fuel'                      => 'nullable|string|max:255',
+            'autostart'                 => 'boolean',
+            'capacity_persons'          => 'nullable|integer|min:0',
+            'speed_m_s'                 => 'nullable|numeric|min:0',
+            'flow_lpm'                  => 'nullable|integer|min:0',
+            'head_m'                    => 'nullable|numeric|min:0',
+            'cells'                     => 'nullable|integer|min:0',
+            'makeup_valve'              => 'boolean',
+            'is_critical'               => 'boolean',
+        ]);
+
+        // Checkboxes default to false when unchecked
+        $validated['is_critical']  = $request->boolean('is_critical');
+        $validated['autostart']    = $request->boolean('autostart');
+        $validated['makeup_valve'] = $request->boolean('makeup_valve');
+
+        return $validated;
     }
 }

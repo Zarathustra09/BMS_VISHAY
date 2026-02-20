@@ -16,15 +16,17 @@ Route::get('/buildings/{building}/delete', [App\Http\Controllers\BuildingControl
 
 // Floor Routes
 Route::prefix('floors')->name('floors.')->group(function () {
+    Route::get('/', [App\Http\Controllers\FloorController::class, 'index'])->name('floors.index');
     Route::post('/', [App\Http\Controllers\FloorController::class, 'store'])->name('store');
     Route::get('/{floor}', [App\Http\Controllers\FloorController::class, 'show'])->name('show');
     Route::put('/{floor}', [App\Http\Controllers\FloorController::class, 'update'])->name('update');
     Route::delete('/{floor}', [App\Http\Controllers\FloorController::class, 'destroy'])->name('destroy');
 });
 
-//Route::get('/tenants', [App\Http\Controllers\TenantController::class, 'index'])->name('tenants.index');
-Route::get('/machines', [App\Http\Controllers\MachineController::class, 'index'])->name('machines.index');
-Route::get('/machines/{machine}', [App\Http\Controllers\MachineController::class, 'show'])->name('machines.show');
+// Machine Routes
+Route::resource('machines', App\Http\Controllers\MachineController::class);
+Route::get('/machines/{machine}/delete', [App\Http\Controllers\MachineController::class, 'confirmDelete'])->name('machines.confirm-delete');
+
 Route::get('/work-orders', [App\Http\Controllers\WorkOrderController::class, 'index'])->name('work-orders.index');
 Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
 Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
@@ -37,3 +39,5 @@ Route::get('/ai/questions/{machine}', [App\Http\Controllers\AIController::class,
 Route::post('/ai/chat', [App\Http\Controllers\AIController::class, 'chat'])->name('ai.chat');
 Route::post('/ai/check-status', [App\Http\Controllers\AIController::class, 'checkStatus'])->name('ai.check-status');
 Route::post('/ai/quick-insight/{machine}', [App\Http\Controllers\AIController::class, 'quickInsight'])->name('ai.quick-insight');
+
+
