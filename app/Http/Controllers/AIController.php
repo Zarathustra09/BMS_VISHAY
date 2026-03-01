@@ -108,6 +108,15 @@ class AIController extends Controller
     }
 
     /**
+     * Get insight questions for a machine (backward-compatible alias)
+     */
+    public function getInsightQuestions(Machine $machine): JsonResponse
+    {
+        // Delegate to existing method to keep behavior identical
+        return $this->getSuggestedQuestions($machine);
+    }
+
+    /**
      * Generate context-aware suggested questions based on machine state
      */
     protected function generateSuggestedQuestions(Machine $machine): array
