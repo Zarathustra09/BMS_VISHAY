@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\API\MachineLogController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,4 +14,8 @@ Route::prefix('ai')->middleware(['web'])->group(function () {
     Route::post('/chat', [AIController::class, 'chat'])->name('api.ai.chat');
     Route::post('/check-status', [AIController::class, 'checkStatus'])->name('api.ai.check-status');
     Route::get('/questions/{machine}', [AIController::class, 'getSuggestedQuestions'])->name('api.ai.questions');
+});
+
+Route::prefix('machine-logs')->group(function () {
+    Route::post('/', [MachineLogController::class, 'store'])->name('api.machine-logs.store');
 });
