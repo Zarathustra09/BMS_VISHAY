@@ -4,26 +4,14 @@ namespace App\Services;
 
 use App\Interfaces\MachineInterface;
 use App\Models\Machine;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class MachineService implements MachineInterface
 {
-    public function getAllPaginated(array $filters, int $perPage = 12): LengthAwarePaginator
+    public function getQueryForDataTable(array $filters): Builder
     {
-        $query = Machine::with(['building', 'floor', 'logs' => function ($q) {
-            $q->latest('logged_at')->limit(1);
-        }]);
-
-        if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('machine_code', 'like', "%{$search}%")
-                  ->orWhere('model_number', 'like', "%{$search}%")
-                  ->orWhere('serial_number', 'like', "%{$search}%");
-            });
-        }
+        $query = Machine::with(['building', 'floor']);
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
@@ -41,7 +29,7 @@ class MachineService implements MachineInterface
             $query->where('floor_id', $filters['floor_id']);
         }
 
-        return $query->paginate($perPage);
+        return $query;
     }
 
     public function getStats(): array
@@ -64,11 +52,6 @@ class MachineService implements MachineInterface
     public function findById(int $id): Machine
     {
         return Machine::with(['building', 'floor'])->findOrFail($id);
-    }
-
-    public function getLogsForMachine(Machine $machine, int $perPage = 50): LengthAwarePaginator
-    {
-        return $machine->logs()->orderBy('logged_at', 'desc')->paginate($perPage);
     }
 
     public function getLogStats(Machine $machine): array

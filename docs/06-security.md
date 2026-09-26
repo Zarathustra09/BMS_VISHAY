@@ -2,17 +2,17 @@
 
 ## Session authentication
 
-Standard Laravel UI session auth (`laravel/ui`, `Auth::routes()` in [routes/web.php](../routes/web.php)). Every route except `/`, `/login`, `/register`, and `/password/*` requires an authenticated session, enforced by wrapping the whole route group in `Route::middleware('auth')`.
+Standard Laravel UI session auth (`laravel/ui`, `Auth::routes(['register' => false])` in [routes/web.php](../routes/web.php)). Every route except `/`, `/login`, and `/password/*` requires an authenticated session, enforced by wrapping the whole route group in `Route::middleware('auth')`.
 
 `/` shows the login view to guests and redirects authenticated users straight to `home` — it never shows a "logged in as a guest" state.
 
-⚠ **Public registration is currently open** (`Auth::routes()` with default options). Phase 4 disables it (`Auth::routes(['register' => false])`) so accounts are only created by an admin from the Users page.
+Public registration is **disabled** (as of Phase 4) — there is no `/register` route. Accounts are created by an admin from the Users page (`users.create` permission). The login page's `@if (Route::has('register'))` check already handles this gracefully — the "Register" link simply doesn't render.
 
 ## CSRF
 
 Standard Laravel CSRF protection on all `web`-group routes. Two patterns are used in this codebase to attach the token:
 
-1. **Traditional forms** (buildings, machines, device-key generation): `@csrf` Blade directive inside the `<form>`.
+1. **Traditional forms** (buildings, machines, device-key generation, users, profile): `@csrf` Blade directive inside the `<form>`.
 2. **Fetch-based AJAX** (AI chat in [machines/show.blade.php](../resources/views/machines/show.blade.php)): reads the token from the `<meta name="csrf-token">` tag in the layout head and sends it as an `X-CSRF-TOKEN` header manually. Note: `resources/js/bootstrap.js` configures `axios` for cookie-based XSRF, but the AI chat code uses raw `fetch()`, not axios — if you add a new AJAX feature, either follow the existing manual-header pattern for consistency, or switch to axios and get CSRF handling for free.
 
 The sensor ingestion API (`/api/machine-logs`) is **not** in the `web` group and has no CSRF protection — it doesn't need it, because it isn't driven by a browser session; see below.
@@ -44,25 +44,76 @@ Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidat
 | Role | Intent |
 |---|---|
 | `admin` | Full access — gets every permission that exists (`syncPermissions(Permission::all())`) |
-| `manager` | Oversight role; currently gets `machines.view-device-key` |
-| `technician` | Field/hardware role; currently gets `machines.view-device-key` (technicians are the ones physically wiring up sensors) |
-| `viewer` | Read-only; no permissions currently assigned |
+| `manager` | Oversight of buildings/floors/machines (view/create/update, not delete); can view users but not manage accounts |
+| `technician` | Field/hardware role — views buildings/floors, views + updates machines, wires up sensors |
+| `viewer` | Read-only across buildings/floors/machines; no access to Users at all |
 
-The seeded test user (`test@example.com`) is assigned `admin`.
+The seeded test user (`test@example.com`) is assigned `admin`. More roles can be created from the Roles page — see below.
 
-### Permissions defined so far
+### Permissions — CRUD-granular, not one blanket "manage" per module
 
-| Permission | Gates | Granted to |
+Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `update`, or `delete` — deliberately **not** a single `{module}.manage` permission — so a role can, for example, view and update machines without being able to delete them. See `RolesAndPermissionsSeeder::run()` for how the set is generated (`$crudModules × $actions`).
+
+| Module | Permissions | Gates |
 |---|---|---|
-| `machines.view-device-key` | Viewing a machine's device API key (the persistent Show/Copy control) and generating/regenerating it (`POST /machines/{machine}/device-key`, route middleware `permission:machines.view-device-key`) | admin, manager, technician |
+| `buildings` | `.view`, `.create`, `.update`, `.delete` | Buildings CRUD routes/buttons |
+| `floors` | `.view`, `.create`, `.update`, `.delete` | Floors CRUD routes (JSON endpoints used by the machine forms) |
+| `machines` | `.view`, `.create`, `.update`, `.delete` | Machines CRUD routes/buttons |
+| `machines` (special) | `.view-device-key` | Viewing a machine's device API key (persistent Show/Copy control) and generating/regenerating it. Separate from the CRUD set on purpose — it's about hardware credential exposure, not record editing. |
+| `users` | `.view`, `.create`, `.update`, `.delete` | Users page: list, create accounts, edit/reassign role/reset password, delete accounts |
+| `roles` | `.view`, `.create`, `.update`, `.delete` | Roles page: list, create custom roles, edit a role's permissions, delete an unused role |
+| `permissions` (special) | `.view` | The read-only Permissions list page. No `.create`/`.update`/`.delete` — a permission does nothing until code checks it, so it can't be managed from the UI (see [02-architecture.md](02-architecture.md)) |
 
-More permissions (`buildings.manage`, `machines.manage`, `work-orders.manage`, `work-orders.update-status`, `alerts.acknowledge`, `reports.view`, `users.manage`, `settings.manage`) are planned for Phase 4 as each module gets real CRUD gating.
+### Role → permission matrix
+
+| Permission | admin | manager | technician | viewer |
+|---|:---:|:---:|:---:|:---:|
+| `buildings.view` | ✅ | ✅ | ✅ | ✅ |
+| `buildings.create` | ✅ | ✅ | – | – |
+| `buildings.update` | ✅ | ✅ | – | – |
+| `buildings.delete` | ✅ | – | – | – |
+| `floors.view` | ✅ | ✅ | ✅ | ✅ |
+| `floors.create` | ✅ | ✅ | – | – |
+| `floors.update` | ✅ | ✅ | – | – |
+| `floors.delete` | ✅ | – | – | – |
+| `machines.view` | ✅ | ✅ | ✅ | ✅ |
+| `machines.create` | ✅ | ✅ | – | – |
+| `machines.update` | ✅ | ✅ | ✅ | – |
+| `machines.delete` | ✅ | – | – | – |
+| `machines.view-device-key` | ✅ | ✅ | ✅ | – |
+| `users.view` | ✅ | ✅ | – | – |
+| `users.create` | ✅ | – | – | – |
+| `users.update` | ✅ | – | – | – |
+| `users.delete` | ✅ | – | – | – |
+| `roles.view` | ✅ | ✅ | – | – |
+| `roles.create` | ✅ | – | – | – |
+| `roles.update` | ✅ | – | – | – |
+| `roles.delete` | ✅ | – | – | – |
+| `permissions.view` | ✅ | ✅ | – | – |
+
+Deletion of any kind is deliberately admin-only across every module — it's the one action with no undo (none of these tables use `SoftDeletes` except `machines`), so it isn't delegated to manager/technician even though they can create/update. This table itself is generated by hand from `RolesAndPermissionsSeeder`; if you change the seeder, update this table in the same commit.
+
+### Roles are fully manageable from the UI; permissions are read-only
+
+Admins can create custom roles and edit any non-`admin` role's permissions from the **Roles** page (`roles.index`/`create`/`edit`/`show`, plus a confirm-delete page) using a checkbox matrix (`resources/views/roles/_permission-matrix.blade.php` — rows are modules, columns are the four CRUD actions, a fifth column holds non-CRUD extras like `machines.view-device-key`). The **Permissions** page (`permissions.index`) is read-only: it lists every permission and which roles hold it, but there's no add/edit/delete, because a brand-new permission wouldn't gate anything until a developer adds the corresponding `permission:` middleware or `@can` check somewhere — see [02-architecture.md](02-architecture.md) for the "adding a new module" checklist, which is how a permission actually becomes meaningful.
+
+`RoleService` (bound from `RoleInterface`) enforces protection rules that hold regardless of what the UI allows, throwing `App\Exceptions\RoleActionException` (caught by `RoleController`, turned into a flashed error):
+
+| Rule | Why |
+|---|---|
+| The `admin` role can't be renamed, deleted, or edited at all | It's the one role guaranteed to have every permission; editing it is how you'd accidentally lock everyone out |
+| A role can't be deleted while any user still holds it | Forces an explicit reassignment step instead of silently leaving users with no role |
+| You can't edit a role you hold to remove its own `roles.update` permission | Otherwise an admin editing their own custom role could lock themselves out of role management with no one left who can undo it |
+
+Every write in `RoleService` calls `PermissionRegistrar::forgetCachedPermissions()` so permission changes take effect immediately, without waiting for Spatie's permission cache to expire or requiring affected users to log out and back in.
+
+A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on create/update, enforced by the single role `<select>` on the Users forms) — Spatie itself supports multiple roles per user, but roles here are meant as mutually exclusive tiers rather than composable capabilities, so the UI doesn't expose multi-select even now that custom roles can be created.
 
 ### How to add a new permission
 
-1. Add the permission name to the `$permissions` array in `RolesAndPermissionsSeeder::run()`, and call `->givePermissionTo()` on whichever roles should have it.
-2. Re-run the seeder: `php artisan db:seed --class=RolesAndPermissionsSeeder` (safe to re-run — everything uses `firstOrCreate`).
-3. Gate a route: `->middleware('permission:your.permission')`.
+1. Add the permission name to the `$permissions` array in `RolesAndPermissionsSeeder::run()` (or extend `$crudModules` if it's a new module's full CRUD set), and add it to the appropriate roles' `syncPermissions()` calls. This is still done in the seeder, not the UI — see above for why.
+2. Re-run the seeder: `php artisan db:seed --class=RolesAndPermissionsSeeder` (safe to re-run — everything uses `firstOrCreate`, and role permission sets are fully re-synced each run). It will also immediately show up on the Roles page's permission matrix and the Permissions list — no code change needed there, since both read from `Permission::all()`/`getGrouped()`.
+3. Gate a route: in the controller's constructor, `$this->middleware('permission:your.permission')->only(['action1', 'action2'])` (see `BuildingController`/`MachineController`/`UserController`/`RoleController` for the pattern) — or directly on the route definition for a one-off action like `machines.device-key.generate`.
 4. Gate a Blade section: `@can('your.permission') ... @endcan`.
 5. Gate a check in PHP: `auth()->user()->can('your.permission')`.
 

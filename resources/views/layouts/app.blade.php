@@ -70,15 +70,6 @@
                             </a>
                         </li>
 
-                        <li>
-                            <a href="{{ route('users.index') }}" class="gap-3 {{ request()->is('users*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}" title="User Management — Roles & Permissions">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                </svg>
-                                Users
-                            </a>
-                        </li>
-
                       <li>
                             <a href="{{ route('machines.index') }}" class="gap-3 {{ request()->is('machines*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,6 +88,43 @@
                                 Work Orders
                             </a>
                         </li>
+
+                        @canany(['users.view', 'roles.view', 'permissions.view'])
+                        <div class="divider text-xs opacity-50 my-2">ACCESS CONTROL</div>
+
+                        @can('users.view')
+                        <li>
+                            <a href="{{ route('users.index') }}" class="gap-3 {{ request()->is('users*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                                Users
+                            </a>
+                        </li>
+                        @endcan
+
+                        @can('roles.view')
+                        <li>
+                            <a href="{{ route('roles.index') }}" class="gap-3 {{ request()->is('roles*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                </svg>
+                                Roles
+                            </a>
+                        </li>
+                        @endcan
+
+                        @can('permissions.view')
+                        <li>
+                            <a href="{{ route('permissions.index') }}" class="gap-3 {{ request()->is('permissions*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                                </svg>
+                                Permissions
+                            </a>
+                        </li>
+                        @endcan
+                        @endcanany
 
                         <div class="divider text-xs opacity-50 my-2">SERVICES</div>
 

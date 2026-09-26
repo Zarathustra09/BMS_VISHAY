@@ -4,16 +4,37 @@ namespace App\Services;
 
 use App\Interfaces\BuildingInterface;
 use App\Models\Building;
-use Illuminate\Database\Eloquent\Collection;
+use App\Models\Floor;
+use App\Models\Machine;
+use Illuminate\Database\Eloquent\Builder;
 
 class BuildingService implements BuildingInterface
 {
-    /**
-     * Get all buildings
-     */
-    public function getAllBuildings(): Collection
+    public function getQueryForDataTable(array $filters = []): Builder
     {
-        return Building::with(['floors', 'machines'])->get();
+        $query = Building::withCount(['floors', 'machines']);
+
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            $query->where('status', $filters['status']);
+        }
+
+        if (!empty($filters['type']) && $filters['type'] !== 'all') {
+            $query->where('type', $filters['type']);
+        }
+
+        return $query;
+    }
+
+    public function getStats(): array
+    {
+        return [
+            'total'       => Building::count(),
+            'operational' => Building::where('status', 'Operational')->count(),
+            // Matches the old collection-sum behaviour: only machines actually
+            // assigned to a building (building_id is nullable on machines).
+            'machines'    => Machine::whereNotNull('building_id')->count(),
+            'floors'      => Floor::count(),
+        ];
     }
 
     /**

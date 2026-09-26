@@ -9,7 +9,13 @@ use Illuminate\Support\Facades\Validator;
 
 class FloorController extends Controller
 {
-    public function __construct(protected FloorInterface $floorService) {}
+    public function __construct(protected FloorInterface $floorService)
+    {
+        $this->middleware('permission:floors.view')->only(['index', 'show']);
+        $this->middleware('permission:floors.create')->only(['store']);
+        $this->middleware('permission:floors.update')->only(['update']);
+        $this->middleware('permission:floors.delete')->only(['destroy']);
+    }
 
     public function index(Request $request)
     {

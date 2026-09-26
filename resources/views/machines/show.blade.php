@@ -61,18 +61,22 @@
             </div>
         </div>
         <div class="flex gap-2">
+            @can('machines.update')
             <a href="{{ route('machines.edit', $machine) }}" class="btn btn-outline gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                 </svg>
                 Edit
             </a>
+            @endcan
+            @can('machines.delete')
             <a href="{{ route('machines.confirm-delete', $machine) }}" class="btn btn-error btn-outline gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
                 Delete
             </a>
+            @endcan
         </div>
     </div>
 
@@ -383,92 +387,83 @@
                 Machine Logs
             </h2>
 
-            @if($logs->isEmpty())
-                <div class="alert alert-info">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span>No logs available for this machine.</span>
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="table table-zebra">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Type</th>
-                                <th>Event</th>
-                                <th>Severity</th>
-                                <th>Sensors</th>
-                                <th>Performed By</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($logs as $log)
-                                @php
-                                    $severityConfig = [
-                                        'info' => ['color' => 'info', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
-                                        'warning' => ['color' => 'warning', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
-                                        'error' => ['color' => 'error', 'icon' => 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z'],
-                                        'critical' => ['color' => 'error', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
-                                    ];
-                                    $sevConfig = $severityConfig[$log->severity] ?? $severityConfig['info'];
-                                @endphp
-                                <tr class="hover">
-                                    <td>
-                                        <div class="text-sm">{{ $log->logged_at->format('M d, Y') }}</div>
-                                        <div class="text-xs opacity-70">{{ $log->logged_at->format('H:i:s') }}</div>
-                                    </td>
-                                    <td>
-                                        <div class="badge badge-outline badge-sm">{{ str_replace('_', ' ', ucfirst($log->log_type)) }}</div>
-                                    </td>
-                                    <td>
-                                        <div class="text-sm">{{ $log->event }}</div>
-                                        @if($log->notes)
-                                            <div class="text-xs opacity-70 truncate max-w-xs">{{ $log->notes }}</div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div class="badge badge-{{ $sevConfig['color'] }} gap-2">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $sevConfig['icon'] }}"></path>
-                                            </svg>
-                                            {{ ucfirst($log->severity) }}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="text-xs space-y-1">
-                                            @if($log->temperature)
-                                                <div>🌡️ {{ $log->temperature }}°C</div>
-                                            @endif
-                                            @if($log->power_consumption)
-                                                <div>⚡ {{ $log->power_consumption }} kW</div>
-                                            @endif
-                                            @if($log->vibration_rms)
-                                                <div>📊 {{ $log->vibration_rms }} RMS</div>
-                                            @endif
-                                            @if($log->pressure)
-                                                <div>💨 {{ $log->pressure }} bar</div>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="text-sm">{{ $log->performed_by ?? 'System' }}</div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+            <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                <select id="severityFilter" class="select select-bordered select-sm w-full sm:w-40">
+                    <option value="">All Severities</option>
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                    <option value="critical">Critical</option>
+                </select>
 
-                <!-- Pagination -->
-                <div class="flex justify-center mt-6">
-                    {{ $logs->links() }}
-                </div>
-            @endif
+                <select id="logTypeFilter" class="select select-bordered select-sm w-full sm:w-48">
+                    <option value="">All Types</option>
+                    <option value="status_change">Status Change</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="alarm">Alarm</option>
+                    <option value="sensor_reading">Sensor Reading</option>
+                    <option value="operation">Operation</option>
+                    <option value="error">Error</option>
+                </select>
+
+                <input type="date" id="dateFromFilter" class="input input-bordered input-sm w-full sm:w-40" title="From date">
+                <input type="date" id="dateToFilter" class="input input-bordered input-sm w-full sm:w-40" title="To date">
+            </div>
+
+            <div class="overflow-x-auto">
+                <table id="machineLogsTable" class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Type</th>
+                            <th>Event</th>
+                            <th>Severity</th>
+                            <th>Sensors</th>
+                            <th>Performed By</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
         </div>
     </div>
 </div>
+
+@include('partials._datatables-assets')
+
+@push('scripts')
+<script>
+    $(function () {
+        var logsTable = $('#machineLogsTable').DataTable({
+            processing: true,
+            serverSide: true,
+            autoWidth: false,
+            pageLength: 25,
+            order: [[0, 'desc']],
+            ajax: {
+                url: '{{ route('machines.logs.data', $machine) }}',
+                data: function (d) {
+                    d.severity = $('#severityFilter').val();
+                    d.log_type = $('#logTypeFilter').val();
+                    d.date_from = $('#dateFromFilter').val();
+                    d.date_to = $('#dateToFilter').val();
+                }
+            },
+            columns: [
+                {data: 'logged_at', name: 'logged_at'},
+                {data: 'log_type', name: 'log_type'},
+                {data: 'event', name: 'event'},
+                {data: 'severity', name: 'severity'},
+                {data: 'sensors', name: 'sensors', orderable: false, searchable: false},
+                {data: 'performed_by', name: 'performed_by'},
+            ],
+        });
+
+        $('#severityFilter, #logTypeFilter, #dateFromFilter, #dateToFilter').on('change', function () {
+            logsTable.draw();
+        });
+    });
+</script>
+@endpush
 
 <!-- Floating Chat Widget -->
 <div class="fixed bottom-6 right-6 z-50" x-data="chatWidget()" x-cloak>

@@ -45,12 +45,14 @@
 
                         <!-- Action Buttons -->
                         <div class="flex gap-2">
+                            @can('buildings.update')
                             <a href="{{ route('buildings.edit', $building->id ?? 0) }}" class="btn btn-primary gap-2">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                 </svg>
                                 Edit
                             </a>
+                            @endcan
                             <div class="dropdown dropdown-end">
                                 <div tabindex="0" role="button" class="btn btn-ghost btn-square">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,12 +63,14 @@
                                     <li><a>Export Report</a></li>
                                     <li><a>View Analytics</a></li>
                                     <li><a>Maintenance Schedule</a></li>
+                                    @can('buildings.delete')
                                     <div class="divider my-0"></div>
                                     <li>
                                         <a href="{{ route('buildings.confirm-delete', $building->id ?? 0) }}" class="text-error">
                                             Delete Building
                                         </a>
                                     </li>
+                                    @endcan
                                 </ul>
                             </div>
                         </div>

@@ -142,6 +142,9 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `MachineLogInterface` | `MachineLogService` | `API\MachineLogController` |
 | `SuggestedQuestionInterface` | `SuggestedQuestionService` | `AIController` |
 | `AIInterface` | `OpenAIService` **or** `GeminiService`, chosen at resolve time by `config('services.ai.provider')` (env `AI_PROVIDER`) | `ProcessMachineAIInsight` job |
+| `UserInterface` | `UserService` | `UserController` |
+| `RoleInterface` | `RoleService` | `RoleController` |
+| `PermissionInterface` | `PermissionService` | `RoleController`, `PermissionController` |
 
 `AIInterface`'s binding is a closure, not a plain class-string, because it's the one case in this app where the implementation is chosen at runtime:
 
@@ -156,6 +159,67 @@ $this->app->bind(AIInterface::class, function ($app) {
 
 Both `OpenAIService` and `GeminiService` share prompt-building logic via the `App\Services\Concerns\BuildsMachineContext` trait, so switching providers doesn't change what context the AI sees — only how the request is sent and parsed.
 
+## Permission gating lives on the controller, not the route
+
+As of Phase 4, CRUD controllers (`BuildingController`, `FloorController`, `MachineController`, `UserController`) gate their actions by registering middleware in the constructor rather than splitting `Route::resource()` into individual route definitions:
+
+```php
+public function __construct(protected MachineInterface $machineService)
+{
+    $this->middleware('permission:machines.view')->only(['index', 'show']);
+    $this->middleware('permission:machines.create')->only(['create', 'store']);
+    $this->middleware('permission:machines.update')->only(['edit', 'update']);
+    $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
+}
+```
+
+This works because this app's base `Controller` (`Illuminate\Routing\Controller`) still supports the classic `$this->middleware()` registration — Laravel's router checks for a `getMiddleware()` method on the controller and merges it in (`Route::controllerMiddleware()`). It keeps `Route::resource('machines', MachineController::class)` as a single line in `routes/web.php` while still gating each action individually. The one exception is a non-resource action like `machines.device-key.generate`, which gets its permission middleware directly on the route definition instead, since it isn't part of the constructor's action groups.
+
+See [06-security.md](06-security.md) for the full permission list and the role → permission matrix.
+
+## Business-rule violations: services throw, controllers catch
+
+`RoleService` enforces rules that aren't simple validation (a role can't be deleted while users hold it, the `admin` role can't be modified, an admin can't strip their own role-management permission) by throwing `App\Exceptions\RoleActionException` rather than returning a boolean or null. This keeps the rule itself — and its message — in one place in the service, instead of the controller having to re-check conditions the service already knows about:
+
+```php
+// RoleService
+if ($userCount > 0) {
+    throw new RoleActionException("Cannot delete \"{$role->name}\" — {$userCount} user(s) still have this role...");
+}
+
+// RoleController
+try {
+    $this->roles->delete($role);
+} catch (RoleActionException $e) {
+    return redirect()->route('roles.index')->with('error', $e->getMessage());
+}
+```
+
+Use this pattern — a small exception class under `app/Exceptions/`, named after the domain rule it protects (not `ValidationException`, which is for request-shape validation, not business rules) — whenever a service needs to refuse an otherwise well-formed request for a reason the controller shouldn't have to know in advance.
+
+## List pages: server-side DataTables, with the layering intact
+
+As of Phase 4c, every list page whose row count can grow past a screenful is a server-side [Yajra DataTable](https://yajrabox.com/docs/laravel-datatables) rather than a Laravel paginator or an unbounded `->get()`. `yajra/laravel-datatables` was already in `composer.json` before this — it's the server-side PHP half only (it builds the JSON response DataTables' JS expects); it ships no browser assets. jQuery + the DataTables JS/CSS come from CDN via a shared partial, [`resources/views/partials/_datatables-assets.blade.php`](../resources/views/partials/_datatables-assets.blade.php), included only on pages with a table.
+
+**The pattern keeps each layer's job the same as everywhere else in the app:**
+
+| Layer | Responsibility |
+|---|---|
+| Service (`app/Services`) | A `getQueryForDataTable(array $filters): Builder` method — decides which columns, joins and filters apply. Returns a query **Builder**, never a `JsonResponse` — services still don't know about HTTP, matching the rule in the layer-responsibilities table above. |
+| `app/DataTables/*DataTable` class | Yajra's `Services\DataTable`. `query()` calls the service's `getQueryForDataTable()`; `dataTable($query)` wires up column formatting (`addColumn`/`editColumn`/`rawColumns`) and any custom search override (`filter()`). Depends on the module's **interface**, like every other consumer in the registry table. `html()` is left at its default (unused) — the `<table>` markup is hand-written Blade, not generated, so it matches the rest of the app's views. |
+| Controller | One line: `public function data(MachinesDataTable $dataTable) { return $dataTable->ajax(); }`. The `/data` route carries the same `permission:` middleware as the page's `index`/`show` route. |
+| View | A bare `<table id="...">` with just a `<thead>` (no `<tbody>` rows — those come from ajax), plus a small inline `$(...).DataTable({...})` script setting `serverSide: true`, `ajax: {url, data: function(d) {...}}` for any filter dropdowns, and `autoWidth: false` (see the gotcha below). |
+
+Action-button cells (View/Edit/Delete) render through a small Blade partial (e.g. [`buildings/_datatable-actions.blade.php`](../resources/views/buildings/_datatable-actions.blade.php)) called from an `addColumn()` closure, so `@can` gating still applies per row exactly as it does on a normal page — verified by hitting the `/data` endpoint as different roles and confirming the returned HTML omits buttons the role can't use.
+
+**Two layout-specific gotchas**, both handled once in the shared assets partial rather than per page:
+1. The main layout hides `#actual-content` (`display:none`) and reveals it ~300ms after `window.load` (see [08-frontend.md](08-frontend.md)). A table initialised while hidden measures zero-width columns — every table sets `autoWidth: false`, and the assets partial re-runs `columns.adjust()` on all visible tables ~400ms after load as a safety net.
+2. The Tailwind v4 **browser** CDN compiler generates utility classes by scanning the DOM present at page load. DOM that DataTables injects afterward (its pager, length select, search box) won't reliably get Tailwind classes generated for it, so the assets partial uses DataTables' own stylesheet plus a small CSS override block to blend it with the DaisyUI `forest` theme, instead of trying to style DataTables' own markup with Tailwind utility classes.
+
+**Server-side vs. client-side** — not every table needs an ajax endpoint. `roles/show`'s "users with this role" table and `permissions/index` are rendered fully server-side in the initial page load (small, fixed-size data) and DataTables is initialised on them with no `ajax`/`serverSide` option at all — it just adds sort/search/paging on top of the rows already in the DOM. Reach for server-side only when the table's row count scales with real-world usage (buildings, machines, and especially `machine_logs`, which grows with every sensor reading).
+
+**What this replaced**: `BuildingService::getAllBuildings()` was an unbounded `Building::with(['floors','machines'])->get()`, and the controller summed the loaded collection in PHP for stat tiles; `MachineService::getAllPaginated()` and `getLogsForMachine()` used Laravel's paginator. All three were removed (not deprecated — nothing else called them) in favor of `getQueryForDataTable()` methods, and `BuildingService` gained a proper `getStats()` (count queries, mirroring `MachineService::getStats()`) instead of summing a loaded collection.
+
 ## Adding a new module
 
 Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a hypothetical `Widget` module as the example:
@@ -169,11 +233,11 @@ Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a
        public function machine(): BelongsTo { return $this->belongsTo(Machine::class); }
    }
    ```
-3. **Interface** — `app/Interfaces/WidgetInterface.php`. Every public method the controller needs, with real return types.
+3. **Interface** — `app/Interfaces/WidgetInterface.php`. Every public method the controller needs, with real return types. If the module has a list page, that method is `getQueryForDataTable()` (see the DataTables section above), not a paginator:
    ```php
    interface WidgetInterface
    {
-       public function getAllPaginated(array $filters): LengthAwarePaginator;
+       public function getQueryForDataTable(array $filters): Builder;
        public function create(array $data): Widget;
        public function update(Widget $widget, array $data): Widget;
        public function delete(Widget $widget): bool;
@@ -188,11 +252,12 @@ Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a
    ```php
    public function __construct(protected WidgetInterface $widgets) {}
    ```
-   Keep every method thin: validate → call the service → return a view/redirect/JSON.
-7. **Routes** — add to `routes/web.php` inside the `auth` group (and a `permission:` middleware if the action should be restricted — see [06-security.md](06-security.md)).
-8. **Views** — extend `layouts.app`, follow [08-frontend.md](08-frontend.md) conventions.
-9. **Permission** (if needed) — add to `RolesAndPermissionsSeeder` and assign to the appropriate roles.
-10. **Docs** — update `03-data-model.md` (new table), `04-routes.md` (new routes), `02-architecture.md` registry table (new interface row), `01-overview.md` module status, and add a `CHANGELOG.md` entry.
+   Keep every method thin: validate → call the service → return a view/redirect/JSON. The list-page action stays a one-liner: `public function data(WidgetsDataTable $dt) { return $dt->ajax(); }`.
+7. **DataTable class** (if the module has a list page) — `app/DataTables/WidgetsDataTable.php`, per the pattern above.
+8. **Routes** — add to `routes/web.php` inside the `auth` group (and a `permission:` middleware if the action should be restricted — see [06-security.md](06-security.md)). If there's a `WidgetController@data` route and also a `Route::resource('widgets', ...)`, register `/widgets/data` **before** the resource call — see the ordering comment in `routes/web.php`.
+9. **Views** — extend `layouts.app`, follow [08-frontend.md](08-frontend.md) conventions. List pages include `partials._datatables-assets` and render a bare `<table>` with no `<tbody>` rows.
+10. **Permission** (if needed) — add to `RolesAndPermissionsSeeder` and assign to the appropriate roles.
+11. **Docs** — update `03-data-model.md` (new table), `04-routes.md` (new routes), `02-architecture.md` registry table (new interface row), `01-overview.md` module status, and add a `CHANGELOG.md` entry.
 
 ## Anti-patterns (don't do this)
 
@@ -201,3 +266,4 @@ Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a
 - ❌ **Business logic in Blade.** A `@php` block that computes days-until-overdue, filters a collection, or sums values is a sign the controller should have computed it and passed a ready-to-render value.
 - ❌ **Skipping the interface "because it's simple."** Even a single-implementation module (like `MachineLogInterface`) gets an interface — consistency means nobody has to guess which modules follow the pattern.
 - ❌ **Leaving a new interface unbound.** `FloorInterface` existed for a while with no binding in `AppServiceProvider` — because `FloorController` happened to inject the concrete `FloorService` directly instead of the interface, nothing ever tried to resolve `FloorInterface` and the gap went unnoticed. If any code had type-hinted the interface, it would have failed with "target is not instantiable." Always add the `bind()` line in the same commit you create the interface.
+- ❌ **An unbounded `->get()` (or a Laravel paginator) backing a list view.** `BuildingService::getAllBuildings()` used to be exactly this — fine at a handful of buildings, but it would have degraded the same way `machine_logs` would if every sensor reading were loaded into memory to render a table. Any list page whose data grows with real usage gets a `getQueryForDataTable()` + server-side DataTable per the pattern above; a plain paginated `->get()` is only acceptable for genuinely small, fixed-size lists (see "server-side vs. client-side" in that section).

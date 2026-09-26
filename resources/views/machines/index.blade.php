@@ -21,13 +21,14 @@
             </h1>
             <p class="text-sm opacity-70 mt-2">Monitor and manage all manufacturing equipment</p>
         </div>
-        {{-- Fixed: button -> link --}}
+        @can('machines.create')
         <a href="{{ route('machines.create') }}" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
             </svg>
             Add Machine
         </a>
+        @endcan
     </div>
 
     <!-- Stats Overview -->
@@ -77,218 +78,88 @@
         </div>
     </div>
 
-    <!-- Filters and Actions -->
+    <!-- Table -->
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
-            <form method="GET" action="{{ route('machines.index') }}" class="flex flex-col lg:flex-row gap-4">
-                <!-- Search -->
-                <div class="form-control flex-1">
-                    <label class="input input-bordered flex items-center gap-2">
-                        <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        <input type="text" name="search" class="grow" placeholder="Search machines..." value="{{ request('search') }}" />
-                    </label>
-                </div>
-
-                <!-- Status Filter -->
-                <select name="status" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
-                    <option value="all" {{ request('status', 'all') === 'all' ? 'selected' : '' }}>All Status</option>
-                    <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                    <option value="maintenance" {{ request('status') === 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-                    <option value="fault" {{ request('status') === 'fault' ? 'selected' : '' }}>Fault</option>
-                    <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+            <div class="flex flex-col lg:flex-row gap-4 mb-4">
+                <select id="statusFilter" class="select select-bordered w-full lg:w-48">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="fault">Fault</option>
+                    <option value="inactive">Inactive</option>
                 </select>
 
-                <!-- Type Filter -->
-                <select name="type" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
-                    <option value="all" {{ request('type', 'all') === 'all' ? 'selected' : '' }}>All Types</option>
+                <select id="typeFilter" class="select select-bordered w-full lg:w-48">
+                    <option value="">All Types</option>
                     @foreach($types as $type)
-                        <option value="{{ $type }}" {{ request('type') === $type ? 'selected' : '' }}>{{ $type }}</option>
+                        <option value="{{ $type }}">{{ $type }}</option>
                     @endforeach
                 </select>
 
-                <!-- Building Filter (replaces zone) -->
-                <select name="building_id" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
-                    <option value="all" {{ request('building_id', 'all') === 'all' ? 'selected' : '' }}>All Buildings</option>
+                <select id="buildingFilter" class="select select-bordered w-full lg:w-48">
+                    <option value="">All Buildings</option>
                     @foreach($buildings as $building)
-                        <option value="{{ $building->id }}" {{ request('building_id') == $building->id ? 'selected' : '' }}>
-                            {{ $building->name }}
-                        </option>
+                        <option value="{{ $building->id }}">{{ $building->name }}</option>
                     @endforeach
                 </select>
+            </div>
 
-                <button type="submit" class="btn btn-primary">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-                    </svg>
-                    Filter
-                </button>
-            </form>
+            <div class="overflow-x-auto">
+                <table id="machinesTable" class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Machine</th>
+                            <th>Status</th>
+                            <th>Type</th>
+                            <th>Building</th>
+                            <th>Floor</th>
+                            <th>Manufacturer</th>
+                            <th>Next Maintenance</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
         </div>
     </div>
-
-    @if($machines->isEmpty())
-        <div class="alert alert-info shadow-lg">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span>No machines found. Try adjusting your filters or add a new machine.</span>
-        </div>
-    @else
-        <!-- Machines Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            @foreach($machines as $machine)
-                @php
-                    $statusConfig = [
-                        'active' => ['color' => 'success', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', 'emoji' => '✅'],
-                        'maintenance' => ['color' => 'warning', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', 'emoji' => '⚙️'],
-                        'fault' => ['color' => 'error', 'icon' => 'M6 18L18 6M6 6l12 12', 'emoji' => '⚠️'],
-                        'inactive' => ['color' => 'base-300', 'icon' => 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', 'emoji' => '⭕'],
-                    ];
-                    $config = $statusConfig[$machine->status] ?? $statusConfig['inactive'];
-                    $latestLog = $machine->logs->first();
-                @endphp
-
-                <div class="card bg-base-100 shadow-lg border border-base-300/50 hover:shadow-2xl transition-all group">
-                    <div class="card-body">
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="avatar placeholder">
-                                    <div class="bg-{{ $config['color'] }} text-{{ $config['color'] }}-content rounded-lg w-12">
-                                        <span class="text-xl">{{ $config['emoji'] }}</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 class="card-title text-lg">{{ $machine->name }}</h3>
-                                    <p class="text-sm opacity-70">{{ $machine->machine_code }}</p>
-                                </div>
-                            </div>
-                            @if($machine->is_critical)
-                                <div class="badge badge-error badge-sm gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                    </svg>
-                                    Critical
-                                </div>
-                            @endif
-                        </div>
-
-                        <div class="divider my-2"></div>
-
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Status</span>
-                                <div class="badge badge-{{ $config['color'] }} gap-1">
-                                    @if($machine->status === 'active')
-                                        <span class="w-2 h-2 bg-{{ $config['color'] }}-content rounded-full animate-pulse"></span>
-                                    @endif
-                                    {{ ucfirst($machine->status) }}
-                                </div>
-                            </div>
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Type</span>
-                                <span class="font-medium">{{ $machine->type }}</span>
-                            </div>
-                            {{-- Fixed: Location -> Building/Floor --}}
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Building</span>
-                                <span class="font-medium">{{ $machine->building?->name ?? 'N/A' }}</span>
-                            </div>
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Floor</span>
-                                <span class="font-medium">{{ $machine->floor?->name ?? 'N/A' }}</span>
-                            </div>
-                            {{-- Removed: zone (not in model) --}}
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="opacity-70">Manufacturer</span>
-                                <span class="font-medium">{{ $machine->manufacturer ?? 'N/A' }}</span>
-                            </div>
-                            @if($machine->power_rating)
-                                <div class="flex items-center justify-between text-sm">
-                                    <span class="opacity-70">Power Rating</span>
-                                    <span class="font-medium">{{ $machine->power_rating }} kW</span>
-                                </div>
-                            @endif
-                        </div>
-
-                        <div class="divider my-2"></div>
-
-                        <!-- Latest Sensor Reading -->
-                        @if($latestLog)
-                            <div class="bg-base-200 rounded-lg p-3 space-y-1">
-                                <div class="text-xs opacity-70 mb-2">Latest Reading ({{ $latestLog->logged_at->diffForHumans() }})</div>
-                                <div class="grid grid-cols-2 gap-2 text-xs">
-                                    @if($latestLog->temperature)
-                                        <div class="flex justify-between">
-                                            <span class="opacity-70">Temp:</span>
-                                            <span class="font-medium">{{ $latestLog->temperature }}°C</span>
-                                        </div>
-                                    @endif
-                                    @if($latestLog->power_consumption)
-                                        <div class="flex justify-between">
-                                            <span class="opacity-70">Power:</span>
-                                            <span class="font-medium">{{ $latestLog->power_consumption }} kW</span>
-                                        </div>
-                                    @endif
-                                    @if($latestLog->runtime_hours)
-                                        <div class="flex justify-between">
-                                            <span class="opacity-70">Runtime:</span>
-                                            <span class="font-medium">{{ number_format($latestLog->runtime_hours) }}h</span>
-                                        </div>
-                                    @endif
-                                    @if($latestLog->vibration_rms)
-                                        <div class="flex justify-between">
-                                            <span class="opacity-70">Vibration:</span>
-                                            <span class="font-medium">{{ $latestLog->vibration_rms }}</span>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Maintenance Info -->
-                        @if($machine->next_maintenance_date)
-                            <div class="mt-2">
-                                @php
-                                    $daysUntilMaintenance = now()->diffInDays($machine->next_maintenance_date, false);
-                                    $isOverdue = $daysUntilMaintenance < 0;
-                                    $isDueSoon = $daysUntilMaintenance >= 0 && $daysUntilMaintenance <= 7;
-                                @endphp
-                                <div class="alert {{ $isOverdue ? 'alert-error' : ($isDueSoon ? 'alert-warning' : 'alert-info') }} py-2">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span class="text-xs">
-                                        @if($isOverdue)
-                                            Maintenance overdue by {{ abs($daysUntilMaintenance) }} days
-                                        @elseif($isDueSoon)
-                                            Maintenance due in {{ $daysUntilMaintenance }} days
-                                        @else
-                                            Next maintenance: {{ $machine->next_maintenance_date->format('M d, Y') }}
-                                        @endif
-                                    </span>
-                                </div>
-                            </div>
-                        @endif
-
-                        <div class="card-actions justify-end mt-4">
-                            <a href="{{ route('machines.show', $machine) }}" class="btn btn-primary btn-sm gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                                </svg>
-                                View Details
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-
-        <!-- Pagination (preserve filters) -->
-        <div class="flex justify-center mt-8">
-            {{ $machines->appends(request()->query())->links() }}
-        </div>
-    @endif
 </div>
+
+@include('partials._datatables-assets')
+
+@push('scripts')
+<script>
+    $(function () {
+        var table = $('#machinesTable').DataTable({
+            processing: true,
+            serverSide: true,
+            autoWidth: false,
+            pageLength: 25,
+            order: [[0, 'asc']],
+            ajax: {
+                url: '{{ route('machines.data') }}',
+                data: function (d) {
+                    d.status = $('#statusFilter').val();
+                    d.type = $('#typeFilter').val();
+                    d.building_id = $('#buildingFilter').val();
+                }
+            },
+            columns: [
+                {data: 'machine', name: 'name'},
+                {data: 'status', name: 'status'},
+                {data: 'type', name: 'type'},
+                {data: 'building_name', name: 'building_name', orderable: false, searchable: false},
+                {data: 'floor_name', name: 'floor_name', orderable: false, searchable: false},
+                {data: 'manufacturer', name: 'manufacturer'},
+                {data: 'maintenance', name: 'next_maintenance_date', orderable: false, searchable: false},
+                {data: 'action', name: 'action', orderable: false, searchable: false},
+            ],
+        });
+
+        $('#statusFilter, #typeFilter, #buildingFilter').on('change', function () {
+            table.draw();
+        });
+    });
+</script>
+@endpush
 @endsection

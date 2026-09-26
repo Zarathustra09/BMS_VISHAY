@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\MachineLogsDataTable;
+use App\DataTables\MachinesDataTable;
 use App\Interfaces\MachineInterface;
 use App\Models\Building;
 use App\Models\Floor;
@@ -11,17 +13,26 @@ use Illuminate\Support\Facades\Log;
 
 class MachineController extends Controller
 {
-    public function __construct(protected MachineInterface $machineService) {}
-
-    public function index(Request $request)
+    public function __construct(protected MachineInterface $machineService)
     {
-        $filters   = $request->only(['search', 'status', 'type', 'building_id', 'floor_id']);
-        $machines  = $this->machineService->getAllPaginated($filters);
+        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData']);
+        $this->middleware('permission:machines.create')->only(['create', 'store']);
+        $this->middleware('permission:machines.update')->only(['edit', 'update']);
+        $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
+    }
+
+    public function index()
+    {
         $stats     = $this->machineService->getStats();
         $types     = $this->machineService->getDistinctTypes();
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
-        return view('machines.index', compact('machines', 'stats', 'types', 'buildings'));
+        return view('machines.index', compact('stats', 'types', 'buildings'));
+    }
+
+    public function data(MachinesDataTable $dataTable)
+    {
+        return $dataTable->ajax();
     }
 
     public function create()
@@ -46,7 +57,6 @@ class MachineController extends Controller
     {
         $machine->load(['building', 'floor']);
 
-        $logs                = $this->machineService->getLogsForMachine($machine);
         $logStats            = $this->machineService->getLogStats($machine);
         $recentAlerts        = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
@@ -55,9 +65,17 @@ class MachineController extends Controller
         $deviceKeyPlain   = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
-            'machine', 'logs', 'logStats', 'recentAlerts', 'logTypeDistribution',
+            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution',
             'canViewDeviceKey', 'deviceKeyPlain'
         ));
+    }
+
+    /**
+     * Ajax source for the machine-logs DataTable on machines/show.
+     */
+    public function logsData(Machine $machine, MachineLogsDataTable $dataTable)
+    {
+        return $dataTable->forMachine($machine)->ajax();
     }
 
     public function edit(Machine $machine)

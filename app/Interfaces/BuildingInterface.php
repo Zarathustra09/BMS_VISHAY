@@ -3,14 +3,22 @@
 namespace App\Interfaces;
 
 use App\Models\Building;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 interface BuildingInterface
 {
     /**
-     * Get all buildings
+     * Query for the buildings DataTable — filtered by status/type. Replaces the old
+     * unbounded getAllBuildings(); floors/machines counts come via withCount, not
+     * eager-loaded full relations.
      */
-    public function getAllBuildings(): Collection;
+    public function getQueryForDataTable(array $filters = []): Builder;
+
+    /**
+     * Dashboard stat tiles, computed with count queries rather than by summing a
+     * fully-loaded collection in PHP.
+     */
+    public function getStats(): array;
 
     /**
      * Get building by ID

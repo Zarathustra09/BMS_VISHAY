@@ -16,6 +16,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Database | MySQL |
 | Queue | `database` driver |
 | Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN) |
+| Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |
 
@@ -23,13 +24,16 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 
 | Module | Status | Notes |
 |---|---|---|
-| Buildings | ✅ Done | Full CRUD, image upload, cascading delete of floors/machines |
+| Buildings | ✅ Done | Full CRUD, image upload, cascading delete of floors/machines; list is a server-side DataTable |
 | Floors | ✅ Done | Full CRUD (JSON API style, used by the machine create/edit forms) |
-| Machines | ✅ Done | Full CRUD, filters, stats, device API key management |
-| Machine Logs / sensor ingestion | ✅ Done | `POST /api/machine-logs`, authenticated via per-machine device key |
+| Machines | ✅ Done | Full CRUD, filters, stats, device API key management; list is a server-side DataTable |
+| Machine Logs / sensor ingestion | ✅ Done | `POST /api/machine-logs`, authenticated via per-machine device key; the log history on `machines/show` is a server-side DataTable (severity/type/date filters) — the highest-volume table in the app |
 | AI Insights (chat) | ✅ Done | Queued job + cache-polling UI, OpenAI/Gemini switchable |
-| Roles & permissions | 🟡 Partial | Framework in place (`admin`/`manager`/`technician`/`viewer`), only one permission defined so far (`machines.view-device-key`). Full rollout is Phase 4. |
-| Users management page | 🔴 Planned | View exists, no backing controller logic (Phase 4) |
+| Roles & permissions | ✅ Done | `admin`/`manager`/`technician`/`viewer`, CRUD-granular permissions (`{module}.view/create/update/delete`) across buildings, floors, machines, users, plus the special `machines.view-device-key`. More modules gain their own set as they're built (work orders, alerts, reports, settings). |
+| Users management page | ✅ Done | Full CRUD (create, edit name/email/role, reset password, delete), self-delete blocked, gated by permission |
+| User profile (self-service) | ✅ Done | Any logged-in user can update their own name/email and change their own password (requires current password) |
+| Roles management page | ✅ Done | Full CRUD: create custom roles, edit any non-`admin` role's permissions via a checkbox matrix, delete an unused role. `admin` is protected (can't be renamed/deleted/edited); can't delete a role that still has users |
+| Permissions page | ✅ Done | Read-only list of every permission grouped by module, showing which roles hold each one — new permissions are still added in code/seeder, not the UI |
 | Sensor thresholds & alerts | 🔴 Planned | Phase 5 |
 | Offline device detection | 🔴 Planned | Phase 6 |
 | Work Orders | 🔴 Planned | `work_orders` table exists but is empty (`id` + timestamps only); Phase 7 |

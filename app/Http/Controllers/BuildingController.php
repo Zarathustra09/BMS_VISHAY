@@ -3,25 +3,30 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\DataTables\BuildingsDataTable;
 use App\Interfaces\BuildingInterface;
 use Illuminate\Support\Facades\Storage;
 
 class BuildingController extends Controller
 {
-    public function __construct(protected BuildingInterface $buildingService) {}
+    public function __construct(protected BuildingInterface $buildingService)
+    {
+        $this->middleware('permission:buildings.view')->only(['index', 'show', 'data']);
+        $this->middleware('permission:buildings.create')->only(['create', 'store']);
+        $this->middleware('permission:buildings.update')->only(['edit', 'update']);
+        $this->middleware('permission:buildings.delete')->only(['destroy', 'confirmDelete']);
+    }
 
     public function index()
     {
-        $buildings = $this->buildingService->getAllBuildings();
+        $stats = $this->buildingService->getStats();
 
-        // Calculate statistics
-        $totalBuildings = $buildings->count();
-        $operationalBuildings = $buildings->where('status', 'Operational')->count();
-        $totalOccupancy = $buildings->sum(function($building) {
-            return $building->machines->count();
-        });
+        return view('buildings.index', compact('stats'));
+    }
 
-        return view('buildings.index', compact('buildings', 'totalBuildings', 'operationalBuildings', 'totalOccupancy'));
+    public function data(BuildingsDataTable $dataTable)
+    {
+        return $dataTable->ajax();
     }
 
     public function show($id)

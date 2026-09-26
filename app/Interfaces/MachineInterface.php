@@ -3,20 +3,23 @@
 namespace App\Interfaces;
 
 use App\Models\Machine;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 interface MachineInterface
 {
-    public function getAllPaginated(array $filters, int $perPage = 12): LengthAwarePaginator;
+    /**
+     * Query for the machines DataTable — filtered by search/status/type/building/floor.
+     * Business logic (which columns, which filters) stays here; the DataTable class
+     * only wires the query into Yajra's response format.
+     */
+    public function getQueryForDataTable(array $filters): Builder;
 
     public function getStats(): array;
 
     public function getDistinctTypes(): Collection;
 
     public function findById(int $id): Machine;
-
-    public function getLogsForMachine(Machine $machine, int $perPage = 50): LengthAwarePaginator;
 
     public function getLogStats(Machine $machine): array;
 
