@@ -15,7 +15,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Authorization | `spatie/laravel-permission` ^6.25 (roles + permissions) |
 | Database | MySQL |
 | Queue | `database` driver |
-| Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN) |
+| Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN); light theme `corporate` is the default, dark theme `forest` is opt-in via a header toggle (see [08-frontend.md](08-frontend.md#theming)) |
 | Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |

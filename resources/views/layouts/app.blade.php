@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="forest">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="corporate">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,6 +8,29 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ config('app.name', 'Laravel') }} - @yield('title', 'Dashboard')</title>
+
+    <!--
+        Light ("corporate") is the default theme; dark ("forest") is opt-in via the header
+        toggle or the Settings page, both of which write the same localStorage 'theme' key.
+        This runs synchronously before any stylesheet so there's no flash of the wrong theme
+        on load. window.setTheme is the single place that changes the theme anywhere in the
+        app — the header toggle and settings/index.blade.php both call it.
+    -->
+    <script>
+        (function () {
+            window.setTheme = function (theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                try { localStorage.setItem('theme', theme); } catch (e) {}
+                document.querySelectorAll('.js-theme-toggle').forEach(function (cb) {
+                    cb.checked = theme === 'forest';
+                });
+            };
+
+            var stored = 'corporate';
+            try { stored = localStorage.getItem('theme') || 'corporate'; } catch (e) {}
+            document.documentElement.setAttribute('data-theme', stored);
+        })();
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -192,6 +215,20 @@
                         @include('components.skeleton-loader')
                     </div>
                     <div id="actual-content" class="content-hidden">
+                        {{--
+                            Shared back button — only nested pages (show/create/edit/delete)
+                            set @section('back', ...) with their logical parent route; index/
+                            top-level pages (reached from the sidebar) set none, so no button
+                            renders. See docs/08-frontend.md.
+                        --}}
+                        @hasSection('back')
+                            <a href="@yield('back')" class="btn btn-ghost btn-sm gap-2 mb-4">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                                </svg>
+                                Back
+                            </a>
+                        @endif
                         @yield('content')
                     </div>
                 </main>

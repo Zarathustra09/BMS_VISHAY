@@ -8,6 +8,8 @@
     <li class="text-error">Delete</li>
 @endsection
 
+@section('back', route('roles.show', $role))
+
 @section('content')
 <div class="space-y-6 max-w-2xl mx-auto">
     <div class="alert alert-error shadow-lg">

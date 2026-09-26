@@ -13,28 +13,32 @@
 @push('styles')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@2/css/dataTables.dataTables.min.css">
     <style>
-        /* Blend DataTables' own stylesheet with the DaisyUI "forest" theme rather than relying
+        /* Blend DataTables' own stylesheet with whichever DaisyUI theme is active (light
+           "corporate" by default, dark "forest" via the header toggle) rather than relying
            on Tailwind-generated utility classes for DOM DataTables injects at runtime — the
-           Tailwind v4 browser CDN compiler only scans the DOM present at page load. */
-        .dataTables_wrapper { color: inherit; }
-        .dataTables_wrapper .dataTables_filter input,
-        .dataTables_wrapper .dataTables_length select {
-            background: hsl(var(--b1));
+           Tailwind v4 browser CDN compiler only scans the DOM present at page load.
+           DaisyUI v5 color variables (--color-base-100 etc.), not the old v4 hsl(var(--b1))
+           names. Selectors are DataTables 2.x's own (.dt-*) — v1.x used .dataTables_wrapper
+           etc., which don't exist in the datatables.net@2 build loaded below. */
+        .dt-container { color: inherit; }
+        .dt-search input,
+        .dt-length select {
+            background: var(--color-base-100);
             color: inherit;
-            border: 1px solid hsl(var(--bc) / 0.2);
+            border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
             border-radius: 0.5rem;
             padding: 0.25rem 0.5rem;
         }
-        .dataTables_wrapper .dataTables_info,
-        .dataTables_wrapper .dataTables_length,
-        .dataTables_wrapper .dataTables_filter { color: inherit; opacity: 0.8; }
-        .dataTables_wrapper .dataTables_paginate .paginate_button {
+        .dt-info,
+        .dt-length,
+        .dt-search { color: inherit; opacity: 0.8; }
+        .dt-paging .dt-paging-button {
             border-radius: 0.5rem !important;
             color: inherit !important;
         }
-        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
-            background: hsl(var(--p)) !important;
-            color: hsl(var(--pc)) !important;
+        .dt-paging .dt-paging-button.current {
+            background: var(--color-primary) !important;
+            color: var(--color-primary-content) !important;
             border-color: transparent !important;
         }
         table.dataTable tbody tr { background: transparent; }

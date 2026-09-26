@@ -127,6 +127,17 @@
             </div>
         </div>
 
+        <!-- Theme Toggle (light "corporate" ⇄ dark "forest"; see window.setTheme in layouts/app.blade.php) -->
+        <label class="swap swap-rotate btn btn-ghost btn-circle" title="Toggle dark mode">
+            <input type="checkbox" class="js-theme-toggle" onchange="window.setTheme(this.checked ? 'forest' : 'corporate')">
+            <svg class="swap-off w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+            <svg class="swap-on w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+            </svg>
+        </label>
+
         <!-- User Menu -->
         <div class="dropdown dropdown-end">
             <div tabindex="0" role="button" class="btn btn-ghost gap-2">
@@ -190,6 +201,15 @@
         </div>
     </div>
 </nav>
+
+<script>
+    // The header markup is re-rendered on every page load, so the toggle's checked state
+    // has to be synced to the already-applied theme (set earlier by the no-flash script in
+    // layouts/app.blade.php) each time, rather than being knowable server-side.
+    document.querySelectorAll('.js-theme-toggle').forEach(function (cb) {
+        cb.checked = document.documentElement.getAttribute('data-theme') === 'forest';
+    });
+</script>
 
 <div>
     <!-- Simplicity is the essence of happiness. - Cedric Bledsoe -->

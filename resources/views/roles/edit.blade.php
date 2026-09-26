@@ -8,6 +8,8 @@
     <li>Edit</li>
 @endsection
 
+@section('back', route('roles.show', $role))
+
 @section('content')
 <div class="space-y-6 max-w-5xl mx-auto">
     @if(session('error'))

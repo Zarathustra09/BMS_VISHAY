@@ -8,6 +8,8 @@
     <li>Edit</li>
 @endsection
 
+@section('back', route('machines.show', $machine))
+
 @push('styles')
 <style>
     [x-cloak] { display: none !important; }
@@ -19,11 +21,6 @@
 
     <!-- Header -->
     <div class="flex items-center gap-4">
-        <a href="{{ route('machines.show', $machine) }}" class="btn btn-ghost btn-circle">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-        </a>
         <div class="flex-1">
             <h1 class="text-3xl font-bold">Edit Machine</h1>
             <p class="text-sm opacity-70 mt-1">Updating <span class="font-semibold text-primary">{{ $machine->name }}</span> · <code class="text-xs bg-base-300 px-1.5 py-0.5 rounded">{{ $machine->machine_code }}</code></p>

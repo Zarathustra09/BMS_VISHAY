@@ -7,7 +7,7 @@ The frontend is server-rendered Blade with a small amount of vanilla JS/Alpine f
 | Piece | How it's loaded | Notes |
 |---|---|---|
 | Tailwind CSS v4 | CDN (`@tailwindcss/browser@4`) in [layouts/app.blade.php](../resources/views/layouts/app.blade.php) | Utility classes directly in Blade |
-| DaisyUI v5 | CDN, on top of Tailwind | Provides component classes (`btn`, `card`, `alert`, `stat`, `input`, `join`, etc.) and theming (`data-theme="forest"` set on `<html>`) |
+| DaisyUI v5 | CDN, on top of Tailwind | Provides component classes (`btn`, `card`, `alert`, `stat`, `input`, `join`, etc.) and theming (`data-theme` set on `<html>` — see [Theming](#theming) below) |
 | Alpine.js | CDN (`alpinejs@3.x.x`) | Small reactive bits: the device-key Show/Hide/Copy control, dropdowns, modals |
 | jQuery + DataTables | CDN, via [`partials/_datatables-assets.blade.php`](../resources/views/partials/_datatables-assets.blade.php) | Only included on pages with a table (buildings/machines index, machine logs, roles/show, permissions/index) — see [02-architecture.md](02-architecture.md) for the server-side DataTables pattern. `yajra/laravel-datatables` (composer) is the PHP half only; it ships no browser assets, so jQuery and DataTables' own JS/CSS come from CDN here, the only place jQuery is loaded in the app. |
 | Vite + npm | `resources/js/app.js`, `resources/css/app.css` | Bundles local JS/CSS (bootstrap.js sets up axios); the DaisyUI/Tailwind/Alpine/DataTables CDN scripts are separate from this build and don't need `npm run build` to change |
@@ -106,6 +106,57 @@ Always pair this with the same permission on the route/controller side — `@can
 - **DaisyUI `<dialog>` modals**: used for things like "Add New User" (`onclick="add_user_modal.showModal()"`) — no Alpine needed since `<dialog>` has native show/close.
 - **Shared partial with a readonly mode**: [roles/_permission-matrix.blade.php](../resources/views/roles/_permission-matrix.blade.php) renders the same module × view/create/update/delete checkbox grid on three pages (`roles/create`, `roles/edit`, `roles/show`), toggled by a `$readonly` flag passed via `@include(..., ['readonly' => true])`. Readonly mode disables every checkbox and skips rendering the row/column/select-all toggle buttons and their `<script>` block entirely — cheaper than rendering-then-hiding, and it means a readonly view can never accidentally submit a change. The toggle buttons use plain vanilla JS (`querySelectorAll` + a shared `data-module`/`data-action` attribute on each checkbox), not Alpine, because the interaction is simple bulk-check/uncheck with no state to track between renders. The script is pushed once via `@once @push('scripts')` so including the partial multiple times on one page (it isn't, currently, but could be) wouldn't redeclare the functions.
 
+## Back button convention
+
+Nested pages (create/edit/show/delete — anything reached by drilling into a record rather than directly from the sidebar) declare a **smart parent route** via `@section('back', route(...))`:
+
+```blade
+@section('back', route('buildings.show', $building->id ?? 0))
+```
+
+[layouts/app.blade.php](../resources/views/layouts/app.blade.php) renders a single shared back button just above `@yield('content')`, only when the section is present:
+
+```blade
+@hasSection('back')
+    <a href="@yield('back')" class="btn btn-ghost btn-sm gap-2 mb-4">
+        <svg ...chevron-left.../> Back
+    </a>
+@endif
+```
+
+Rules:
+- Point at the logical parent, not `history.back()` — a deep-linked or freshly-loaded page still gets a correct target. `edit`/`delete`/`show` pages that need the model use the bound route-model variable (e.g. `route('roles.show', $role)`); `create` pages point at the module's `index`.
+- **Top-level index pages** (and `home`, `profile`, `settings`, `permissions`) set **no** `back` section — they're reached from the sidebar, so no button renders.
+- There is exactly one back button per page, owned by the layout. Don't hand-roll another `<a class="btn btn-ghost btn-circle">` back arrow inside a view's own markup — add `@section('back', ...)` instead.
+
 ## Theming
 
-`data-theme="forest"` is hardcoded on the `<html>` tag in the main layout — there's no theme switcher yet. If one is added, note that the guest layout ([layouts/guest/app.blade.php](../resources/views/layouts/guest/app.blade.php)) would need to pick up the same theme mechanism.
+Two DaisyUI themes are wired to a single `theme` `localStorage` key: **`corporate`** (light, the default) and **`forest`** (dark). Both ship in the already-loaded `daisyui@5/themes.css` CDN bundle, so switching needs no new assets.
+
+**No-FOUC bootstrap.** A synchronous inline `<script>` runs in `<head>`, before the DaisyUI stylesheet link, reading `localStorage.getItem('theme')` (falling back to `corporate`) and setting `data-theme` on `<html>` immediately — this runs in both [layouts/app.blade.php](../resources/views/layouts/app.blade.php) and [layouts/guest/app.blade.php](../resources/views/layouts/guest/app.blade.php), so a theme chosen while logged in is still respected on the login screen. The static `data-theme="corporate"` attribute on `<html>` is the no-JS fallback.
+
+**Single source of truth.** `layouts/app.blade.php` defines a global `window.setTheme(theme)`:
+
+```js
+window.setTheme = function (theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('theme', theme); } catch (e) {}
+    document.querySelectorAll('.js-theme-toggle').forEach(function (cb) {
+        cb.checked = theme === 'forest';
+    });
+};
+```
+
+Anything that changes the theme calls this — never touch `data-theme`/`localStorage` directly. Two call sites:
+- **Header toggle** ([layouts/header.blade.php](../resources/views/layouts/header.blade.php)): a `swap swap-rotate` sun/moon checkbox (`.js-theme-toggle`) between the alerts dropdown and the user menu; `onchange="window.setTheme(this.checked ? 'forest' : 'corporate')"`. Only ever flips corporate ⇄ forest.
+- **Settings page** ([settings/index.blade.php](../resources/views/settings/index.blade.php)): a picker across all 8 installed DaisyUI themes (forest, light, dark, cupcake, cyberpunk, corporate, synthwave, business) for users who want something other than the two "official" options. Its `changeTheme(theme)` also calls `window.setTheme()`, then a `markActiveTheme(theme)` helper toggles each card's `.active-badge` by matching `data-theme-option`. Because it shares the same `localStorage` key, picking a theme here updates what the header toggle shows next load (checked = forest, unchecked otherwise), and vice versa.
+
+**v4→v5 CSS variable trap.** DaisyUI v5 renamed its CSS custom properties (`hsl(var(--b1))` → `var(--color-base-100)`, `hsl(var(--bc)/0.2)` → `color-mix(in oklab, var(--color-base-content) 20%, transparent)`, `hsl(var(--p))`/`hsl(var(--pc))` → `var(--color-primary)`/`var(--color-primary-content)`). Old-style variable names don't error, they just silently fail to recolor anything — check for this pattern before assuming a themed element "doesn't support theming." Fixed instances: [`partials/_datatables-assets.blade.php`](../resources/views/partials/_datatables-assets.blade.php) (which also had DataTables **1.x** selectors — `.dataTables_wrapper`, `.paginate_button` — left over despite `datatables.net@2` being loaded; the correct v2 selectors are `.dt-container`, `.dt-search`, `.dt-length`, `.dt-paging .dt-paging-button`) and the machine-chat scrollbar in `machines/show.blade.php`.
+
+**Theme-aware logo.** `logo-white.png` is unreadable on `bg-base-100` once that's white (the `corporate` default). [partials/_brand-logo.blade.php](../resources/views/partials/_brand-logo.blade.php) renders both `logo-black.png` and `logo-white.png` and a small CSS rule keyed off `[data-theme="forest"]` shows only the correct one — used everywhere except the login page's branding side-panel, which is a fixed dark surface (`bg-base-content text-base-100`) regardless of site theme, so it always uses the white logo directly.
+
+## Auth pages
+
+[layouts/guest/app.blade.php](../resources/views/layouts/guest/app.blade.php) and everything under `resources/views/auth/` are mobile-first: reduced vertical padding on small screens (`py-6 sm:py-10`), a compact footer below the `sm` breakpoint (tagline and nav links hidden, logo + copyright kept), and responsive card padding/icon sizing on the password-reset/verify pages (`w-16 h-16 sm:w-20 sm:h-20` icon circles, `p-6 sm:p-8` card bodies). The login page keeps its desktop split-screen (`lg:grid-cols-5`, branding panel `hidden lg:flex`) but tightens padding below `lg`. Registration is disabled (`Auth::routes(['register' => false])` in `routes/web.php`); `auth/register.blade.php` was deleted, and the two remaining `route('register')` links (`auth/login.blade.php`, `layouts/guest/app.blade.php`) are both wrapped in `@if(Route::has('register'))` and never render.
+
+Classes with no effect in DaisyUI v5 (`form-control`, `label-text`, `label-text-alt`, `input-bordered` — `input` is bordered by default now) were replaced in the auth files touched during the mobile overhaul; this was **not** swept across the rest of the app, so other views may still contain them.

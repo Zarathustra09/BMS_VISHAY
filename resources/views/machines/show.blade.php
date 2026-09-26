@@ -7,6 +7,8 @@
     <li>{{ $machine->name }}</li>
 @endsection
 
+@section('back', route('machines.index'))
+
 @section('content')
 <div class="space-y-6">
     @if(session('device_key_plain'))
@@ -25,11 +27,6 @@
     <!-- Header -->
     <div class="flex flex-col lg:flex-row justify-between items-start gap-4">
         <div class="flex items-start gap-4">
-            <a href="{{ route('machines.index') }}" class="btn btn-circle btn-ghost">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-            </a>
             <div>
                 <div class="flex items-center gap-3 mb-2">
                     <h1 class="text-3xl font-bold">{{ $machine->name }}</h1>
@@ -796,12 +793,12 @@ document.addEventListener('alpine:init', () => {
     }
 
     #chat-messages::-webkit-scrollbar-thumb {
-        background: hsl(var(--bc) / 0.2);
+        background: color-mix(in oklab, var(--color-base-content) 20%, transparent);
         border-radius: 3px;
     }
 
     #chat-messages::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--bc) / 0.3);
+        background: color-mix(in oklab, var(--color-base-content) 30%, transparent);
     }
 
     .chat {

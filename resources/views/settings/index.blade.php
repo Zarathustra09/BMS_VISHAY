@@ -84,12 +84,15 @@
             <p class="text-sm opacity-70 mb-4">Choose your preferred color theme for the application</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                <!-- Forest Theme (Active) -->
-                <div class="card bg-base-200 border-2 border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('forest')">
+                <!-- Forest Theme (dark) -->
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="forest" onclick="changeTheme('forest')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Forest</h3>
-                            <div class="badge badge-primary">Active</div>
+                            <div class="flex gap-1">
+                                <div class="badge badge-ghost badge-sm">Dark</div>
+                                <div class="badge badge-primary active-badge hidden">Active</div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#171e29]"></div>
@@ -106,11 +109,11 @@
                 </div>
 
                 <!-- Light Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('light')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="light" onclick="changeTheme('light')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Light</h3>
-                            <div class="badge badge-ghost">Default</div>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-white"></div>
@@ -127,10 +130,11 @@
                 </div>
 
                 <!-- Dark Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('dark')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="dark" onclick="changeTheme('dark')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Dark</h3>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#1d232a]"></div>
@@ -147,10 +151,11 @@
                 </div>
 
                 <!-- Cupcake Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('cupcake')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="cupcake" onclick="changeTheme('cupcake')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Cupcake</h3>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#faf7f5]"></div>
@@ -167,10 +172,11 @@
                 </div>
 
                 <!-- Cyberpunk Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('cyberpunk')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="cyberpunk" onclick="changeTheme('cyberpunk')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Cyberpunk</h3>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#ffee00]"></div>
@@ -186,11 +192,15 @@
                     </div>
                 </div>
 
-                <!-- Corporate Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('corporate')">
+                <!-- Corporate Theme (app default) -->
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="corporate" onclick="changeTheme('corporate')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Corporate</h3>
+                            <div class="flex gap-1">
+                                <div class="badge badge-ghost badge-sm">Default</div>
+                                <div class="badge badge-primary active-badge hidden">Active</div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-white"></div>
@@ -207,10 +217,11 @@
                 </div>
 
                 <!-- Synthwave Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('synthwave')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="synthwave" onclick="changeTheme('synthwave')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Synthwave</h3>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#1a103d]"></div>
@@ -227,10 +238,11 @@
                 </div>
 
                 <!-- Business Theme -->
-                <div class="card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" onclick="changeTheme('business')">
+                <div class="theme-option-card card bg-base-200 border border-base-300 hover:border-primary shadow-lg hover:shadow-xl transition-all cursor-pointer" data-theme-option="business" onclick="changeTheme('business')">
                     <div class="card-body p-4">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold">Business</h3>
+                            <div class="badge badge-primary active-badge hidden">Active</div>
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-[#1e293b]"></div>
@@ -588,31 +600,31 @@
 </div>
 
 <script>
+// This page's picker offers all 8 DaisyUI themes, but shares the same 'theme' localStorage
+// key and window.setTheme() function as the header's light/dark toggle (see
+// layouts/app.blade.php) — picking anything here also updates what the header switch shows,
+// and vice versa.
 function changeTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    window.setTheme(theme);
+    markActiveTheme(theme);
 
-    // Show success toast
     if (window.showToast) {
         window.showToast(`Theme changed to ${theme}`, 'success');
     }
-
-    // Update active badge
-    document.querySelectorAll('.card .badge-primary').forEach(badge => {
-        badge.classList.remove('badge-primary');
-        badge.classList.add('badge-ghost');
-        badge.textContent = '';
-    });
-
-    event.currentTarget.querySelector('.badge').classList.remove('badge-ghost');
-    event.currentTarget.querySelector('.badge').classList.add('badge-primary');
-    event.currentTarget.querySelector('.badge').textContent = 'Active';
 }
 
-// Load saved theme on page load
-document.addEventListener('DOMContentLoaded', function() {
-    const savedTheme = localStorage.getItem('theme') || 'forest';
-    document.documentElement.setAttribute('data-theme', savedTheme);
+function markActiveTheme(theme) {
+    document.querySelectorAll('.theme-option-card').forEach(function (card) {
+        var isActive = card.dataset.themeOption === theme;
+        card.querySelector('.active-badge')?.classList.toggle('hidden', !isActive);
+        card.classList.toggle('border-primary', isActive);
+        card.classList.toggle('border-2', isActive);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    var savedTheme = localStorage.getItem('theme') || 'corporate';
+    markActiveTheme(savedTheme);
 });
 </script>
 @endsection

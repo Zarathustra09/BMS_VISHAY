@@ -3,10 +3,10 @@
 @section('content')
 <div class="w-full max-w-md">
     <div class="card bg-base-100 shadow-2xl border border-base-300/50">
-        <div class="card-body">
-            <div class="flex justify-center mb-6">
-                <div class="w-20 h-20 rounded-full bg-gradient-to-br from-warning to-error flex items-center justify-center shadow-lg">
-                    <svg class="w-10 h-10 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="card-body p-6 sm:p-8">
+            <div class="flex justify-center mb-4 sm:mb-6">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-warning to-error flex items-center justify-center shadow-lg">
+                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
                 </div>

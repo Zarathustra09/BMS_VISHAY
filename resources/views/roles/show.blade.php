@@ -7,6 +7,8 @@
     <li class="capitalize">{{ $role->name }}</li>
 @endsection
 
+@section('back', route('roles.index'))
+
 @section('content')
 <div class="space-y-6">
     @if(session('success'))

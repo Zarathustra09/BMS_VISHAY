@@ -8,16 +8,13 @@
     <li>Delete</li>
 @endsection
 
+@section('back', route('machines.show', $machine))
+
 @section('content')
 <div class="max-w-2xl mx-auto space-y-6">
 
     <!-- Header -->
     <div class="flex items-center gap-4">
-        <a href="{{ route('machines.show', $machine) }}" class="btn btn-ghost btn-circle">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-        </a>
         <div>
             <h1 class="text-3xl font-bold text-error">Delete Machine</h1>
             <p class="text-sm opacity-70 mt-1">This action cannot be undone</p>

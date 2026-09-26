@@ -7,15 +7,12 @@
     <li>Create New Building</li>
 @endsection
 
+@section('back', route('buildings.index'))
+
 @section('content')
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center gap-4">
-        <a href="{{ route('buildings.index') }}" class="btn btn-ghost btn-circle">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-            </svg>
-        </a>
         <div>
             <h1 class="text-3xl font-bold">Create New Building</h1>
             <p class="text-sm opacity-70 mt-1">Add a new facility to your infrastructure</p>

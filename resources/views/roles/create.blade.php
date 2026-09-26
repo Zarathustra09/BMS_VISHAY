@@ -7,6 +7,8 @@
     <li>Add Role</li>
 @endsection
 
+@section('back', route('roles.index'))
+
 @section('content')
 <div class="space-y-6 max-w-5xl mx-auto">
     <h1 class="text-3xl font-bold flex items-center gap-3">

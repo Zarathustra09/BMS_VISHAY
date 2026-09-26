@@ -7,6 +7,8 @@
     <li>{{ $building->name ?? 'Building Details' }}</li>
 @endsection
 
+@section('back', route('buildings.index'))
+
 @section('content')
 <div class="space-y-6">
     <!-- Header Section -->

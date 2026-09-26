@@ -3,10 +3,10 @@
 @section('content')
 <div class="w-full max-w-md">
     <div class="card bg-base-100 shadow-2xl border border-base-300/50">
-        <div class="card-body">
-            <div class="flex justify-center mb-6">
-                <div class="w-20 h-20 rounded-full bg-gradient-to-br from-info to-primary flex items-center justify-center shadow-lg">
-                    <svg class="w-10 h-10 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="card-body p-6 sm:p-8">
+            <div class="flex justify-center mb-4 sm:mb-6">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-info to-primary flex items-center justify-center shadow-lg">
+                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-base-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
                     </svg>
                 </div>
@@ -29,11 +29,11 @@
             <form method="POST" action="{{ route('password.email') }}" class="space-y-5">
                 @csrf
 
-                <div class="form-control">
+                <div class="flex flex-col">
                     <label class="label" for="email">
-                        <span class="label-text font-medium">{{ __('Email Address') }}</span>
+                        <span class="font-medium">{{ __('Email Address') }}</span>
                     </label>
-                    <label class="input input-bordered flex items-center gap-2 @error('email') input-error @enderror focus-within:input-primary transition-all">
+                    <label class="input flex items-center gap-2 @error('email') input-error @enderror focus-within:input-primary transition-all">
                         <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
                         </svg>
@@ -50,9 +50,7 @@
                         />
                     </label>
                     @error('email')
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ $message }}</span>
-                        </label>
+                        <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                     @enderror
                 </div>
 

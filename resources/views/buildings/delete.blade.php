@@ -8,6 +8,8 @@
     <li class="text-error">Delete</li>
 @endsection
 
+@section('back', route('buildings.show', $building->id ?? 0))
+
 @section('content')
 <div class="space-y-6 max-w-4xl mx-auto">
     <!-- Warning Header -->
