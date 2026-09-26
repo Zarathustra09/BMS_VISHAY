@@ -2,11 +2,16 @@
 
 namespace App\Services;
 
+use App\Interfaces\AIInterface;
+use App\Models\Machine;
+use App\Services\Concerns\BuildsMachineContext;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class GeminiService
+class GeminiService implements AIInterface
 {
+    use BuildsMachineContext;
+
     protected $apiKey;
     protected $baseUrl;
     protected $model = 'gemini-2.0-flash-exp'; // Updated to Gemini 2.0 Flash
@@ -15,6 +20,30 @@ class GeminiService
     {
         $this->apiKey = config('services.gemini.api_key');
         $this->baseUrl = config('services.gemini.base_url');
+    }
+
+    /**
+     * Generate insights based on machine data and user message
+     */
+    public function generateInsights(Machine $machine, string $userMessage): string
+    {
+        $context = $this->buildMachineContext($machine);
+
+        $input = $this->buildPrompt($context, $userMessage);
+
+        $response = $this->sendRequest($input);
+
+        return $response ?? 'Unable to generate insights at this time. Please try again later.';
+    }
+
+    /**
+     * Send request to Gemini API and return the generated text, or null on failure.
+     */
+    public function sendRequest(string $input): ?string
+    {
+        $result = $this->generateContent($input);
+
+        return $result['success'] ? $result['text'] : null;
     }
 
     /**

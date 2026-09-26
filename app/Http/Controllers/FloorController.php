@@ -4,17 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Floor;
 use Illuminate\Http\Request;
-use App\Services\FloorService;
+use App\Interfaces\FloorInterface;
 use Illuminate\Support\Facades\Validator;
 
 class FloorController extends Controller
 {
-    protected $floorService;
-
-    public function __construct(FloorService $floorService)
-    {
-        $this->floorService = $floorService;
-    }
+    public function __construct(protected FloorInterface $floorService) {}
 
     public function index(Request $request)
     {

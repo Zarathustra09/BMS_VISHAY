@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Interfaces\AIInterface;
 use App\Models\Machine;
-use App\Services\OpenAIService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -36,12 +36,12 @@ class ProcessMachineAIInsight implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(OpenAIService $openAIService): void
+    public function handle(AIInterface $aiService): void
     {
         try {
             $machine = Machine::findOrFail($this->machineId);
 
-            $response = $openAIService->generateInsights($machine, $this->userMessage);
+            $response = $aiService->generateInsights($machine, $this->userMessage);
 
             // Store the response in cache for retrieval
             Cache::put($this->cacheKey, [

@@ -51,7 +51,13 @@ class MachineController extends Controller
         $recentAlerts        = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
 
-        return view('machines.show', compact('machine', 'logs', 'logStats', 'recentAlerts', 'logTypeDistribution'));
+        $canViewDeviceKey = auth()->user()->can('machines.view-device-key');
+        $deviceKeyPlain   = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
+
+        return view('machines.show', compact(
+            'machine', 'logs', 'logStats', 'recentAlerts', 'logTypeDistribution',
+            'canViewDeviceKey', 'deviceKeyPlain'
+        ));
     }
 
     public function edit(Machine $machine)
@@ -85,6 +91,19 @@ class MachineController extends Controller
 
         return redirect()->route('machines.index')
             ->with('success', 'Machine deleted successfully.');
+    }
+
+    /**
+     * Generate (or regenerate) this machine's device API key.
+     * Route is gated by the `machines.view-device-key` permission — generating
+     * a key necessarily reveals it, so the same permission covers both.
+     */
+    public function generateDeviceKey(Machine $machine)
+    {
+        $plainKey = $machine->generateDeviceKey();
+
+        return redirect()->route('machines.show', $machine)
+            ->with('device_key_plain', $plainKey);
     }
 
     private function validateMachine(Request $request, ?int $ignoreId = null): array

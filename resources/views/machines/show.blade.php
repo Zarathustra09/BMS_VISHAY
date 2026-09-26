@@ -9,6 +9,19 @@
 
 @section('content')
 <div class="space-y-6">
+    @if(session('device_key_plain'))
+    <div class="alert alert-warning shadow-lg animate-fadeIn">
+        <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        <div>
+            <p class="font-semibold">New device API key generated. The old key no longer works.</p>
+            <code class="block mt-1 text-sm select-all bg-base-100/50 px-2 py-1 rounded">{{ session('device_key_plain') }}</code>
+            <p class="text-xs opacity-70 mt-1">Send it in the <code>X-Device-Key</code> header on every reading. You can view it again below any time.</p>
+        </div>
+    </div>
+    @endif
+
     <!-- Header -->
     <div class="flex flex-col lg:flex-row justify-between items-start gap-4">
         <div class="flex items-start gap-4">
@@ -248,6 +261,61 @@
             </div>
         </div>
     </div>
+
+    <!-- Device API Key (requires machines.view-device-key permission) -->
+    @can('machines.view-device-key')
+    <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+                Device API Key
+            </h2>
+            <p class="text-sm opacity-70">
+                @if($deviceKeyPlain)
+                    This key authenticates the machine's sensor device. Regenerating it immediately invalidates the old one.
+                @else
+                    No device key set yet — this machine's sensor cannot send readings until one is generated.
+                @endif
+            </p>
+            <div class="flex items-center justify-between mt-2 text-sm">
+                <span class="opacity-70">Last reading received:</span>
+                <span class="font-medium">{{ $machine->last_seen_at?->diffForHumans() ?? 'Never' }}</span>
+            </div>
+
+            @if($deviceKeyPlain)
+            <div x-data="{ visible: false, copied: false }" class="mt-4">
+                <label class="text-xs opacity-70 block mb-1">Current key:</label>
+                <div class="join w-full">
+                    <input type="text" readonly value="{{ $deviceKeyPlain }}"
+                           x-bind:type="visible ? 'text' : 'password'"
+                           class="join-item input input-bordered input-sm font-mono w-full">
+                    <button type="button" class="join-item btn btn-sm btn-ghost" @click="visible = !visible">
+                        <span x-text="visible ? 'Hide' : 'Show'"></span>
+                    </button>
+                    <button type="button" class="join-item btn btn-sm btn-ghost"
+                            @click="navigator.clipboard.writeText('{{ $deviceKeyPlain }}'); copied = true; setTimeout(() => copied = false, 1500)">
+                        <span x-text="copied ? 'Copied!' : 'Copy'"></span>
+                    </button>
+                </div>
+                <p class="text-xs opacity-70 mt-1">Send it in the <code>X-Device-Key</code> header on every reading.</p>
+            </div>
+            @endif
+
+            <form action="{{ route('machines.device-key.generate', $machine) }}" method="POST" class="mt-4"
+                  onsubmit="return confirm('{{ $deviceKeyPlain ? 'This will invalidate the current key immediately. Continue?' : 'Generate a device key for this machine?' }}')">
+                @csrf
+                <button type="submit" class="btn btn-outline btn-warning gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    {{ $deviceKeyPlain ? 'Regenerate Key' : 'Generate Key' }}
+                </button>
+            </form>
+        </div>
+    </div>
+    @endcan
 
     <!-- Log Statistics -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

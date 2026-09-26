@@ -3,17 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Services\BuildingService;
+use App\Interfaces\BuildingInterface;
 use Illuminate\Support\Facades\Storage;
 
 class BuildingController extends Controller
 {
-    protected $buildingService;
-
-    public function __construct(BuildingService $buildingService)
-    {
-        $this->buildingService = $buildingService;
-    }
+    public function __construct(protected BuildingInterface $buildingService) {}
 
     public function index()
     {

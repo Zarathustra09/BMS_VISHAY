@@ -4,13 +4,14 @@ namespace App\Services;
 
 use App\Interfaces\BuildingInterface;
 use App\Models\Building;
+use Illuminate\Database\Eloquent\Collection;
 
 class BuildingService implements BuildingInterface
 {
     /**
      * Get all buildings
      */
-    public function getAllBuildings()
+    public function getAllBuildings(): Collection
     {
         return Building::with(['floors', 'machines'])->get();
     }
@@ -18,7 +19,7 @@ class BuildingService implements BuildingInterface
     /**
      * Get building by ID
      */
-    public function getBuildingById($id)
+    public function getBuildingById($id): Building
     {
         return Building::with(['floors', 'machines'])->findOrFail($id);
     }
@@ -26,7 +27,7 @@ class BuildingService implements BuildingInterface
     /**
      * Create a new building
      */
-    public function createBuilding(array $data)
+    public function createBuilding(array $data): Building
     {
         return Building::create($data);
     }
@@ -34,7 +35,7 @@ class BuildingService implements BuildingInterface
     /**
      * Update an existing building
      */
-    public function updateBuilding($id, array $data)
+    public function updateBuilding($id, array $data): Building
     {
         $building = Building::findOrFail($id);
         $building->update($data);
@@ -44,7 +45,7 @@ class BuildingService implements BuildingInterface
     /**
      * Delete a building
      */
-    public function deleteBuilding($id)
+    public function deleteBuilding($id): bool
     {
         $building = Building::findOrFail($id);
         return $building->delete();

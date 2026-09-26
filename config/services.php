@@ -42,4 +42,9 @@ return [
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
     ],
+
+    'ai' => [
+        // Which AIInterface implementation to bind: 'openai' or 'gemini'.
+        'provider' => env('AI_PROVIDER', 'openai'),
+    ],
 ];

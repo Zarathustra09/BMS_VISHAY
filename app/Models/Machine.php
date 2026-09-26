@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Contracts\Encryption\DecryptException;
 
 /**
  * Machine model used by the Building Management System (manufacturing context).
@@ -45,6 +47,15 @@ class Machine extends Model
         'is_critical',
     ];
 
+    /**
+     * Never mass-assignable, and excluded from array/JSON output.
+     * Viewing the plaintext key requires the `machines.view-device-key` permission — see decryptDeviceKey().
+     */
+    protected $hidden = [
+        'device_key',
+        'device_key_encrypted',
+    ];
+
     protected $casts = [
         'is_critical' => 'boolean',
         'power_rating' => 'decimal:2',
@@ -62,6 +73,7 @@ class Machine extends Model
         'makeup_valve' => 'boolean',
         'building_id' => 'integer',
         'floor_id' => 'integer',
+        'last_seen_at' => 'datetime',
     ];
 
     /**
@@ -143,5 +155,47 @@ class Machine extends Model
     public function scopeByFloor($query, int $floorId)
     {
         return $query->where('floor_id', $floorId);
+    }
+
+    /**
+     * Generate a new device API key for this machine.
+     * Stores a SHA-256 hash (used for fast auth lookups) plus an encrypted copy
+     * (so it can be viewed again later by a user with the `machines.view-device-key` permission).
+     */
+    public function generateDeviceKey(): string
+    {
+        $plainKey = bin2hex(random_bytes(20)); // 40 hex chars
+
+        $this->forceFill([
+            'device_key' => hash('sha256', $plainKey),
+            'device_key_encrypted' => Crypt::encryptString($plainKey),
+        ])->save();
+
+        return $plainKey;
+    }
+
+    /**
+     * Decrypt this machine's stored device key for display. Caller is responsible
+     * for checking the `machines.view-device-key` permission before calling this.
+     */
+    public function decryptDeviceKey(): ?string
+    {
+        if (!$this->device_key_encrypted) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->device_key_encrypted);
+        } catch (DecryptException) {
+            return null;
+        }
+    }
+
+    /**
+     * Look up a machine by a plaintext device key sent by hardware.
+     */
+    public static function findByDeviceKey(string $plainKey): ?self
+    {
+        return static::where('device_key', hash('sha256', $plainKey))->first();
     }
 }

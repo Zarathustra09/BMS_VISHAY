@@ -3,20 +3,23 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Services\MachineLogService;
+use App\Interfaces\MachineLogInterface;
+use App\Models\Machine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MachineLogController extends Controller
 {
-    public function __construct(protected MachineLogService $machineLogService) {}
+    public function __construct(protected MachineLogInterface $machineLogService) {}
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            // FK — must exist in machines table
-            'machine_id'        => 'required|integer|exists:machines,id',
+        // Set by the device.auth middleware from the X-Device-Key header —
+        // the device can only ever write logs for its own machine.
+        /** @var Machine $machine */
+        $machine = $request->attributes->get('device_machine');
 
+        $validated = $request->validate([
             // enum('status_change','maintenance','alarm','sensor_reading','operation','error')
             'log_type'          => 'required|string|in:status_change,maintenance,alarm,sensor_reading,operation,error',
 
@@ -72,6 +75,10 @@ class MachineLogController extends Controller
             // timestamp — nullable, defaults to current via DB
             'logged_at'         => 'nullable|date',
         ]);
+
+        $validated['machine_id'] = $machine->id;
+
+        $machine->forceFill(['last_seen_at' => now()])->save();
 
         $log = $this->machineLogService->store($validated);
 
