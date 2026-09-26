@@ -35,9 +35,23 @@ Route::middleware('auth')->group(function () {
     Route::resource('machines', App\Http\Controllers\MachineController::class);
     Route::get('/machines/{machine}/delete', [App\Http\Controllers\MachineController::class, 'confirmDelete'])->name('machines.confirm-delete');
     Route::get('/machines/{machine}/logs/data', [App\Http\Controllers\MachineController::class, 'logsData'])->name('machines.logs.data');
+    Route::get('/machines/{machine}/readings', [App\Http\Controllers\MachineController::class, 'readings'])->name('machines.readings');
     Route::post('/machines/{machine}/device-key', [App\Http\Controllers\MachineController::class, 'generateDeviceKey'])
         ->middleware('permission:machines.view-device-key')
         ->name('machines.device-key.generate');
+    Route::put('/machines/{machine}/thresholds', [App\Http\Controllers\MachineController::class, 'updateThresholds'])
+        ->name('machines.thresholds.update');
+
+    // Alert Routes
+    Route::get('/alerts', [App\Http\Controllers\AlertController::class, 'index'])->name('alerts.index');
+    Route::get('/alerts/data', [App\Http\Controllers\AlertController::class, 'data'])->name('alerts.data');
+    Route::post('/alerts/{alert}/acknowledge', [App\Http\Controllers\AlertController::class, 'acknowledge'])->name('alerts.acknowledge');
+    Route::post('/alerts/{alert}/resolve', [App\Http\Controllers\AlertController::class, 'resolve'])->name('alerts.resolve');
+
+    // Notifications (header bell) — thin wrapper over Laravel's own notification API, no
+    // domain logic to justify an interface/service for this.
+    Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'read'])->name('notifications.read');
+    Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'readAll'])->name('notifications.read-all');
 
     Route::get('/work-orders', [App\Http\Controllers\WorkOrderController::class, 'index'])->name('work-orders.index');
     Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');

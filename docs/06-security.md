@@ -25,9 +25,11 @@ The hardware ingestion endpoint is deliberately **not** protected by user sessio
 - The key is stored two ways on the `machines` table:
   - `device_key`: `hash('sha256', $plainKey)` — a one-way hash used to authenticate incoming requests. Even a full database dump doesn't reveal a usable key.
   - `device_key_encrypted`: `Crypt::encryptString($plainKey)` — a two-way encrypted copy (using the app's `APP_KEY`), decrypted only when an authorized user wants to view/copy the key again.
-- Incoming requests to `/api/machine-logs` go through the `AuthenticateDevice` middleware (alias `device.auth`, registered in [bootstrap/app.php](../bootstrap/app.php)): it reads the `X-Device-Key` header, looks up `Machine::findByDeviceKey()`, and returns `401` if it doesn't match. On success, it attaches the resolved machine to the request (`$request->attributes->set('device_machine', $machine)`) and stamps `last_seen_at`.
+- Incoming requests to `/api/machine-logs` go through the `AuthenticateDevice` middleware (alias `device.auth`, registered in [bootstrap/app.php](../bootstrap/app.php)): it reads the `X-Device-Key` header, looks up `Machine::findByDeviceKey()`, and returns `401` if it doesn't match. On success, it attaches the resolved machine to the request (`$request->attributes->set('device_machine', $machine)`). It does **not** stamp `last_seen_at` — that happens inside `MachineLogService::store()` (see [03-data-model.md](03-data-model.md)) so every caller of `store()`, not just this endpoint, keeps offline detection in sync.
 - The controller (`API\MachineLogController@store`) takes `machine_id` **only** from the authenticated device, never from the request body — a device physically cannot write logs for a machine other than its own, even if it tried to spoof `machine_id` in the payload.
 - The route also has `throttle:120,1` (120 requests/minute).
+
+**Machine liveness (online/offline) is intentionally not permission-gated.** `last_seen_at`'s existing display was behind `machines.view-device-key` only because that's where it happened to be printed on `machines/show`; the Online/Offline badge in the page header (Phase 6) is visible to anyone who can view the machine at all (`machines.view`) — "this machine stopped reporting" is operational information, not a secret tied to the device key.
 
 Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidates the old one — there's exactly one valid key per machine.
 
@@ -44,9 +46,9 @@ Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidat
 | Role | Intent |
 |---|---|
 | `admin` | Full access — gets every permission that exists (`syncPermissions(Permission::all())`) |
-| `manager` | Oversight of buildings/floors/machines (view/create/update, not delete); can view users but not manage accounts |
-| `technician` | Field/hardware role — views buildings/floors, views + updates machines, wires up sensors |
-| `viewer` | Read-only across buildings/floors/machines; no access to Users at all |
+| `manager` | Oversight of buildings/floors/machines (view/create/update, not delete); can view users but not manage accounts; views and can acknowledge/resolve alerts |
+| `technician` | Field/hardware role — views buildings/floors, views + updates machines, wires up sensors, and is the one acting on alerts day-to-day (acknowledge/resolve) |
+| `viewer` | Read-only across buildings/floors/machines and alerts; no access to Users at all |
 
 The seeded test user (`test@example.com`) is assigned `admin`. More roles can be created from the Roles page — see below.
 
@@ -63,6 +65,7 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `users` | `.view`, `.create`, `.update`, `.delete` | Users page: list, create accounts, edit/reassign role/reset password, delete accounts |
 | `roles` | `.view`, `.create`, `.update`, `.delete` | Roles page: list, create custom roles, edit a role's permissions, delete an unused role |
 | `permissions` (special) | `.view` | The read-only Permissions list page. No `.create`/`.update`/`.delete` — a permission does nothing until code checks it, so it can't be managed from the UI (see [02-architecture.md](02-architecture.md)) |
+| `alerts` (no CRUD set) | `.view`, `.acknowledge`, `.resolve` | Alerts are raised by `AlertService::evaluate()`, never created or deleted by a user, so this module skips `.create`/`.delete` entirely in favor of the two actions a person actually takes on an open alert. `.view` gates the alerts list, the header bell, and the "Active Alerts" card on `machines/show`. |
 
 ### Role → permission matrix
 
@@ -90,6 +93,9 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `roles.update` | ✅ | – | – | – |
 | `roles.delete` | ✅ | – | – | – |
 | `permissions.view` | ✅ | ✅ | – | – |
+| `alerts.view` | ✅ | ✅ | ✅ | ✅ |
+| `alerts.acknowledge` | ✅ | ✅ | ✅ | – |
+| `alerts.resolve` | ✅ | ✅ | ✅ | – |
 
 Deletion of any kind is deliberately admin-only across every module — it's the one action with no undo (none of these tables use `SoftDeletes` except `machines`), so it isn't delegated to manager/technician even though they can create/update. This table itself is generated by hand from `RolesAndPermissionsSeeder`; if you change the seeder, update this table in the same commit.
 
@@ -118,6 +124,10 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 4. Gate a Blade section: `@can('your.permission') ... @endcan`.
 5. Gate a check in PHP: `auth()->user()->can('your.permission')`.
 
+## Alert notifications (Phase 5)
+
+`AlertService::notify()` sends `MachineAlertNotification` to every user holding the `admin` or `manager` role — resolved fresh via `User::role(['admin', 'manager'])` on each alert, not a stored subscriber list, so adding/removing someone from those roles immediately changes who gets notified going forward. `technician` and `viewer` don't receive notifications even though they can view/act on alerts in the UI — they're expected to work from the alerts list or the machine page directly rather than being paged. See [02-architecture.md](02-architecture.md#d-threshold-evaluation-alertserviceevaluate-phase-5) for the full evaluate/notify sequence.
+
 ## Secrets in `.env`
 
 | Variable | Purpose |
@@ -135,3 +145,5 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 - No audit log yet (planned Phase 10, via `spatie/laravel-activitylog`).
 - No idempotency protection on the sensor ingestion endpoint (a resent reading creates a duplicate row) — acceptable for telemetry, called out in [05-device-api.md](05-device-api.md).
 - Rate limiting on `/api/machine-logs` is per-IP (Laravel's default throttle key), not per-device — a shared NAT/gateway in front of many devices would share one bucket. Not an issue at current scale.
+- Alert notification recipients are hardcoded to the `admin`/`manager` roles (`AlertService::notify()`) — there's no way to add extra recipient emails without holding one of those roles. Planned to become configurable via `SettingService` in Phase 10.
+- An **acknowledged threshold alert never auto-resolves** even after the reading returns to normal — `AlertService::evaluate()`'s auto-resolve only matches `Alert::open()`. This is the opposite of offline alerts, which resolve from both `open` and `acknowledged` (see [03-data-model.md](03-data-model.md)). The asymmetry is intentional for now (a person who acknowledged a threshold breach is expected to also resolve it once satisfied it's handled) but is worth revisiting.

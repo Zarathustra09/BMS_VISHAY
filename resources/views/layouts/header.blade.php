@@ -76,56 +76,51 @@
         </div>
 
         <!-- Alerts & Notifications -->
+        @can('alerts.view')
         <div class="dropdown dropdown-end">
             <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
                 <div class="indicator">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                     </svg>
-                    <span class="badge badge-xs badge-warning indicator-item"></span>
+                    @if($unreadAlertCount > 0)
+                        <span class="badge badge-xs badge-error indicator-item"></span>
+                    @endif
                 </div>
             </div>
             <div tabindex="0" class="dropdown-content z-[1] card card-compact w-80 mt-3 shadow-2xl bg-base-100 border border-base-300/50">
                 <div class="card-body">
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="font-bold text-lg">Alerts & Notifications</h3>
-                        <span class="badge badge-warning badge-sm">2 Alerts</span>
+                        @if($unreadAlertCount > 0)
+                            <span class="badge badge-error badge-sm">{{ $unreadAlertCount }} new</span>
+                        @endif
                     </div>
                     <div class="space-y-2 max-h-96 overflow-y-auto">
-                        <div class="alert alert-warning">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                            <div class="text-sm">
-                                <div class="font-semibold">Maintenance Required</div>
-                                <div class="opacity-70">Production Line 3 - Scheduled in 2 hours</div>
-                            </div>
-                        </div>
-                        <div class="alert alert-info">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <div class="text-sm">
-                                <div class="font-semibold">New Order Received</div>
-                                <div class="opacity-70">Order #12456 - Priority: High</div>
-                            </div>
-                        </div>
-                        <div class="alert alert-success">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <div class="text-sm">
-                                <div class="font-semibold">Quality Check Passed</div>
-                                <div class="opacity-70">Batch #789 approved for shipment</div>
-                            </div>
-                        </div>
+                        @forelse($recentAlertNotifications as $notification)
+                            <form action="{{ route('notifications.read', $notification->id) }}" method="POST">
+                                @csrf
+                                <button type="submit" class="alert alert-{{ ($notification->data['severity'] ?? 'warning') === 'critical' ? 'error' : 'warning' }} w-full text-left {{ $notification->read_at ? 'opacity-50' : '' }}">
+                                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                    <div class="text-sm">
+                                        <div class="font-semibold">{{ $notification->data['machine_name'] ?? 'Machine' }}</div>
+                                        <div class="opacity-70">{{ $notification->data['message'] ?? '' }}</div>
+                                    </div>
+                                </button>
+                            </form>
+                        @empty
+                            <p class="text-sm opacity-60 text-center py-4">No alerts yet.</p>
+                        @endforelse
                     </div>
                     <div class="card-actions justify-end mt-2">
-                        <button class="btn btn-sm btn-ghost">View All Alerts</button>
+                        <a href="{{ route('alerts.index') }}" class="btn btn-sm btn-ghost">View All Alerts</a>
                     </div>
                 </div>
             </div>
         </div>
+        @endcan
 
         <!-- Theme Toggle (light "corporate" ⇄ dark "forest"; see window.setTheme in layouts/app.blade.php) -->
         <label class="swap swap-rotate btn btn-ghost btn-circle" title="Toggle dark mode">

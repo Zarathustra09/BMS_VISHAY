@@ -686,6 +686,69 @@
         </div>
 
     </form>
+
+    <!-- Alert Thresholds — separate form/route (AlertService), independent of the wizard above -->
+    <div class="card bg-base-100 shadow-xl border border-base-300/50">
+        <div class="card-body space-y-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-error/15 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold">Alert Thresholds</h2>
+                    <p class="text-sm opacity-60">Leave a field blank to skip that bound. A metric with no bounds set at all isn't monitored.</p>
+                </div>
+            </div>
+
+            <div class="divider my-0"></div>
+
+            <form action="{{ route('machines.thresholds.update', $machine) }}" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Warning Min</th>
+                                <th>Warning Max</th>
+                                <th>Critical Min</th>
+                                <th>Critical Max</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(\App\Interfaces\AlertInterface::METRIC_LABELS as $metric => $label)
+                                @php $threshold = $thresholds->get($metric); @endphp
+                                <tr>
+                                    <td class="font-medium whitespace-nowrap">{{ $label }}</td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_min]" value="{{ old('thresholds.'.$metric.'.warning_min', $threshold?->warning_min) }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_max]" value="{{ old('thresholds.'.$metric.'.warning_max', $threshold?->warning_max) }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_min]" value="{{ old('thresholds.'.$metric.'.critical_min', $threshold?->critical_min) }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_max]" value="{{ old('thresholds.'.$metric.'.critical_max', $threshold?->critical_max) }}" class="input input-bordered input-sm w-28"/></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                @error('thresholds')
+                    <p class="text-error text-sm">{{ $message }}</p>
+                @enderror
+
+                <div class="flex justify-end pt-4 border-t border-base-300">
+                    <button type="submit" class="btn btn-primary gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Save Thresholds
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @push('scripts')

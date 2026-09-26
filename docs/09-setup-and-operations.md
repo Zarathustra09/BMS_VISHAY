@@ -55,12 +55,22 @@ AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the 
 
 - `php artisan app:process-queue` — checks `Queue::size()` first and skips entirely if empty (logs to the `queue_processing` channel), otherwise runs `queue:work --stop-when-empty --max-time=50 --timeout=60`. Designed to be triggered on a schedule (e.g. every minute) without leaving a worker running permanently.
 - `php artisan app:run-queue-worker` — simpler variant, always runs `queue:work --stop-when-empty` and logs start/finish.
+- `php artisan app:check-offline-devices {--minutes=}` — raises an `offline` alert for any machine whose `last_seen_at` is older than `--minutes` (default 10, see `AlertInterface::OFFLINE_AFTER_MINUTES`). Prints a summary either way, but only writes to `storage/logs/laravel.log` when it actually raises something — see [02-architecture.md](02-architecture.md) for the full flow.
 
-Neither is currently registered in [routes/console.php](../routes/console.php)'s scheduler — that file only has the default `inspire` command. Phase 6 will add a `Schedule::command('app:process-queue')->everyMinute()` entry alongside the offline-device-check command.
+`app:process-queue` and `app:check-offline-devices` are both registered on the scheduler (below), running every minute.
 
 ## Scheduler
 
-Not yet wired up (see above) — `routes/console.php` has no `Schedule::` calls yet. Once Phase 5/6 add scheduled commands (alert evaluation, offline detection, preventive work orders), production deployments need a single cron entry:
+`routes/console.php` registers two `Schedule::command(...)` entries, both `everyMinute()->withoutOverlapping()`:
+
+```php
+Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
+Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
+```
+
+The offline check is listed **first** deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. Neither entry uses `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
+
+A single cron/Task Scheduler entry drives both:
 
 **Linux / cPanel**:
 ```
@@ -74,7 +84,7 @@ Arguments: artisan schedule:run
 Start in: C:\path\to\BMS_VISHAY
 ```
 
-For local development, `php artisan schedule:work` runs the scheduler in the foreground without needing cron/Task Scheduler.
+For local development, `php artisan schedule:work` runs the scheduler in the foreground without needing cron/Task Scheduler. Useful commands while developing: `php artisan schedule:list` (shows both entries and their next run time) and `php artisan schedule:test` (runs a scheduled command on demand, without waiting for its next due time).
 
 ## Logs
 
@@ -94,3 +104,5 @@ For local development, `php artisan schedule:work` runs the scheduler in the for
 | New migration errors about a table already existing | Someone ran `migrate:fresh` or the DB is out of sync — check `php artisan migrate:status` before creating a new migration that touches the same table |
 | A list page's table never loads (spinner or blank) | Open devtools → Network and check the `/…/data` ajax request. A 403 means the role lacks the `.view` permission for that module; a 500 usually means a column name mismatch between the JS `columns` array and the DataTable class's `addColumn`/`editColumn` names — see [02-architecture.md](02-architecture.md) for the DataTables pattern |
 | A table's columns look squeezed into the left half on first load | The main layout reveals page content ~300ms after load; the shared DataTables assets partial re-adjusts column widths ~400ms after load as a safety net. If it's still off, check the page sets `autoWidth: false` in its `.DataTable({...})` call |
+| A machine shows "Offline" on the page but the device is actively sending readings | Either the scheduler isn't running in this environment (`schedule:run`/`schedule:work`/cron/Task Scheduler — see Scheduler above), or check `machines.last_seen_at` directly: it's only stamped by `MachineLogService::store()`, so a reading inserted any other way (a seeder, a manual DB edit) won't update it |
+| The Live Sensor Readings chart on a machine page is empty even though `machine_logs` has rows for it | The selected/default metric has no non-null values in the last 7 days for that machine (`getReadingSeries()`'s `availableMetrics()` only offers metrics with data in that window) — check which of the 10 monitorable columns (`AlertInterface::METRICS`) are actually populated for that machine's logs |

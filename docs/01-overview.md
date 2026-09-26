@@ -16,7 +16,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Database | MySQL |
 | Queue | `database` driver |
 | Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN); light theme `corporate` is the default, dark theme `forest` is opt-in via a header toggle (see [08-frontend.md](08-frontend.md#theming)) |
-| Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs) |
+| Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs, alerts) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |
 
@@ -34,8 +34,8 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | User profile (self-service) | ✅ Done | Any logged-in user can update their own name/email and change their own password (requires current password) |
 | Roles management page | ✅ Done | Full CRUD: create custom roles, edit any non-`admin` role's permissions via a checkbox matrix, delete an unused role, **assign existing users to a role directly from the list** (moves them off their current role — one role per user). `admin` is protected (can't be renamed/deleted/edited); can't delete a role that still has users; can't reassign your own account via the picker. List is a client-side DataTable (small, fixed-size). No "remove from role" yet — reassign the user to a different role instead. |
 | Permissions page | ✅ Done | Read-only list of every permission grouped by module, showing which roles hold each one — new permissions are still added in code/seeder, not the UI |
-| Sensor thresholds & alerts | 🔴 Planned | Phase 5 |
-| Offline device detection | 🔴 Planned | Phase 6 |
+| Sensor thresholds & alerts | ✅ Done | Per-metric warning/critical bounds on the machine edit page; `AlertService::evaluate()` raises/escalates/auto-resolves alerts against every reading; in-app (header bell) + email notifications to admin/manager; alerts list is a server-side DataTable |
+| Offline device detection | ✅ Done | Scheduled `app:check-offline-devices` (every minute) raises an "offline" alert when a machine goes quiet for 10+ minutes; auto-resolves on the next reading; Online/Offline badge + live sensor chart on the machine page |
 | Work Orders | 🔴 Planned | `work_orders` table exists but is empty (`id` + timestamps only); Phase 7 |
 | Maintenance dashboard | 🔴 Planned | View is a static mockup; Phase 8 |
 | Reports & exports | 🔴 Planned | View is a static mockup; Phase 9 |
@@ -56,5 +56,6 @@ See [CHANGELOG.md](CHANGELOG.md) for what's shipped so far and the plan document
 | **Device key** | A per-machine secret (`X-Device-Key` header) that authenticates a device's POST requests to the sensor ingestion API. Stored as a SHA-256 hash for lookup, plus an encrypted copy so it can be viewed again by an authorized user. |
 | **Machine log** | A single event or sensor reading recorded against a machine: a status change, a maintenance action, an alarm, or a raw sensor reading. |
 | **Severity** | One of `info`, `warning`, `error`, `critical` — set on a machine log to indicate how serious it is. |
-| **Alert** *(planned, Phase 5)* | A notification raised when a sensor reading crosses a configured threshold, or a device stops reporting. |
+| **Alert** | A record raised by `AlertService` when a sensor reading crosses a configured threshold, or when a device stops reporting — has a severity (warning/critical) and a status (open/acknowledged/resolved), and triggers an in-app + email notification to admins/managers. |
+| **Sensor threshold** | Per-machine, per-metric warning/critical bounds (e.g. `temperature.critical_max`), configured on the machine edit page — see [03-data-model.md](03-data-model.md#sensor_thresholds). |
 | **Work Order** *(planned, Phase 7)* | A maintenance task, either created manually or generated automatically (e.g. from an alert or a due maintenance schedule), assigned to a technician. |

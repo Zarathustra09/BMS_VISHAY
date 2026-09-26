@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Interfaces\AIInterface;
+use App\Interfaces\AlertInterface;
 use App\Interfaces\BuildingInterface;
 use App\Interfaces\FloorInterface;
 use App\Interfaces\MachineInterface;
@@ -11,6 +12,7 @@ use App\Interfaces\PermissionInterface;
 use App\Interfaces\RoleInterface;
 use App\Interfaces\SuggestedQuestionInterface;
 use App\Interfaces\UserInterface;
+use App\Services\AlertService;
 use App\Services\BuildingService;
 use App\Services\FloorService;
 use App\Services\GeminiService;
@@ -21,6 +23,8 @@ use App\Services\PermissionService;
 use App\Services\RoleService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -45,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(UserInterface::class, UserService::class);
         $this->app->bind(RoleInterface::class, RoleService::class);
         $this->app->bind(PermissionInterface::class, PermissionService::class);
+        $this->app->bind(AlertInterface::class, AlertService::class);
     }
 
     /**
@@ -52,6 +57,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Shares the header bell's unread count/list on every authenticated page — a query
+        // belongs here, not in a @php block in the layout (see docs/02-architecture.md
+        // anti-patterns). Both views are always rendered together (header is @included
+        // from app.blade.php), but each gets an explicit share since a composer only fires
+        // for the exact view name it's registered against.
+        View::composer(['layouts.app', 'layouts.header'], function ($view) {
+            $user = Auth::user();
+
+            $view->with('unreadAlertCount', $user ? $user->unreadNotifications()->count() : 0);
+            $view->with('recentAlertNotifications', $user ? $user->notifications()->latest()->limit(5)->get() : collect());
+        });
     }
 }

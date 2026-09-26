@@ -4,20 +4,26 @@ namespace App\Http\Controllers;
 
 use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
+use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineInterface;
+use App\Interfaces\MachineLogInterface;
 use App\Models\Building;
 use App\Models\Floor;
 use App\Models\Machine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class MachineController extends Controller
 {
-    public function __construct(protected MachineInterface $machineService)
-    {
-        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData']);
+    public function __construct(
+        protected MachineInterface $machineService,
+        protected AlertInterface $alertService,
+        protected MachineLogInterface $machineLogService,
+    ) {
+        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings']);
         $this->middleware('permission:machines.create')->only(['create', 'store']);
-        $this->middleware('permission:machines.update')->only(['edit', 'update']);
+        $this->middleware('permission:machines.update')->only(['edit', 'update', 'updateThresholds']);
         $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
     }
 
@@ -60,12 +66,16 @@ class MachineController extends Controller
         $logStats            = $this->machineService->getLogStats($machine);
         $recentAlerts        = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
+        $activeAlerts        = $this->alertService->getActiveForMachine($machine);
+        // Rendered once here so the page loads with the chart fully drawn — no fetch on
+        // first paint, no flash while Alpine boots.
+        $chart               = $this->machineLogService->getReadingSeries($machine);
 
         $canViewDeviceKey = auth()->user()->can('machines.view-device-key');
         $deviceKeyPlain   = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
-            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution',
+            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'chart',
             'canViewDeviceKey', 'deviceKeyPlain'
         ));
     }
@@ -78,14 +88,30 @@ class MachineController extends Controller
         return $dataTable->forMachine($machine)->ajax();
     }
 
+    /**
+     * JSON source for the sensor chart on machines/show — polled every 30s by Alpine.
+     */
+    public function readings(Request $request, Machine $machine)
+    {
+        $validated = $request->validate([
+            'metric' => ['nullable', Rule::in(AlertInterface::METRICS)],
+            'range' => ['nullable', Rule::in(['1h', '24h', '7d'])],
+        ]);
+
+        return response()->json(
+            $this->machineLogService->getReadingSeries($machine, $validated['metric'] ?? null, $validated['range'] ?? '24h')
+        );
+    }
+
     public function edit(Machine $machine)
     {
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
         $floors    = $machine->building_id
             ? Floor::where('building_id', $machine->building_id)->get()
             : collect();
+        $thresholds = $this->alertService->getThresholds($machine);
 
-        return view('machines.edit', compact('machine', 'buildings', 'floors'));
+        return view('machines.edit', compact('machine', 'buildings', 'floors', 'thresholds'));
     }
 
     public function update(Request $request, Machine $machine)
@@ -96,6 +122,29 @@ class MachineController extends Controller
 
         return redirect()->route('machines.show', $machine)
             ->with('success', 'Machine updated successfully.');
+    }
+
+    /**
+     * Saves the machine's alert thresholds — a separate form/route from the main wizard
+     * above so this module's persistence (AlertService) stays independent of the
+     * machine-attribute validation in validateMachine().
+     */
+    public function updateThresholds(Request $request, Machine $machine)
+    {
+        $bounds = 'nullable|numeric';
+
+        $validated = $request->validate([
+            'thresholds' => 'array',
+            'thresholds.*.warning_min' => $bounds,
+            'thresholds.*.warning_max' => $bounds,
+            'thresholds.*.critical_min' => $bounds,
+            'thresholds.*.critical_max' => $bounds,
+        ]);
+
+        $this->alertService->saveThresholds($machine, $validated['thresholds'] ?? []);
+
+        return redirect()->route('machines.edit', $machine)
+            ->with('success', 'Alert thresholds updated.');
     }
 
     public function confirmDelete(Machine $machine)

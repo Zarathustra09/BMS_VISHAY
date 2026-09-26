@@ -10,7 +10,7 @@
 @section('back', route('machines.index'))
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6" x-data="sensorChart(@js($chart))">
     @if(session('device_key_plain'))
     <div class="alert alert-warning shadow-lg animate-fadeIn">
         <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,6 +44,13 @@
                             <span class="w-2 h-2 bg-{{ $config['color'] }}-content rounded-full animate-pulse"></span>
                         @endif
                         {{ $config['text'] }}
+                    </div>
+                    <div class="tooltip" :data-tip="last_seen_at ? 'Last reading ' + last_seen_human : 'No reading ever received'">
+                        <div class="badge badge-lg gap-2"
+                             :class="last_seen_at === null ? 'badge-ghost' : (online ? 'badge-success' : 'badge-error')">
+                            <span class="w-2 h-2 rounded-full bg-current" :class="online ? 'animate-pulse' : ''"></span>
+                            <span x-text="last_seen_at === null ? 'No readings' : (online ? 'Online' : 'Offline')"></span>
+                        </div>
                     </div>
                     @if($machine->is_critical)
                         <div class="badge badge-error badge-lg gap-2">
@@ -346,7 +353,156 @@
         </div>
     </div>
 
-    <!-- Recent Alerts -->
+    <!-- Live Sensor Readings -->
+    <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        <div class="card-body">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 class="card-title">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                    Live Sensor Readings
+                </h2>
+                <div class="flex items-center gap-2" x-show="availableMetrics.length > 0">
+                    <span class="loading loading-spinner loading-xs" x-show="loading"></span>
+                    <select class="select select-bordered select-sm" x-model="metric">
+                        <template x-for="m in availableMetrics" :key="m.value">
+                            <option :value="m.value" x-text="m.label" :selected="m.value === metric"></option>
+                        </template>
+                    </select>
+                    <select class="select select-bordered select-sm" x-model="range">
+                        <option value="1h">Last hour</option>
+                        <option value="24h">Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                    </select>
+                </div>
+            </div>
+
+            {{-- No-data state --}}
+            <div class="h-64 flex flex-col items-center justify-center text-center gap-2 opacity-60"
+                 x-show="availableMetrics.length === 0 || points.length === 0">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p class="text-sm" x-text="availableMetrics.length === 0
+                    ? 'This machine has not sent any sensor readings in the last 7 days.'
+                    : 'No ' + (label || 'sensor') + ' readings in this range.'"></p>
+            </div>
+
+            {{-- Chart --}}
+            <div class="flex gap-2" x-show="points.length > 0">
+                {{-- Y axis: five statically-classed spans, Alpine only sets their text — the
+                     Tailwind v4 browser CDN only compiles classes present at page load, so
+                     nothing here may be generated at runtime (see docs/08-frontend.md). --}}
+                <div class="flex flex-col justify-between h-64 text-xs opacity-60 w-14 shrink-0 text-right py-0.5">
+                    <span x-text="yLabels[0]"></span>
+                    <span x-text="yLabels[1]"></span>
+                    <span x-text="yLabels[2]"></span>
+                    <span x-text="yLabels[3]"></span>
+                    <span x-text="yLabels[4]"></span>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                    <div class="relative h-64 sensor-chart" @mousemove="onHover($event)" @mouseleave="hover = null">
+                        {{-- viewBox + preserveAspectRatio="none" means clientWidth is never
+                             measured, which the layout's 300ms reveal would report as 0. --}}
+                        <svg class="w-full h-full block" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true">
+                            <template x-for="b in bands" :key="b.key">
+                                <rect x="0" width="1000" :y="b.y" :height="b.h" :class="b.cls"></rect>
+                            </template>
+                            <template x-for="y in [0, 75, 150, 225, 300]" :key="y">
+                                <line x1="0" x2="1000" :y1="y" :y2="y" class="chart-grid" vector-effect="non-scaling-stroke"></line>
+                            </template>
+                            <template x-for="l in bandLines" :key="l.key">
+                                <line x1="0" x2="1000" :y1="l.y" :y2="l.y" :class="l.cls" vector-effect="non-scaling-stroke"></line>
+                            </template>
+                            <path :d="spreadPath" class="chart-spread"></path>
+                            <path :d="areaPath" class="chart-area"></path>
+                            <path :d="linePath" class="chart-line" vector-effect="non-scaling-stroke"></path>
+                            <line x-show="hover" :x1="hover?.x" :x2="hover?.x" y1="0" y2="300"
+                                  class="chart-crosshair" vector-effect="non-scaling-stroke"></line>
+                        </svg>
+
+                        {{-- Dots are HTML, not <circle> — preserveAspectRatio="none" would
+                             squash a circle into an ellipse. Inline styles only. --}}
+                        <template x-for="(p, i) in (points.length <= 60 ? points : [])" :key="p.t">
+                            <span class="chart-dot" :style="`left:${pctX(i)}%; top:${pctY(p.avg)}%`"></span>
+                        </template>
+
+                        <div class="chart-tip" x-show="hover" :style="`left:${hover?.px}%`">
+                            <div class="font-semibold" x-text="hover ? fmt(hover.point.avg) : ''"></div>
+                            <div class="opacity-70" x-text="hover?.point.label"></div>
+                            <div class="opacity-50" x-show="hover && hover.point.n > 1"
+                                 x-text="hover ? `${fmt(hover.point.min)} – ${fmt(hover.point.max)} (${hover.point.n} readings)` : ''"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between text-xs opacity-60 mt-2">
+                        <span x-text="xLabels[0]"></span>
+                        <span x-text="xLabels[1]"></span>
+                        <span x-text="xLabels[2]"></span>
+                        <span x-text="xLabels[3]"></span>
+                        <span x-text="xLabels[4]"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-base-300" x-show="points.length > 0">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-primary"></div><span class="text-sm" x-text="label"></span></div>
+                <div class="flex items-center gap-2" x-show="hasWarningBand"><div class="w-3 h-3 rounded-full bg-warning"></div><span class="text-sm">Warning range</span></div>
+                <div class="flex items-center gap-2" x-show="hasCriticalBand"><div class="w-3 h-3 rounded-full bg-error"></div><span class="text-sm">Critical range</span></div>
+                <div class="text-xs opacity-60 ml-auto">Updates every 30s · <span x-text="lastUpdated"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Alerts (threshold breaches raised by AlertService — see Alert Thresholds on the edit page) -->
+    @if($activeAlerts->isNotEmpty())
+        <div class="card bg-base-100 shadow-lg border border-error/40">
+            <div class="card-body">
+                <div class="flex items-center justify-between">
+                    <h2 class="card-title">
+                        <svg class="w-5 h-5 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        Active Alerts
+                    </h2>
+                    <a href="{{ route('alerts.index') }}" class="btn btn-ghost btn-xs">View all</a>
+                </div>
+                <div class="space-y-2">
+                    @foreach($activeAlerts as $alert)
+                        <div class="alert alert-{{ $alert->severity === 'critical' ? 'error' : 'warning' }}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <div class="font-medium">{{ $alert->message }}</div>
+                                <div class="text-xs opacity-70">{{ $alert->created_at->diffForHumans() }} · {{ ucfirst($alert->status) }}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                @if($alert->status === 'open')
+                                    @can('alerts.acknowledge')
+                                        <form action="{{ route('alerts.acknowledge', $alert) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="btn btn-xs btn-outline">Acknowledge</button>
+                                        </form>
+                                    @endcan
+                                @endif
+                                @can('alerts.resolve')
+                                    <form action="{{ route('alerts.resolve', $alert) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="btn btn-xs btn-outline btn-success">Resolve</button>
+                                    </form>
+                                @endcan
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Recent Alert-Level Logs (raw log entries with severity error/critical — distinct from the Active Alerts above, which are AlertService-raised threshold breaches) -->
     @if($recentAlerts->isNotEmpty())
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
@@ -354,7 +510,7 @@
                     <svg class="w-5 h-5 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                     </svg>
-                    Recent Alerts
+                    Recent Alert-Level Logs
                 </h2>
                 <div class="space-y-2">
                     @foreach($recentAlerts as $alert)
@@ -775,6 +931,133 @@ document.addEventListener('alpine:init', () => {
                 .replace(/\n/g, '<br>');
         }
     }));
+
+    Alpine.data('sensorChart', (initial) => ({
+        ...initial,
+        availableMetrics: initial.available_metrics,
+        bucketSeconds: initial.bucket_seconds,
+        loading: false,
+        failures: 0,
+        hover: null,
+        lastUpdated: 'just now',
+        timer: null,
+        controller: null,
+
+        init() {
+            this.$watch('metric', () => this.load());
+            this.$watch('range', () => this.load());
+            this.timer = setInterval(() => {
+                if (document.visibilityState === 'visible') this.load(true);
+            }, 30000);
+        },
+
+        async load(silent = false) {
+            if (this.controller) this.controller.abort();
+            this.controller = new AbortController();
+            if (!silent) this.loading = true;
+            try {
+                const url = new URL('{{ route('machines.readings', $machine) }}', window.location.origin);
+                url.searchParams.set('metric', this.metric ?? '');
+                url.searchParams.set('range', this.range);
+                const res = await fetch(url, { signal: this.controller.signal, headers: { 'Accept': 'application/json' } });
+                if (!res.ok) throw new Error(res.status);
+                const d = await res.json();
+                Object.assign(this, d, { availableMetrics: d.available_metrics, bucketSeconds: d.bucket_seconds });
+                this.lastUpdated = new Date().toLocaleTimeString();
+                this.failures = 0;
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+                if (++this.failures >= 5) { clearInterval(this.timer); this.lastUpdated = 'live updates paused'; }
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        get scale() {
+            const vals = [];
+            this.points.forEach(p => vals.push(p.min, p.max));
+            Object.values(this.thresholds).forEach(v => { if (v !== null) vals.push(v); });
+            if (!vals.length) return { lo: 0, hi: 1 };
+            let lo = Math.min(...vals), hi = Math.max(...vals);
+            if (hi === lo) { hi = lo + (Math.abs(lo) * 0.1 || 1); lo -= (Math.abs(lo) * 0.1 || 1); }
+            const pad = (hi - lo) * 0.08;
+            return { lo: lo - pad, hi: hi + pad };
+        },
+        yAt(v) { const { lo, hi } = this.scale; return 300 - ((v - lo) / (hi - lo)) * 300; },
+        xAt(i) { return this.points.length <= 1 ? 500 : (i / (this.points.length - 1)) * 1000; },
+        pctX(i) { return this.xAt(i) / 10; },
+        pctY(v) { return this.yAt(v) / 3; },
+        fmt(v) { return v === null || v === undefined ? '—' : (Math.round(v * 100) / 100).toString(); },
+
+        get segments() {
+            const segs = []; let cur = [];
+            this.points.forEach((p, i) => {
+                const gap = cur.length && (p.t - cur[cur.length - 1].p.t) > this.bucketSeconds * 1.5;
+                if (gap) { segs.push(cur); cur = []; }
+                cur.push({ p, i });
+            });
+            if (cur.length) segs.push(cur);
+            return segs;
+        },
+        get linePath() {
+            return this.segments.map(seg =>
+                seg.map(({ p, i }, k) => `${k ? 'L' : 'M'}${this.xAt(i).toFixed(1)} ${this.yAt(p.avg).toFixed(1)}`).join(' ')
+            ).join(' ');
+        },
+        get areaPath() {
+            return this.segments.map(seg => {
+                const top = seg.map(({ p, i }, k) => `${k ? 'L' : 'M'}${this.xAt(i).toFixed(1)} ${this.yAt(p.avg).toFixed(1)}`).join(' ');
+                return `${top} L${this.xAt(seg[seg.length - 1].i).toFixed(1)} 300 L${this.xAt(seg[0].i).toFixed(1)} 300 Z`;
+            }).join(' ');
+        },
+        get spreadPath() {
+            return this.segments.map(seg => {
+                const up = seg.map(({ p, i }, k) => `${k ? 'L' : 'M'}${this.xAt(i).toFixed(1)} ${this.yAt(p.max).toFixed(1)}`).join(' ');
+                const down = [...seg].reverse().map(({ p, i }) => `L${this.xAt(i).toFixed(1)} ${this.yAt(p.min).toFixed(1)}`).join(' ');
+                return `${up} ${down} Z`;
+            }).join(' ');
+        },
+
+        get bands() {
+            const t = this.thresholds, out = [];
+            const push = (key, yA, yB, cls) => {
+                const y = Math.max(0, Math.min(yA, yB)), h = Math.min(300, Math.max(yA, yB)) - y;
+                if (h > 0) out.push({ key, y, h, cls });
+            };
+            if (t.critical_max !== null) push('cmax', 0, this.yAt(t.critical_max), 'chart-band-crit');
+            if (t.critical_min !== null) push('cmin', this.yAt(t.critical_min), 300, 'chart-band-crit');
+            if (t.warning_max !== null) push('wmax', t.critical_max !== null ? this.yAt(t.critical_max) : 0, this.yAt(t.warning_max), 'chart-band-warn');
+            if (t.warning_min !== null) push('wmin', this.yAt(t.warning_min), t.critical_min !== null ? this.yAt(t.critical_min) : 300, 'chart-band-warn');
+            return out;
+        },
+        get bandLines() {
+            const t = this.thresholds, out = [];
+            [['warning_min', 'chart-edge-warn'], ['warning_max', 'chart-edge-warn'],
+             ['critical_min', 'chart-edge-crit'], ['critical_max', 'chart-edge-crit']]
+                .forEach(([k, cls]) => { if (t[k] !== null) out.push({ key: k, y: this.yAt(t[k]), cls }); });
+            return out;
+        },
+        get hasWarningBand() { return this.thresholds.warning_min !== null || this.thresholds.warning_max !== null; },
+        get hasCriticalBand() { return this.thresholds.critical_min !== null || this.thresholds.critical_max !== null; },
+
+        get yLabels() {
+            const { lo, hi } = this.scale;
+            return [0, 1, 2, 3, 4].map(i => this.fmt(hi - ((hi - lo) / 4) * i));
+        },
+        get xLabels() {
+            const n = this.points.length;
+            if (!n) return ['', '', '', '', ''];
+            return [0, 1, 2, 3, 4].map(i => this.points[Math.round((n - 1) * i / 4)].label);
+        },
+
+        onHover(e) {
+            if (!this.points.length) return;
+            const r = e.currentTarget.getBoundingClientRect();
+            const pct = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+            const i = Math.round(pct * (this.points.length - 1));
+            this.hover = { point: this.points[i], x: this.xAt(i), px: this.pctX(i) };
+        },
+    }));
 });
 </script>
 
@@ -814,6 +1097,37 @@ document.addEventListener('alpine:init', () => {
             opacity: 1;
             transform: translateY(0);
         }
+    }
+
+    /* Live Sensor Readings chart — colours MUST live here, not as fill=/stroke= attributes
+       on the SVG elements themselves: CSS custom properties are only substituted inside CSS
+       declarations, not SVG presentation attributes, so var(--color-primary) silently does
+       nothing written as fill="var(--color-primary)". Using classes here means the whole
+       chart recolours instantly on a corporate/forest theme switch with no JS. */
+    .chart-grid      { stroke: color-mix(in oklab, var(--color-base-content) 12%, transparent); stroke-width: 1; }
+    .chart-crosshair { stroke: color-mix(in oklab, var(--color-base-content) 40%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
+    .chart-line      { fill: none; stroke: var(--color-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .chart-area      { fill: var(--color-primary); fill-opacity: .10; stroke: none; }
+    .chart-spread    { fill: var(--color-primary); fill-opacity: .18; stroke: none; }
+    .chart-band-warn { fill: var(--color-warning); fill-opacity: .10; }
+    .chart-band-crit { fill: var(--color-error); fill-opacity: .12; }
+    .chart-edge-warn { stroke: var(--color-warning); stroke-width: 1; stroke-dasharray: 6 4; }
+    .chart-edge-crit { stroke: var(--color-error); stroke-width: 1; stroke-dasharray: 6 4; }
+
+    .chart-dot {
+        position: absolute; width: 6px; height: 6px; border-radius: 9999px;
+        background: var(--color-primary);
+        border: 1px solid var(--color-base-100);
+        transform: translate(-50%, -50%); pointer-events: none;
+    }
+
+    .chart-tip {
+        position: absolute; top: .5rem; transform: translateX(-50%);
+        background: var(--color-base-100); color: var(--color-base-content);
+        border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+        border-radius: .5rem; padding: .25rem .5rem; font-size: .75rem;
+        white-space: nowrap; pointer-events: none; z-index: 10;
+        box-shadow: 0 4px 12px color-mix(in oklab, var(--color-base-content) 15%, transparent);
     }
 </style>
 @endsection

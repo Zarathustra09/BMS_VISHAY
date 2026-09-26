@@ -70,6 +70,8 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 | GET | `/machines/{machine}/delete` | `machines.confirm-delete` | `MachineController@confirmDelete` | `machines.delete` | Confirmation page |
 | GET | `/machines/{machine}/logs/data` | `machines.logs.data` | `MachineController@logsData` | `machines.view` | **Ajax source for the machine-logs DataTable** on `machines/show` — severity/log_type/date-range filters. The highest-volume table in the app (see [02-architecture.md](02-architecture.md)). |
 | POST | `/machines/{machine}/device-key` | `machines.device-key.generate` | `MachineController@generateDeviceKey` | `machines.view-device-key` | Generate/regenerate this machine's sensor device API key |
+| PUT | `/machines/{machine}/thresholds` | `machines.thresholds.update` | `MachineController@updateThresholds` | `machines.update` | Save this machine's alert warning/critical bounds (Phase 5) — a separate form/route from the edit wizard, since it persists through `AlertService` rather than `MachineService` |
+| GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` and `?range=` (`1h`\|`24h`\|`7d`) query params, both validated against a fixed list; polled every 30s by the chart's Alpine component |
 
 ## Users
 
@@ -107,6 +109,28 @@ New in Phase 4b. Read-only — there is no create/update/delete, since a permiss
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
 | GET | `/permissions` | `permissions.index` | `PermissionController@index` | `permissions.view` | Every permission, grouped by module, with the roles that hold each one |
+
+## Alerts
+
+New in Phase 5. Same controller-constructor permission-gating pattern; `alerts.acknowledge`/`alerts.resolve` are their own permissions rather than part of a CRUD set, since alerts are raised by the system (`AlertService::evaluate()`), never manually created or deleted — see [06-security.md](06-security.md). The index table is a **server-side** DataTable (grows with every sensor reading).
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/alerts` | `alerts.index` | `AlertController@index` | `alerts.view` | List page shell + stat tiles — the table loads via `alerts.data` |
+| GET | `/alerts/data` | `alerts.data` | `AlertController@data` | `alerts.view` | **Ajax source for the alerts DataTable** — status/severity/machine filters |
+| POST | `/alerts/{alert}/acknowledge` | `alerts.acknowledge` | `AlertController@acknowledge` | `alerts.acknowledge` | Mark an open alert as being handled |
+| POST | `/alerts/{alert}/resolve` | `alerts.resolve` | `AlertController@resolve` | `alerts.resolve` | Manually resolve an open or acknowledged alert (readings back within bounds also auto-resolve via `AlertService::evaluate()`) |
+
+The same acknowledge/resolve actions are also available inline on `machines/show`'s "Active Alerts" card, scoped to that one machine.
+
+## Notifications
+
+Backs the header bell. No permission gate beyond `auth` — a route only ever acts on `auth()->user()`'s own notifications, never another user's. Thin wrapper over Laravel's own Notifiable API (see [08-frontend.md](08-frontend.md)) — no interface/service, since there's no domain logic to abstract.
+
+| Method | URI | Name | Controller@Method | Purpose |
+|---|---|---|---|---|
+| POST | `/notifications/{id}/read` | `notifications.read` | `NotificationController@read` | Marks one notification read, then redirects to the machine it's about (or the alerts index) |
+| POST | `/notifications/read-all` | `notifications.read-all` | `NotificationController@readAll` | Marks all of the current user's notifications read |
 
 ## Profile
 

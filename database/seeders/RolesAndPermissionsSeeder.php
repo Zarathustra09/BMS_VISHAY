@@ -40,6 +40,13 @@ class RolesAndPermissionsSeeder extends Seeder
         // once code checks it, so there's no "create"/"update"/"delete" action for one).
         $permissions[] = 'permissions.view';
 
+        // Alerts are raised by the system (AlertService::evaluate()), never created or
+        // deleted by a user, so this module skips the CRUD set in favor of the two actions
+        // a person actually takes on one.
+        $permissions[] = 'alerts.view';
+        $permissions[] = 'alerts.acknowledge';
+        $permissions[] = 'alerts.resolve';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }
@@ -63,15 +70,18 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.view',
             'roles.view',
             'permissions.view',
+            'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
         ]);
 
         // technician: field/hardware role — views everything, can update a machine's
-        // own record (status, maintenance dates), and is the one wiring up sensors.
+        // own record (status, maintenance dates), and is the one wiring up sensors and
+        // acting on alerts in the field.
         $technician->syncPermissions([
             'buildings.view',
             'floors.view',
             'machines.view', 'machines.update',
             'machines.view-device-key',
+            'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
         ]);
 
         // viewer: read-only across the board.
@@ -79,6 +89,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'buildings.view',
             'floors.view',
             'machines.view',
+            'alerts.view',
         ]);
     }
 }

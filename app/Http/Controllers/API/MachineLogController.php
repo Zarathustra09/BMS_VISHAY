@@ -78,8 +78,8 @@ class MachineLogController extends Controller
 
         $validated['machine_id'] = $machine->id;
 
-        $machine->forceFill(['last_seen_at' => now()])->save();
-
+        // last_seen_at is stamped inside MachineLogService::store(), not here — so every
+        // caller of store() keeps offline detection in sync, not just this endpoint.
         $log = $this->machineLogService->store($validated);
 
         return response()->json([

@@ -116,7 +116,24 @@ void sendReading(float temperatureC, float humidityPct) {
 | `422 Unprocessable Entity` | A field failed validation | Standard Laravel validation error body: `{"message": "...", "errors": {"field": ["reason"]}}` |
 | `429 Too Many Requests` | Rate limit exceeded (120/min) | Standard Laravel throttle response |
 
-## 8. Retry guidance
+## 8. Threshold alerts (Phase 5)
+
+Every stored reading is checked against that machine's configured [sensor thresholds](03-data-model.md#sensor_thresholds) (set on the machine's edit page in the web UI — there's no API for this) before the response is returned. This happens synchronously in `MachineLogService::store()`, so it doesn't add a separate request, but it does mean a reading that breaches a critical bound will queue an admin/manager notification (database + email) before your `201` comes back.
+
+- The `severity` field you send is independent of this — it's your own event classification (e.g. a device might send `severity: "info"` for a routine reading that still happens to breach a threshold). Alerts are driven entirely by the numeric metric values against the configured bounds, not by whatever `severity` you pass.
+- Sending the same out-of-range value repeatedly does **not** create a new alert each time — there's at most one open alert per machine per metric, and it just gets its `value`/timestamp updated. You'll only trigger a fresh notification if the reading escalates the alert from `warning` to `critical`.
+- A reading back within both the warning and critical bounds automatically resolves whatever alert was open for that metric — no separate "all clear" call needed.
+- See [02-architecture.md](02-architecture.md) for the full evaluate/escalate/resolve sequence, and [06-security.md](06-security.md) for who receives the notification.
+
+## 9. Offline detection (Phase 6)
+
+If a device stops POSTing entirely, the platform notices on its own — there's nothing extra for the device to send. A scheduled check runs every minute and raises an "offline" alert (in-app + email, same as a threshold alert) for any machine that hasn't had an accepted POST in the last 10 minutes. A machine that has never sent a single reading is **not** flagged this way — offline detection only applies once a device has proven it can report at least once.
+
+- Any successful POST clears the offline alert automatically, immediately, on that same request — including a request that's just replaying a backlog of old, buffered readings after a reconnect. `last_seen_at` is stamped to *now* (when the request arrived), not to the reading's own timestamp, so replaying old data correctly marks the device as back online even though the data itself is old.
+- There's no way to mark a device offline early or extend the window from the API side — the 10-minute threshold is a server-side setting (`AlertInterface::OFFLINE_AFTER_MINUTES`, overridable per-run via `--minutes` on the underlying command, not per-device).
+- A machine explicitly set to `inactive` status in the web UI is excluded from this check — expected to be silent, so it won't page anyone.
+
+## 10. Retry guidance
 
 - On `401`: stop retrying with the same key — it's been revoked or was never valid. The device needs a new key issued from the web UI.
 - On `429`: back off (e.g. exponential backoff starting at a few seconds) and retry.

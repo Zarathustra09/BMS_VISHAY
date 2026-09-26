@@ -70,13 +70,15 @@ sequenceDiagram
     alt key invalid
         Mid-->>Device: 401
     else key valid
-        Mid->>Mid: attach machine to request, stamp last_seen_at
+        Mid->>Mid: attach machine to request
         Mid->>Ctrl: store(Request)
         Ctrl->>Ctrl: validate sensor fields
         Ctrl->>Iface: store($validated)
         Iface->>Svc: (resolved by container)
         Svc->>DB: MachineLog::create($validated)
         DB-->>Svc: MachineLog model
+        Svc->>DB: stamp machines.last_seen_at = now()
+        Svc->>Svc: AlertInterface::evaluate($log) — see (d)/(e) below
         Svc-->>Ctrl: MachineLog model
         Ctrl-->>Device: 201 JSON
     end
@@ -118,6 +120,100 @@ sequenceDiagram
 
 See [07-ai-insights.md](07-ai-insights.md) for details on context building and provider switching.
 
+### (d) Threshold evaluation (`AlertService::evaluate()`, Phase 5)
+
+Runs synchronously as the last step of `MachineLogService::store()` — every reading, not just ones from the sensor API, so a manually-logged reading gets the same alerting.
+
+```mermaid
+sequenceDiagram
+    participant Svc as MachineLogService
+    participant Alert as AlertInterface / AlertService
+    participant DB as sensor_thresholds / alerts tables
+    participant Notif as Notification::send()
+    participant Queue
+
+    Svc->>Alert: evaluate($log)
+    Alert->>DB: load thresholds for $log->machine_id
+    loop each metric present on $log
+        Alert->>Alert: determineSeverity(threshold, value)
+        alt within bounds
+            Alert->>DB: resolve() any open alert for this metric
+        else warning or critical
+            alt no open alert for this machine+metric
+                Alert->>DB: Alert::create(status: open)
+                Alert->>Notif: send(admins+managers, MachineAlertNotification)
+            else already open
+                Alert->>DB: update value/severity (escalate only, never downgrade)
+                opt escalated to critical
+                    Alert->>Notif: send(...) again
+                end
+            end
+        end
+    end
+    Notif->>Queue: dispatch (ShouldQueue) — database + mail channels
+```
+
+Key rules (all in `AlertService`, not the schema — see [03-data-model.md](03-data-model.md#alerts)):
+- **One open alert per `(machine_id, metric)`.** A repeat breach updates the existing row instead of inserting a new one.
+- **Severity only escalates while open** (`warning` → `critical`), never downgrades — a reading that's still abnormal but less severe than before leaves the alert as-is. Only a reading back within *both* bounds resolves it.
+- **Notifications fire on creation and on escalation to critical**, not on every matching reading — this is what keeps "the same bad reading repeated" from spamming email.
+- Recipients are every user with the `admin` or `manager` role (`User::role(['admin', 'manager'])`), resolved fresh on each call — not a stored subscriber list.
+
+`MachineAlertNotification implements ShouldQueue` and sends on both the `database` channel (backs the header bell — see [08-frontend.md](08-frontend.md)) and `mail` (routes to `storage/logs/laravel.log` in dev, since `MAIL_MAILER=log`).
+
+### (e) Offline detection (`app:check-offline-devices`, Phase 6)
+
+Runs on a schedule rather than in response to a request — a silent device produces no request to react to.
+
+```mermaid
+sequenceDiagram
+    participant Cron as OS cron / Task Scheduler
+    participant Sched as schedule:run (routes/console.php)
+    participant Cmd as CheckOfflineDevices
+    participant Alert as AlertInterface / AlertService
+    participant DB as machines / alerts tables
+    participant Notif as Notification::send()
+
+    Cron->>Sched: every minute
+    Sched->>Cmd: app:check-offline-devices
+    Cmd->>Alert: raiseOfflineAlerts($minutes = 10)
+    Alert->>DB: machines where last_seen_at < now()-$minutes,<br/>not null, status != inactive,<br/>no open/acknowledged offline alert
+    loop each stale machine
+        Alert->>DB: Alert::create(type: offline, severity: is_critical ? critical : warning)
+        Alert->>Notif: send(admins+managers, MachineAlertNotification)
+    end
+    Cmd-->>Sched: exit 0 (Log::warning only if any were raised)
+```
+
+The resolve side runs inline, not on a schedule — a reading arriving is itself the "device is back" signal:
+
+```mermaid
+sequenceDiagram
+    participant Svc as MachineLogService::store()
+    participant Alert as AlertService::evaluate()
+    participant DB as alerts table
+
+    Svc->>Alert: evaluate($log)
+    Note over Alert: resolveOfflineAlerts() runs FIRST,<br/>above the thresholds early-return —<br/>see the gotcha below
+    Alert->>DB: resolve() any open/acknowledged 'offline'<br/>alert for this machine
+    Note over Alert: ...then the normal threshold evaluation<br/>from (d) continues
+```
+
+**The early-return gotcha.** `evaluate()` loads the machine's `sensor_thresholds` and returns immediately if there are none (see (d)). `resolveOfflineAlerts()` is called *before* that check specifically so a machine with no configured thresholds can still clear its offline alert — placing it after would mean such a machine's offline alert could never resolve. This ordering has its own explicit comment in `AlertService::evaluate()`; don't reorder it.
+
+**Idempotency** is enforced with `whereDoesntHave('alerts', type=offline, status in [open, acknowledged])` in the query itself, not a separate check — running the command every minute never re-raises or re-notifies for a machine already flagged. `last_seen_at IS NULL` (never commissioned) and `status = 'inactive'` (deliberately out of service) are both excluded from the query — see [03-data-model.md](03-data-model.md) for the reasoning.
+
+### Scheduled commands
+
+`routes/console.php` registers scheduled events (Laravel 12 loads them from the same file as `Artisan::command()` closures, via `withRouting(commands: ...)` in `bootstrap/app.php` — no separate `Kernel.php`):
+
+```php
+Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
+Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
+```
+
+The offline check is registered **first** deliberately: `schedule:run` executes due events sequentially in registration order, and `app:process-queue` can hold the process for up to ~50s (see its `--max-time`) — registering it first would delay the offline check by up to that long every run. `runInBackground()` is deliberately not used for either: it shells out using POSIX-style command construction, which doesn't behave correctly under Windows Task Scheduler, a supported production target here (see [09-setup-and-operations.md](09-setup-and-operations.md)). `withoutOverlapping()` needs a working cache lock — satisfied by `CACHE_STORE=database` with the cache table migrated.
+
 ## Interface → Service → Controller: layer responsibilities
 
 | Layer | Responsible for | Must NOT contain |
@@ -145,6 +241,7 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `UserInterface` | `UserService` | `UserController` |
 | `RoleInterface` | `RoleService` | `RoleController` |
 | `PermissionInterface` | `PermissionService` | `RoleController`, `PermissionController` |
+| `AlertInterface` | `AlertService` | `MachineLogService` (evaluates every reading), `MachineController` (thresholds + active-alerts card), `AlertController` |
 
 `AIInterface`'s binding is a closure, not a plain class-string, because it's the one case in this app where the implementation is chosen at runtime:
 
@@ -219,6 +316,20 @@ Action-button cells (View/Edit/Delete) render through a small Blade partial (e.g
 **Server-side vs. client-side** — not every table needs an ajax endpoint. `roles/show`'s "users with this role" table and `permissions/index` are rendered fully server-side in the initial page load (small, fixed-size data) and DataTables is initialised on them with no `ajax`/`serverSide` option at all — it just adds sort/search/paging on top of the rows already in the DOM. Reach for server-side only when the table's row count scales with real-world usage (buildings, machines, and especially `machine_logs`, which grows with every sensor reading).
 
 **What this replaced**: `BuildingService::getAllBuildings()` was an unbounded `Building::with(['floors','machines'])->get()`, and the controller summed the loaded collection in PHP for stat tiles; `MachineService::getAllPaginated()` and `getLogsForMachine()` used Laravel's paginator. All three were removed (not deprecated — nothing else called them) in favor of `getQueryForDataTable()` methods, and `BuildingService` gained a proper `getStats()` (count queries, mirroring `MachineService::getStats()`) instead of summing a loaded collection.
+
+## Shared view data: View Composers, not `@php` queries
+
+The header bell's unread count and recent-notifications list are needed on every authenticated page, but the layout files (`layouts/app.blade.php`, `layouts/header.blade.php`) aren't rendered by a single controller action, so there's no one `compact(...)` call to hand them a variable. Rather than a `@php $count = auth()->user()->unreadNotifications()->count(); @endphp` block in the view (a query in Blade — the anti-pattern below), `AppServiceProvider::boot()` registers a `View::composer()`:
+
+```php
+View::composer(['layouts.app', 'layouts.header'], function ($view) {
+    $user = Auth::user();
+    $view->with('unreadAlertCount', $user ? $user->unreadNotifications()->count() : 0);
+    $view->with('recentAlertNotifications', $user ? $user->notifications()->latest()->limit(5)->get() : collect());
+});
+```
+
+Both views need the data explicitly listed since a composer only fires for the exact view name it's registered against, even though `header` is always `@include`d from `app`. Reach for a composer only for genuinely cross-cutting, layout-level data like this — a single page's own data still belongs in its controller action passing a `compact(...)`/`view(..., [...])` payload, not a composer.
 
 ## Adding a new module
 

@@ -129,7 +129,7 @@ Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations
 | is_critical | boolean | | default `false`, indexed |
 | **device_key** | string(64) | ✓ | SHA-256 hash of the device's plaintext API key. **Unique.** Never exposed as plaintext — see below. |
 | **device_key_encrypted** | text | ✓ | `Crypt::encryptString()` of the plaintext key, so it can be decrypted and shown again to an authorized user. |
-| **last_seen_at** | timestamp | ✓ | Updated every time a sensor reading is accepted for this machine. |
+| **last_seen_at** | timestamp | ✓ | Stamped to `now()` (not the reading's own `logged_at`) inside `MachineLogService::store()` every time any log is stored for this machine — a replayed backlog of old readings still proves the device is alive *now*. Not written by `AuthenticateDevice`; moved into the service in Phase 6 so every caller of `store()`, not just the sensor API, keeps offline detection accurate. Null means never commissioned/never reported — see `Machine::isOnline()` and the `alerts` "offline" type below. |
 | deleted_at | timestamp | ✓ | `SoftDeletes` |
 | timestamps | | | |
 
@@ -137,7 +137,7 @@ Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations
 
 Both columns are in the model's `$hidden` array, so they never appear in `toArray()`/`toJson()` output even accidentally.
 
-**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `hasMany(MachineLog)` (as `logs()`).
+**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `hasMany(MachineLog)` (as `logs()`), `hasMany(SensorThreshold)` (as `thresholds()`), `hasMany(Alert)` (as `alerts()`).
 
 **Scopes**: `active()`, `critical()`, `byBuilding($id)`, `byFloor($id)`.
 
@@ -179,6 +179,61 @@ Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severi
 
 **Scopes**: `alerts()` (severity in error/critical), `byType($type)`, `recent($days = 7)`, `bySeverity($severity)`.
 
+### `sensor_thresholds`
+
+Migration: [2026_09_26_191411_create_sensor_thresholds_table.php](../database/migrations/2026_09_26_191411_create_sensor_thresholds_table.php)
+
+Per-machine, per-metric warning/critical bounds, configured on the machine edit page. `AlertService::evaluate()` checks every incoming `machine_logs` row against these.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| id | bigint PK | | |
+| machine_id | bigint FK → machines.id | | `onDelete('cascade')` |
+| metric | enum | | one of `temperature`, `humidity`, `pressure`, `power_consumption`, `voltage`, `current`, `frequency`, `vibration_rms`, `bearing_temp`, `oil_level` — matches a `machine_logs` column |
+| warning_min, warning_max | decimal(12,3) | ✓ | a null bound means that side isn't checked |
+| critical_min, critical_max | decimal(12,3) | ✓ | checked before the warning bounds — see `AlertService::determineSeverity()` |
+| timestamps | | | |
+
+Unique on `(machine_id, metric)` — one threshold row per machine per metric. A metric with all four bounds empty has no row at all (removed by `AlertService::saveThresholds()` rather than stored as all-null).
+
+**Relationships** ([SensorThreshold.php](../app/Models/SensorThreshold.php)): `belongsTo(Machine)`.
+
+### `alerts`
+
+Migration: [2026_09_26_191411_create_alerts_table.php](../database/migrations/2026_09_26_191411_create_alerts_table.php)
+
+A threshold breach or a device-offline event raised against a machine. Created/escalated/auto-resolved by `AlertService`.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| id | bigint PK | | |
+| machine_id | bigint FK → machines.id | | `onDelete('cascade')` |
+| machine_log_id | bigint FK → machine_logs.id | ✓ | the reading that raised/last updated this alert; **always null for an `offline` alert** — it isn't caused by any one reading; `nullOnDelete()` |
+| type | enum | | `threshold` (default) or `offline` |
+| metric | string | ✓ | one of the `sensor_thresholds.metric` values for a threshold alert; **always null for `offline`** |
+| value | decimal(12,3) | ✓ | the reading that triggered/last updated this alert; **always null for `offline`** |
+| severity | enum | | `warning`, `critical` — no `info` level exists, so even an offline alert must pick one of these two (see below) |
+| status | enum | | `open` (default), `acknowledged`, `resolved` |
+| message | text | | human-readable summary; `AlertService::buildMessage()` for a threshold alert, `buildOfflineMessage()` for an offline one — the latter uses an **absolute** timestamp (`format('M d, Y H:i')`), never `diffForHumans()`, since the text is stored and would go stale |
+| acknowledged_by | bigint FK → users.id | ✓ | `nullOnDelete()` |
+| acknowledged_at | timestamp | ✓ | |
+| resolved_at | timestamp | ✓ | |
+| timestamps | | | |
+
+Indexes: `(machine_id, metric, status)` (the lookup `AlertService::evaluate()` does on every reading), `type`, `status`.
+
+**Relationships** ([Alert.php](../app/Models/Alert.php)): `belongsTo(Machine)`, `belongsTo(MachineLog)`, `belongsTo(User, 'acknowledged_by')` (as `acknowledgedBy()`).
+
+**Scopes**: `open()` (status = open).
+
+**Threshold alert rules enforced in `AlertService`, not the schema**: at most one **open** alert per `(machine_id, metric)` at a time — a second breach updates the existing row (raising `severity` from `warning` to `critical` if the new reading is worse, never downgrading it) rather than inserting a new row; a reading back within both bounds auto-resolves whatever was **open** (not acknowledged) for that metric.
+
+**Offline alert rules** (`AlertService::raiseOfflineAlerts()`/`resolveOfflineAlerts()`, Phase 6):
+- Raised by the scheduled `app:check-offline-devices` command for any machine where `last_seen_at` is non-null, older than the threshold (10 minutes by default — `AlertInterface::OFFLINE_AFTER_MINUTES`), status isn't `inactive`, and no `offline` alert is already `open`/`acknowledged` for it. `last_seen_at IS NULL` (never commissioned) is deliberately **not** treated as offline — an outage requires having reported at least once.
+- Severity is `critical` if `machine.is_critical`, else `warning` — a direct, permanent mapping (there's no third option, since the enum has no `info`).
+- At most one open-or-acknowledged offline alert per machine at a time; the command's query itself is the dedupe, so running it every minute never re-raises or re-notifies for a machine already flagged.
+- Resolved from **both** `open` and `acknowledged` status the moment any new log is stored for the machine (inside `AlertService::evaluate()`, which every call to `MachineLogService::store()` runs) — unlike a threshold alert, whether the device is back online is objective, so there's no reason to leave an acknowledged one hanging and every reason to let it clear so the dedupe above works correctly on the next real outage.
+
 ### Placeholder tables (not yet used)
 
 These three tables exist as migrations but have **no columns beyond `id` and `timestamps`**, and their models ([WorkOrder.php](../app/Models/WorkOrder.php), [MachineStatus.php](../app/Models/MachineStatus.php), [LogType.php](../app/Models/LogType.php)) have no fillable/casts/relations:
@@ -196,3 +251,5 @@ These three tables exist as migrations but have **no columns beyond `id` and `ti
 ### Framework tables
 
 `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `sessions`, `password_reset_tokens` — standard Laravel framework tables, no application-specific columns.
+
+`notifications` — standard Laravel notifications table ([2026_09_26_191412_create_notifications_table.php](../database/migrations/2026_09_26_191412_create_notifications_table.php)), backing the `database` channel `MachineAlertNotification` uses and the header bell's unread count/dropdown (`$user->unreadNotifications`).

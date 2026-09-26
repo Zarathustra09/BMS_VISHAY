@@ -85,6 +85,31 @@ class Machine extends Model
     }
 
     /**
+     * Per-metric warning/critical bounds used by AlertService::evaluate().
+     */
+    public function thresholds(): HasMany
+    {
+        return $this->hasMany(SensorThreshold::class);
+    }
+
+    /**
+     * Alerts raised against this machine (threshold breaches, and offline alerts).
+     */
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(Alert::class);
+    }
+
+    /**
+     * Has this machine reported within the last $withinMinutes? False if it never has.
+     */
+    public function isOnline(int $withinMinutes): bool
+    {
+        return $this->last_seen_at !== null
+            && $this->last_seen_at->greaterThan(now()->subMinutes($withinMinutes));
+    }
+
+    /**
      * Get recent logs
      */
     public function recentLogs(int $limit = 10): HasMany
