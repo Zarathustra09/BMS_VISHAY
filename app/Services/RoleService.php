@@ -84,6 +84,23 @@ class RoleService implements RoleInterface
         return User::role($role->name)->get();
     }
 
+    public function assignUsers(Role $role, array $userIds, User $actingUser): int
+    {
+        if (in_array($actingUser->id, $userIds)) {
+            throw new RoleActionException('You cannot reassign your own account from here — use the Users page instead.');
+        }
+
+        $users = User::whereIn('id', $userIds)->get();
+
+        foreach ($users as $user) {
+            $user->syncRoles([$role->name]);
+        }
+
+        $this->resetPermissionCache();
+
+        return $users->count();
+    }
+
     private function resetPermissionCache(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();

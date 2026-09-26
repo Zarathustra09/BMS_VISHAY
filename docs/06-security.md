@@ -104,10 +104,11 @@ Admins can create custom roles and edit any non-`admin` role's permissions from 
 | The `admin` role can't be renamed, deleted, or edited at all | It's the one role guaranteed to have every permission; editing it is how you'd accidentally lock everyone out |
 | A role can't be deleted while any user still holds it | Forces an explicit reassignment step instead of silently leaving users with no role |
 | You can't edit a role you hold to remove its own `roles.update` permission | Otherwise an admin editing their own custom role could lock themselves out of role management with no one left who can undo it |
+| You can't include your own account in `roles.assign-users` | Since a user holds exactly one role, moving yourself into a role via this bulk picker could immediately drop your own access (e.g. moving yourself out of `admin`) with no confirmation step and no one left to undo it. Reassign your own role from the Users page instead — a deliberate, single-user action. |
 
 Every write in `RoleService` calls `PermissionRegistrar::forgetCachedPermissions()` so permission changes take effect immediately, without waiting for Spatie's permission cache to expire or requiring affected users to log out and back in.
 
-A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on create/update, enforced by the single role `<select>` on the Users forms) — Spatie itself supports multiple roles per user, but roles here are meant as mutually exclusive tiers rather than composable capabilities, so the UI doesn't expose multi-select even now that custom roles can be created.
+A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on create/update, enforced by the single role `<select>` on the Users forms) — Spatie itself supports multiple roles per user, but roles here are meant as mutually exclusive tiers rather than composable capabilities, so the UI doesn't expose multi-select even now that custom roles can be created. This is why `RoleService::assignUsers()` — the "Add Users" action on `roles.index` — **moves** each selected user off their current role rather than adding a second one; the UI states this explicitly next to the picker.
 
 ### How to add a new permission
 

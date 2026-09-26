@@ -3,14 +3,14 @@
 namespace App\Interfaces;
 
 use App\Models\User;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 interface UserInterface
 {
     /**
-     * Paginated user list, optionally filtered by search term and/or role.
+     * Query for the users DataTable, optionally filtered by role.
      */
-    public function getAllPaginated(array $filters, int $perPage = 12): LengthAwarePaginator;
+    public function getQueryForDataTable(array $filters = []): Builder;
 
     /**
      * Total user count plus a count per existing role.

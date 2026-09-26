@@ -37,7 +37,7 @@
                 </div>
                 Roles
             </h1>
-            <p class="text-sm opacity-70 mt-2">Manage roles and the permissions each one grants</p>
+            <p class="text-sm opacity-70 mt-2">Manage roles, the permissions each one grants, and who holds them</p>
         </div>
         @can('roles.create')
         <a href="{{ route('roles.create') }}" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
@@ -49,50 +49,135 @@
         @endcan
     </div>
 
-    <!-- Roles Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        @foreach($roles as $role)
-        <div class="card bg-base-100 shadow-lg border border-base-300/50 hover:shadow-xl transition-all">
-            <div class="card-body">
-                <div class="flex items-start justify-between">
-                    <h3 class="card-title capitalize">{{ str_replace('-', ' ', $role->name) }}</h3>
-                    @if($role->name === 'admin')
-                    <div class="badge badge-warning badge-sm gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                        </svg>
-                        Protected
-                    </div>
-                    @endif
-                </div>
-
-                <div class="flex gap-6 text-sm mt-2">
-                    <div>
-                        <span class="text-2xl font-bold">{{ $role->users_count }}</span>
-                        <span class="opacity-70 block text-xs">user{{ $role->users_count === 1 ? '' : 's' }}</span>
-                    </div>
-                    <div>
-                        <span class="text-2xl font-bold">{{ $role->permissions_count }}</span>
-                        <span class="opacity-70 block text-xs">permission{{ $role->permissions_count === 1 ? '' : 's' }}</span>
-                    </div>
-                </div>
-
-                <div class="card-actions justify-end mt-4">
-                    <a href="{{ route('roles.show', $role) }}" class="btn btn-ghost btn-sm">View</a>
-                    @can('roles.update')
-                        @if($role->name !== 'admin')
-                        <a href="{{ route('roles.edit', $role) }}" class="btn btn-outline btn-sm">Edit</a>
-                        @endif
-                    @endcan
-                    @can('roles.delete')
-                        @if($role->name !== 'admin')
-                        <a href="{{ route('roles.confirm-delete', $role) }}" class="btn btn-error btn-outline btn-sm">Delete</a>
-                        @endif
-                    @endcan
-                </div>
+    <!-- Table -->
+    <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        <div class="card-body">
+            <div class="overflow-x-auto">
+                <table id="rolesTable" class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Users</th>
+                            <th>Permissions</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($roles as $role)
+                        <tr>
+                            <td>
+                                <span class="capitalize font-medium">{{ str_replace('-', ' ', $role->name) }}</span>
+                                @if($role->name === 'admin')
+                                <div class="badge badge-warning badge-sm gap-1 ml-2">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                    </svg>
+                                    Protected
+                                </div>
+                                @endif
+                            </td>
+                            <td>{{ $role->users_count }}</td>
+                            <td>{{ $role->permissions_count }}</td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <a href="{{ route('roles.show', $role) }}" class="btn btn-ghost btn-xs">View</a>
+                                    @can('roles.update')
+                                    <button type="button" class="btn btn-outline btn-xs js-assign-users"
+                                            data-role-id="{{ $role->id }}"
+                                            data-role-name="{{ str_replace('-', ' ', $role->name) }}">Add Users</button>
+                                        @if($role->name !== 'admin')
+                                        <a href="{{ route('roles.edit', $role) }}" class="btn btn-outline btn-xs">Edit</a>
+                                        @endif
+                                    @endcan
+                                    @can('roles.delete')
+                                        @if($role->name !== 'admin')
+                                        <a href="{{ route('roles.confirm-delete', $role) }}" class="btn btn-error btn-outline btn-xs">Delete</a>
+                                        @endif
+                                    @endcan
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
-        @endforeach
     </div>
 </div>
+
+@can('roles.update')
+<!-- Add Users Modal (shared — target role set via JS from the clicked row) -->
+<dialog id="assign_users_modal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg capitalize">Add users to <span id="assignUsersRoleName"></span></h3>
+        <p class="text-xs opacity-70 mt-1">Each user holds exactly one role — picking someone here moves them off their current role.</p>
+
+        <form id="assignUsersForm" method="POST" class="py-4 space-y-3">
+            @csrf
+            <input type="text" id="assignUsersSearch" class="input input-bordered input-sm w-full" placeholder="Search users..." autocomplete="off">
+
+            <div class="max-h-72 overflow-y-auto space-y-1 border border-base-300 rounded-lg p-2">
+                @forelse($users as $user)
+                    @if($user->id !== auth()->id())
+                    <label class="assign-user-row label cursor-pointer justify-start gap-3 hover:bg-base-200 rounded-lg px-2" data-search="{{ strtolower($user->name . ' ' . $user->email) }}">
+                        <input type="checkbox" name="user_ids[]" value="{{ $user->id }}" class="checkbox checkbox-sm" />
+                        <span class="flex-1">
+                            <span class="block text-sm">{{ $user->name }}</span>
+                            <span class="block text-xs opacity-60">{{ $user->email }} @if($user->roles->first()) &middot; currently {{ $user->roles->first()->name }} @endif</span>
+                        </span>
+                    </label>
+                    @endif
+                @empty
+                    <p class="text-sm opacity-60 px-2">No other users exist yet.</p>
+                @endforelse
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="assign_users_modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Selected Users</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+@endcan
+
+@include('partials._datatables-assets')
+
+@push('scripts')
+<script>
+    $(function () {
+        // All roles are already rendered above (a handful at most) — DataTables just adds
+        // sort/search/paging on top, no ajax endpoint needed (see 02-architecture.md).
+        $('#rolesTable').DataTable({
+            autoWidth: false,
+            pageLength: 25,
+            columnDefs: [{targets: -1, orderable: false, searchable: false}],
+        });
+
+        var assignUrlTemplate = '{{ route('roles.assign-users', ['role' => ':id']) }}';
+
+        $(document).on('click', '.js-assign-users', function () {
+            var roleId = $(this).data('role-id');
+            var roleName = $(this).data('role-name');
+
+            $('#assignUsersForm').attr('action', assignUrlTemplate.replace(':id', roleId));
+            $('#assignUsersRoleName').text(roleName);
+            $('#assignUsersSearch').val('');
+            $('.assign-user-row').show();
+            $('#assignUsersForm input[type=checkbox]').prop('checked', false);
+
+            document.getElementById('assign_users_modal').showModal();
+        });
+
+        $('#assignUsersSearch').on('input', function () {
+            var term = $(this).val().toLowerCase();
+            $('.assign-user-row').each(function () {
+                var match = $(this).data('search').indexOf(term) !== -1;
+                $(this).toggle(match);
+            });
+        });
+    });
+</script>
+@endpush
 @endsection

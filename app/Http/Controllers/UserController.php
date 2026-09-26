@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\UsersDataTable;
 use App\Interfaces\UserInterface;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -12,20 +13,23 @@ class UserController extends Controller
 {
     public function __construct(protected UserInterface $users)
     {
-        $this->middleware('permission:users.view')->only(['index']);
+        $this->middleware('permission:users.view')->only(['index', 'data']);
         $this->middleware('permission:users.create')->only(['store']);
         $this->middleware('permission:users.update')->only(['update', 'resetPassword']);
         $this->middleware('permission:users.delete')->only(['destroy']);
     }
 
-    public function index(Request $request)
+    public function index()
     {
-        $filters = $request->only(['search', 'role']);
-        $users = $this->users->getAllPaginated($filters);
         $stats = $this->users->getStats();
         $roles = Role::orderBy('name')->pluck('name');
 
-        return view('users.index', compact('users', 'stats', 'roles'));
+        return view('users.index', compact('stats', 'roles'));
+    }
+
+    public function data(UsersDataTable $dataTable)
+    {
+        return $dataTable->ajax();
     }
 
     public function store(Request $request)

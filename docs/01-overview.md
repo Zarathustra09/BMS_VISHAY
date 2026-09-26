@@ -30,9 +30,9 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Machine Logs / sensor ingestion | ✅ Done | `POST /api/machine-logs`, authenticated via per-machine device key; the log history on `machines/show` is a server-side DataTable (severity/type/date filters) — the highest-volume table in the app |
 | AI Insights (chat) | ✅ Done | Queued job + cache-polling UI, OpenAI/Gemini switchable |
 | Roles & permissions | ✅ Done | `admin`/`manager`/`technician`/`viewer`, CRUD-granular permissions (`{module}.view/create/update/delete`) across buildings, floors, machines, users, plus the special `machines.view-device-key`. More modules gain their own set as they're built (work orders, alerts, reports, settings). |
-| Users management page | ✅ Done | Full CRUD (create, edit name/email/role, reset password, delete), self-delete blocked, gated by permission |
+| Users management page | ✅ Done | Full CRUD (create, edit name/email/role, reset password, delete), self-delete blocked, gated by permission; list is a server-side DataTable with shared, JS-populated modals |
 | User profile (self-service) | ✅ Done | Any logged-in user can update their own name/email and change their own password (requires current password) |
-| Roles management page | ✅ Done | Full CRUD: create custom roles, edit any non-`admin` role's permissions via a checkbox matrix, delete an unused role. `admin` is protected (can't be renamed/deleted/edited); can't delete a role that still has users |
+| Roles management page | ✅ Done | Full CRUD: create custom roles, edit any non-`admin` role's permissions via a checkbox matrix, delete an unused role, **assign existing users to a role directly from the list** (moves them off their current role — one role per user). `admin` is protected (can't be renamed/deleted/edited); can't delete a role that still has users; can't reassign your own account via the picker. List is a client-side DataTable (small, fixed-size). No "remove from role" yet — reassign the user to a different role instead. |
 | Permissions page | ✅ Done | Read-only list of every permission grouped by module, showing which roles hold each one — new permissions are still added in code/seeder, not the UI |
 | Sensor thresholds & alerts | 🔴 Planned | Phase 5 |
 | Offline device detection | 🔴 Planned | Phase 6 |

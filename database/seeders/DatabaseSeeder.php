@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             BuildingSeeder::class,
             FloorSeeder::class,
+            UserRoleTestSeeder::class,
 //            MachineAndLogSeeder::class,
         ]);
     }

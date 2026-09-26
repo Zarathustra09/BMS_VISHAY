@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\RoleActionException;
 use App\Interfaces\PermissionInterface;
 use App\Interfaces\RoleInterface;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
@@ -17,7 +18,7 @@ class RoleController extends Controller
     ) {
         $this->middleware('permission:roles.view')->only(['index', 'show']);
         $this->middleware('permission:roles.create')->only(['create', 'store']);
-        $this->middleware('permission:roles.update')->only(['edit', 'update']);
+        $this->middleware('permission:roles.update')->only(['edit', 'update', 'assignUsers']);
         $this->middleware('permission:roles.delete')->only(['destroy', 'confirmDelete']);
     }
 
@@ -25,7 +26,10 @@ class RoleController extends Controller
     {
         $roles = $this->roles->getAll();
 
-        return view('roles.index', compact('roles'));
+        // Lean payload for the "Add Users" picker modal — id/name/email/current role only.
+        $users = User::select('id', 'name', 'email')->with('roles:id,name')->orderBy('name')->get();
+
+        return view('roles.index', compact('roles', 'users'));
     }
 
     public function create()
@@ -77,6 +81,22 @@ class RoleController extends Controller
         }
 
         return redirect()->route('roles.show', $role)->with('success', 'Role updated successfully.');
+    }
+
+    public function assignUsers(Request $request, Role $role)
+    {
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+        ]);
+
+        try {
+            $count = $this->roles->assignUsers($role, $validated['user_ids'], $request->user());
+        } catch (RoleActionException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "{$count} user(s) assigned to \"{$role->name}\".");
     }
 
     public function confirmDelete(Role $role)

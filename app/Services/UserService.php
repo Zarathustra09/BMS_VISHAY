@@ -4,28 +4,20 @@ namespace App\Services;
 
 use App\Interfaces\UserInterface;
 use App\Models\User;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Spatie\Permission\Models\Role;
 
 class UserService implements UserInterface
 {
-    public function getAllPaginated(array $filters, int $perPage = 12): LengthAwarePaginator
+    public function getQueryForDataTable(array $filters = []): Builder
     {
-        $query = User::with('roles')->orderBy('name');
-
-        if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
+        $query = User::with('roles');
 
         if (!empty($filters['role']) && $filters['role'] !== 'all') {
             $query->role($filters['role']);
         }
 
-        return $query->paginate($perPage);
+        return $query;
     }
 
     public function getStats(): array

@@ -68,177 +68,32 @@
         @endforeach
     </div>
 
-    <!-- Filters -->
+    <!-- Table -->
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
-            <form method="GET" action="{{ route('users.index') }}" class="flex flex-col lg:flex-row gap-4">
-                <div class="form-control flex-1">
-                    <label class="input input-bordered flex items-center gap-2">
-                        <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        <input type="text" name="search" class="grow" placeholder="Search by name or email..." value="{{ request('search') }}" />
-                    </label>
-                </div>
-
-                <select name="role" class="select select-bordered w-full lg:w-48" onchange="this.form.submit()">
-                    <option value="all" {{ request('role', 'all') === 'all' ? 'selected' : '' }}>All Roles</option>
+            <div class="flex flex-col lg:flex-row gap-4 mb-4">
+                <select id="roleFilter" class="select select-bordered w-full lg:w-48">
+                    <option value="">All Roles</option>
                     @foreach($roles as $role)
-                        <option value="{{ $role }}" {{ request('role') === $role ? 'selected' : '' }} class="capitalize">{{ ucfirst($role) }}</option>
+                        <option value="{{ $role }}" class="capitalize">{{ ucfirst($role) }}</option>
                     @endforeach
                 </select>
+            </div>
 
-                <button type="submit" class="btn btn-primary">Filter</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Users Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        @forelse($users as $user)
-        <div class="card bg-base-100 shadow-lg border border-base-300/50 hover:shadow-2xl transition-all group">
-            <div class="card-body">
-                <div class="flex items-start justify-between">
-                    <div class="flex items-center gap-4">
-                        <div class="avatar placeholder">
-                            <div class="bg-primary text-primary-content rounded-full w-16">
-                                <span class="text-2xl font-bold">{{ strtoupper(substr($user->name, 0, 2)) }}</span>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="card-title text-lg">{{ $user->name }}</h3>
-                            <p class="text-sm opacity-70">{{ $user->email }}</p>
-                            @if($user->id === auth()->id())
-                                <div class="badge badge-ghost badge-sm gap-1 mt-2">You</div>
-                            @endif
-                        </div>
-                    </div>
-                    @if(auth()->user()->can('users.update') || (auth()->user()->can('users.delete') && $user->id !== auth()->id()))
-                    <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-circle">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
-                            </svg>
-                        </div>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300/50">
-                            @can('users.update')
-                            <li><a onclick="edit_user_modal_{{ $user->id }}.showModal()">Edit User</a></li>
-                            <li><a onclick="reset_password_modal_{{ $user->id }}.showModal()">Reset Password</a></li>
-                            @endcan
-                            @can('users.delete')
-                                @if($user->id !== auth()->id())
-                                <div class="divider my-0"></div>
-                                <li><a class="text-error" onclick="delete_user_modal_{{ $user->id }}.showModal()">Delete</a></li>
-                                @endif
-                            @endcan
-                        </ul>
-                    </div>
-                    @endif
-                </div>
-
-                <div class="divider my-2"></div>
-
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="opacity-70 text-sm">Role:</span>
-                        <div class="flex flex-wrap gap-1 justify-end">
-                            @forelse($user->roles as $role)
-                                <div class="badge badge-primary badge-outline capitalize">{{ $role->name }}</div>
-                            @empty
-                                <div class="badge badge-ghost">No role</div>
-                            @endforelse
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 text-sm">
-                        <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                        <span class="opacity-70">Joined:</span>
-                        <span class="font-medium">{{ $user->created_at->format('M d, Y') }}</span>
-                    </div>
-                </div>
+            <div class="overflow-x-auto">
+                <table id="usersTable" class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Joined</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
             </div>
         </div>
-
-        <!-- Edit User Modal -->
-        <dialog id="edit_user_modal_{{ $user->id }}" class="modal modal-bottom sm:modal-middle">
-            <div class="modal-box">
-                <h3 class="font-bold text-lg">Edit {{ $user->name }}</h3>
-                <form action="{{ route('users.update', $user) }}" method="POST" class="py-4 space-y-3">
-                    @csrf
-                    @method('PUT')
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Full Name</span></label>
-                        <input type="text" name="name" value="{{ $user->name }}" class="input input-bordered" required />
-                    </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Email</span></label>
-                        <input type="email" name="email" value="{{ $user->email }}" class="input input-bordered" required />
-                    </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Role</span></label>
-                        <select name="role" class="select select-bordered capitalize" required>
-                            @foreach($roles as $role)
-                                <option value="{{ $role }}" class="capitalize" {{ $user->hasRole($role) ? 'selected' : '' }}>{{ ucfirst($role) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="modal-action">
-                        <button type="button" class="btn" onclick="edit_user_modal_{{ $user->id }}.close()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
-        </dialog>
-
-        <!-- Reset Password Modal -->
-        <dialog id="reset_password_modal_{{ $user->id }}" class="modal modal-bottom sm:modal-middle">
-            <div class="modal-box">
-                <h3 class="font-bold text-lg">Reset Password — {{ $user->name }}</h3>
-                <form action="{{ route('users.reset-password', $user) }}" method="POST" class="py-4 space-y-3">
-                    @csrf
-                    @method('PUT')
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">New Password</span></label>
-                        <input type="password" name="password" class="input input-bordered" required minlength="8" />
-                    </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Confirm New Password</span></label>
-                        <input type="password" name="password_confirmation" class="input input-bordered" required minlength="8" />
-                    </div>
-                    <div class="modal-action">
-                        <button type="button" class="btn" onclick="reset_password_modal_{{ $user->id }}.close()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Password</button>
-                    </div>
-                </form>
-            </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
-        </dialog>
-
-        <!-- Delete User Modal -->
-        <dialog id="delete_user_modal_{{ $user->id }}" class="modal modal-bottom sm:modal-middle">
-            <div class="modal-box">
-                <h3 class="font-bold text-lg text-error">Delete {{ $user->name }}?</h3>
-                <p class="py-2 text-sm opacity-80">This permanently deletes the account for <strong>{{ $user->email }}</strong>. This cannot be undone.</p>
-                <form action="{{ route('users.destroy', $user) }}" method="POST" class="modal-action">
-                    @csrf
-                    @method('DELETE')
-                    <button type="button" class="btn" onclick="delete_user_modal_{{ $user->id }}.close()">Cancel</button>
-                    <button type="submit" class="btn btn-error">Delete Permanently</button>
-                </form>
-            </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
-        </dialog>
-        @empty
-        <div class="col-span-full text-center py-12 opacity-70">
-            No users found.
-        </div>
-        @endforelse
-    </div>
-
-    <div class="flex justify-center">
-        {{ $users->appends(request()->query())->links() }}
     </div>
 </div>
 
@@ -281,10 +136,147 @@
             </div>
         </form>
     </div>
-    <form method="dialog" class="modal-backdrop">
-        <button>close</button>
-    </form>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 @endcan
 
+@can('users.update')
+<!-- Edit User Modal (shared — populated via JS from the clicked row) -->
+<dialog id="edit_user_modal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Edit <span id="editUserName"></span></h3>
+        <form id="editUserForm" method="POST" class="py-4 space-y-3">
+            @csrf
+            @method('PUT')
+            <div class="form-control">
+                <label class="label"><span class="label-text">Full Name</span></label>
+                <input type="text" name="name" id="editUserNameInput" class="input input-bordered" required />
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Email</span></label>
+                <input type="email" name="email" id="editUserEmailInput" class="input input-bordered" required />
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Role</span></label>
+                <select name="role" id="editUserRoleInput" class="select select-bordered capitalize" required>
+                    @foreach($roles as $role)
+                        <option value="{{ $role }}" class="capitalize">{{ ucfirst($role) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="edit_user_modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Reset Password Modal (shared) -->
+<dialog id="reset_password_modal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Reset Password — <span id="resetPasswordUserName"></span></h3>
+        <form id="resetPasswordForm" method="POST" class="py-4 space-y-3">
+            @csrf
+            @method('PUT')
+            <div class="form-control">
+                <label class="label"><span class="label-text">New Password</span></label>
+                <input type="password" name="password" class="input input-bordered" required minlength="8" />
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Confirm New Password</span></label>
+                <input type="password" name="password_confirmation" class="input input-bordered" required minlength="8" />
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="reset_password_modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+@endcan
+
+@can('users.delete')
+<!-- Delete User Modal (shared) -->
+<dialog id="delete_user_modal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg text-error">Delete <span id="deleteUserName"></span>?</h3>
+        <p class="py-2 text-sm opacity-80">This permanently deletes the account for <strong id="deleteUserEmail"></strong>. This cannot be undone.</p>
+        <form id="deleteUserForm" method="POST" class="modal-action">
+            @csrf
+            @method('DELETE')
+            <button type="button" class="btn" onclick="delete_user_modal.close()">Cancel</button>
+            <button type="submit" class="btn btn-error">Delete Permanently</button>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+@endcan
+
+@include('partials._datatables-assets')
+
+@push('scripts')
+<script>
+    $(function () {
+        var table = $('#usersTable').DataTable({
+            processing: true,
+            serverSide: true,
+            autoWidth: false,
+            pageLength: 25,
+            order: [[0, 'asc']],
+            ajax: {
+                url: '{{ route('users.data') }}',
+                data: function (d) {
+                    d.role = $('#roleFilter').val();
+                }
+            },
+            columns: [
+                {data: 'name', name: 'name'},
+                {data: 'email', name: 'email'},
+                {data: 'role', name: 'role', orderable: false, searchable: false},
+                {data: 'joined', name: 'created_at'},
+                {data: 'action', name: 'action', orderable: false, searchable: false},
+            ],
+        });
+
+        $('#roleFilter').on('change', function () {
+            table.draw();
+        });
+
+        // Edit / Reset Password / Delete use one shared modal each, populated from the
+        // clicked row's data-* attributes (see users/_datatable-actions.blade.php) — the
+        // table is ajax-rendered, so we can't pre-render a modal per row.
+        var editUrlTemplate = '{{ route('users.update', ['user' => ':id']) }}';
+        var resetUrlTemplate = '{{ route('users.reset-password', ['user' => ':id']) }}';
+        var deleteUrlTemplate = '{{ route('users.destroy', ['user' => ':id']) }}';
+
+        $(document).on('click', '.js-edit-user', function () {
+            var d = $(this).data();
+            $('#editUserForm').attr('action', editUrlTemplate.replace(':id', d.id));
+            $('#editUserName').text(d.name);
+            $('#editUserNameInput').val(d.name);
+            $('#editUserEmailInput').val(d.email);
+            $('#editUserRoleInput').val(d.role);
+            document.getElementById('edit_user_modal').showModal();
+        });
+
+        $(document).on('click', '.js-reset-password', function () {
+            var d = $(this).data();
+            $('#resetPasswordForm').attr('action', resetUrlTemplate.replace(':id', d.id));
+            $('#resetPasswordUserName').text(d.name);
+            document.getElementById('reset_password_modal').showModal();
+        });
+
+        $(document).on('click', '.js-delete-user', function () {
+            var d = $(this).data();
+            $('#deleteUserForm').attr('action', deleteUrlTemplate.replace(':id', d.id));
+            $('#deleteUserName').text(d.name);
+            $('#deleteUserEmail').text(d.email);
+            document.getElementById('delete_user_modal').showModal();
+        });
+    });
+</script>
+@endpush
 @endsection

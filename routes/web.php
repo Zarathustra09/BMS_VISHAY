@@ -50,6 +50,7 @@ Route::middleware('auth')->group(function () {
 
     // User Management Routes
     Route::get('/users', [App\Http\Controllers\UserController::class, 'index'])->name('users.index');
+    Route::get('/users/data', [App\Http\Controllers\UserController::class, 'data'])->name('users.data');
     Route::post('/users', [App\Http\Controllers\UserController::class, 'store'])->name('users.store');
     Route::put('/users/{user}', [App\Http\Controllers\UserController::class, 'update'])->name('users.update');
     Route::put('/users/{user}/password', [App\Http\Controllers\UserController::class, 'resetPassword'])->name('users.reset-password');
@@ -58,6 +59,7 @@ Route::middleware('auth')->group(function () {
     // Role Routes
     Route::resource('roles', App\Http\Controllers\RoleController::class);
     Route::get('/roles/{role}/delete', [App\Http\Controllers\RoleController::class, 'confirmDelete'])->name('roles.confirm-delete');
+    Route::post('/roles/{role}/users', [App\Http\Controllers\RoleController::class, 'assignUsers'])->name('roles.assign-users');
 
     // Permission Routes (read-only)
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');

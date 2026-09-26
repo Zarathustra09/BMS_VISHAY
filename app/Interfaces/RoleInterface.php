@@ -30,4 +30,16 @@ interface RoleInterface
     public function delete(Role $role): bool;
 
     public function usersWithRole(Role $role): Collection;
+
+    /**
+     * Assign this role to each of the given users, moving them off whatever role they
+     * currently hold (a user has exactly one role — see docs/06-security.md).
+     *
+     * @return int number of users assigned
+     *
+     * @throws \App\Exceptions\RoleActionException if $actingUser's own id is in $userIds —
+     *         reassigning your own account here could strip your own access with no one
+     *         left to undo it; use the Users page for that instead.
+     */
+    public function assignUsers(Role $role, array $userIds, User $actingUser): int;
 }

@@ -73,11 +73,12 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 
 ## Users
 
-New in Phase 4. Same controller-constructor permission-gating pattern. The index page is modal-driven (add/edit/reset-password/delete all happen via DaisyUI `<dialog>` modals on the one page) rather than separate create/edit pages — see [08-frontend.md](08-frontend.md).
+New in Phase 4. Same controller-constructor permission-gating pattern. The index page is modal-driven (add/edit/reset-password/delete all happen via DaisyUI `<dialog>` modals on the one page) rather than separate create/edit pages — see [08-frontend.md](08-frontend.md). As of the DataTables pass, the index table itself loads via `users.data`, and the edit/reset-password/delete modals are a single shared instance each, populated by JS from the clicked row (ajax-rendered rows can't carry a pre-built modal per row).
 
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
-| GET | `/users` | `users.index` | `UserController@index` | `users.view` | List + per-role stats + search/filter |
+| GET | `/users` | `users.index` | `UserController@index` | `users.view` | List page shell + per-role stats — the table loads via `users.data` |
+| GET | `/users/data` | `users.data` | `UserController@data` | `users.view` | **Ajax source for the users DataTable** — role filter + name/email search |
 | POST | `/users` | `users.store` | `UserController@store` | `users.create` | Create (name, email, password, one role) |
 | PUT | `/users/{user}` | `users.update` | `UserController@update` | `users.update` | Update name/email/role |
 | PUT | `/users/{user}/password` | `users.reset-password` | `UserController@resetPassword` | `users.update` | Admin sets a new password for the user (no current-password check, unlike self-service) |
@@ -85,16 +86,17 @@ New in Phase 4. Same controller-constructor permission-gating pattern. The index
 
 ## Roles
 
-New in Phase 4b. Full `Route::resource` + a confirm-delete page, same pattern as Buildings/Machines. Business rules (admin protected, can't delete a role with users, can't drop your own `roles.update`) live in `RoleService` and throw `RoleActionException`, which the controller catches and turns into a flashed error — see [06-security.md](06-security.md).
+New in Phase 4b. Full `Route::resource` + a confirm-delete page, same pattern as Buildings/Machines. Business rules (admin protected, can't delete a role with users, can't drop your own `roles.update`) live in `RoleService` and throw `RoleActionException`, which the controller catches and turns into a flashed error — see [06-security.md](06-security.md). The index table is a **client-side** DataTable (roles are a small, fixed-size list — all rows render in the initial page load, no ajax endpoint) — see [02-architecture.md](02-architecture.md) for when server-side vs. client-side applies.
 
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
-| GET | `/roles` | `roles.index` | `RoleController@index` | `roles.view` | List roles with user/permission counts |
+| GET | `/roles` | `roles.index` | `RoleController@index` | `roles.view` | List roles with user/permission counts, plus an "Add Users" action per row |
 | GET | `/roles/create` | `roles.create` | `RoleController@create` | `roles.create` | Create form (name + permission matrix) |
 | POST | `/roles` | `roles.store` | `RoleController@store` | `roles.create` | Create |
 | GET | `/roles/{role}` | `roles.show` | `RoleController@show` | `roles.view` | Detail: read-only permission matrix + users holding this role |
 | GET | `/roles/{role}/edit` | `roles.edit` | `RoleController@edit` | `roles.update` | Edit form — redirects to `roles.show` with an error if `{role}` is `admin` |
 | PUT/PATCH | `/roles/{role}` | `roles.update` | `RoleController@update` | `roles.update` | Update name/permissions |
+| POST | `/roles/{role}/users` | `roles.assign-users` | `RoleController@assignUsers` | `roles.update` | **Assign existing users to this role** — since a user holds exactly one role, this moves each selected user off whatever role they currently have. Blocked if the acting user's own id is among those selected (reassign yourself from the Users page instead). Triggered from the "Add Users" button on `roles.index`. |
 | DELETE | `/roles/{role}` | `roles.destroy` | `RoleController@destroy` | `roles.delete` | Delete — blocked if `admin` or if any user still holds the role |
 | GET | `/roles/{role}/delete` | `roles.confirm-delete` | `RoleController@confirmDelete` | `roles.delete` | Confirmation page; shows the blocking user list when not deletable |
 
