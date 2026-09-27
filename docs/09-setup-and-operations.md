@@ -56,23 +56,25 @@ AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the 
 - `php artisan app:process-queue` — checks `Queue::size()` first and skips entirely if empty (logs to the `queue_processing` channel), otherwise runs `queue:work --stop-when-empty --max-time=50 --timeout=60`. Designed to be triggered on a schedule (e.g. every minute) without leaving a worker running permanently.
 - `php artisan app:run-queue-worker` — simpler variant, always runs `queue:work --stop-when-empty` and logs start/finish.
 - `php artisan app:check-offline-devices {--minutes=}` — raises an `offline` alert for any machine whose `last_seen_at` is older than `--minutes` (default 10, see `AlertInterface::OFFLINE_AFTER_MINUTES`). Prints a summary either way, but only writes to `storage/logs/laravel.log` when it actually raises something — see [02-architecture.md](02-architecture.md) for the full flow.
-- `php artisan app:generate-preventive-work-orders {--lead-days=}` — creates a `preventive` work order for any machine whose `next_maintenance_date` falls within `--lead-days` (default 7), skipping `inactive` machines and any machine that already has an open preventive work order (so a missed day, or running it twice, never produces a duplicate). The work order is system-generated (`created_by` null) and unassigned unless a technician is added afterward.
+- `php artisan app:generate-preventive-work-orders {--lead-days=}` — creates a `preventive` work order for any machine whose `next_maintenance_date` falls within `--lead-days` (default: the `preventive_lead_days` setting, see [Settings](#settings) below), skipping `inactive` machines and any machine that already has an open preventive work order (so a missed day, or running it twice, never produces a duplicate). The work order is system-generated (`created_by` null) and unassigned unless a technician is added afterward.
+- `php artisan model:prune {--model=}` — Laravel's built-in pruning command; `--model=App\Models\MachineLog` (as passed on the scheduler entry below) deletes `machine_logs` rows older than the `log_retention_days` setting (default 365).
 
-`app:process-queue` and `app:check-offline-devices` run every minute; `app:generate-preventive-work-orders` runs once daily — all three are registered on the scheduler (below).
+`app:process-queue` and `app:check-offline-devices` run every minute; `app:generate-preventive-work-orders` and `model:prune` run once daily — all four are registered on the scheduler (below).
 
 ## Scheduler
 
-`routes/console.php` registers three `Schedule::command(...)` entries:
+`routes/console.php` registers four `Schedule::command(...)` entries:
 
 ```php
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
+Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
 ```
 
-The offline check is listed **first** among the per-minute entries deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. The preventive-work-order generator only needs to run once a day since `next_maintenance_date` doesn't move minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed day harmless — it just catches up the next run. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. None of the three entries use `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
+The offline check is listed **first** among the per-minute entries deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. The preventive-work-order generator only needs to run once a day since `next_maintenance_date` doesn't move minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed day harmless — it just catches up the next run. `model:prune` is passed `--model` explicitly (rather than relying on auto-discovery of every `Prunable` model) so it only ever touches `MachineLog`. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. None of the four entries use `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
 
-A single cron/Task Scheduler entry drives both:
+A single cron/Task Scheduler entry drives all of them:
 
 **Linux / cPanel**:
 ```
@@ -86,7 +88,11 @@ Arguments: artisan schedule:run
 Start in: C:\path\to\BMS_VISHAY
 ```
 
-For local development, `php artisan schedule:work` runs the scheduler in the foreground without needing cron/Task Scheduler. Useful commands while developing: `php artisan schedule:list` (shows both entries and their next run time) and `php artisan schedule:test` (runs a scheduled command on demand, without waiting for its next due time).
+For local development, `php artisan schedule:work` runs the scheduler in the foreground without needing cron/Task Scheduler. Useful commands while developing: `php artisan schedule:list` (shows all four entries and their next run time) and `php artisan schedule:test` (runs a scheduled command on demand, without waiting for its next due time).
+
+## Settings
+
+The admin-only Settings page (`/settings`, `settings.view`/`settings.update`) holds operational configuration that used to be hardcoded: company name, extra alert-notification emails, the offline-detection timeout (`offline_timeout_minutes`, read by `app:check-offline-devices` when `--minutes` isn't passed), the preventive-maintenance lead time (`preventive_lead_days`, read by `app:generate-preventive-work-orders` when `--lead-days` isn't passed), an auto-fault-on-critical toggle, default alert thresholds applied to newly-created machines, and the machine-log retention window (`log_retention_days`, read by `MachineLog::prunable()`). Backed by `SettingInterface`/`SettingService`, cached forever and invalidated on every save — see [02-architecture.md](02-architecture.md#container-binding-registry). A change takes effect on the *next* run of the affected command/query; nothing needs restarting.
 
 ## Logs
 

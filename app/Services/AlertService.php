@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Interfaces\AlertInterface;
+use App\Interfaces\SettingInterface;
 use App\Models\Alert;
 use App\Models\Machine;
 use App\Models\MachineLog;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Notification;
 
 class AlertService implements AlertInterface
 {
+    public function __construct(protected SettingInterface $settings) {}
+
     public function evaluate(MachineLog $log): void
     {
         // A reading arriving is proof of life — clear any offline alert first. This MUST
@@ -76,6 +79,7 @@ class AlertService implements AlertInterface
                 if ($openAlert->severity === 'critical' && $severity === 'critical' && $openAlert->wasChanged('severity')) {
                     $openAlert->update(['message' => $this->buildMessage($machine, $metric, $value, $severity)]);
                     $this->notify($openAlert);
+                    $this->maybeAutoFault($machine, $severity);
                 }
 
                 continue;
@@ -93,6 +97,7 @@ class AlertService implements AlertInterface
             ]);
 
             $this->notify($alert);
+            $this->maybeAutoFault($machine, $severity);
         }
     }
 
@@ -275,7 +280,9 @@ class AlertService implements AlertInterface
 
     /**
      * Admins and managers get alert notifications — the roles with `alerts.resolve`
-     * and oversight responsibility across machines (see docs/06-security.md).
+     * and oversight responsibility across machines (see docs/06-security.md) — plus any
+     * extra addresses configured in Settings' alert_emails, for recipients who don't hold
+     * either role (e.g. an external contractor or a shared ops inbox).
      */
     private function notify(Alert $alert): void
     {
@@ -283,6 +290,26 @@ class AlertService implements AlertInterface
 
         if ($recipients->isNotEmpty()) {
             Notification::send($recipients, new MachineAlertNotification($alert));
+        }
+
+        foreach ($this->settings->get('alert_emails', []) as $email) {
+            Notification::route('mail', $email)->notify(new MachineAlertNotification($alert));
+        }
+    }
+
+    /**
+     * When enabled in Settings, a newly-raised or newly-escalated critical alert flips the
+     * machine to 'fault' status — but only from 'active', so a machine an operator has
+     * already set to 'maintenance'/'inactive' isn't silently overridden.
+     */
+    private function maybeAutoFault(Machine $machine, string $severity): void
+    {
+        if ($severity !== 'critical' || !$this->settings->get('auto_fault_on_critical', false)) {
+            return;
+        }
+
+        if ($machine->status === 'active') {
+            $machine->update(['status' => 'fault']);
         }
     }
 

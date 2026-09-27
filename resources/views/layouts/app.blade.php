@@ -59,11 +59,11 @@
                     <div class="p-4 border-b border-base-300/50">
                         <a href="{{ route('home') }}" class="flex items-center gap-3 group">
                             <div class="h-8 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg group-hover:shadow-primary/50 transition-all duration-300 group-hover:scale-105 overflow-hidden px-3">
-                                <img src="{{ asset('assets/images/logo-white.png') }}" alt="BMS VISHAY Logo" class="h-5 w-auto object-contain scale-150">
+                                <img src="{{ asset('assets/images/logo-white.png') }}" alt="{{ $companyName }} Logo" class="h-5 w-auto object-contain scale-150">
                             </div>
                             <div>
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                                    BMS VISHAY
+                                    {{ $companyName }}
                                 </div>
                                 <div class="text-xs opacity-70">NextBuild - BMS</div>
                             </div>
@@ -192,6 +192,7 @@
 
                         <div class="divider text-xs opacity-50 my-2">SYSTEM</div>
 
+                        @can('settings.view')
                         <li>
                             <a href="{{ route('settings.index') }}" class="gap-3 {{ request()->is('settings*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,6 +202,7 @@
                                 Settings
                             </a>
                         </li>
+                        @endcan
                     </ul>
 
                     <!-- User Card -->

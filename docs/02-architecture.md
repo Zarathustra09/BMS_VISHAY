@@ -211,9 +211,74 @@ sequenceDiagram
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
+Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
 ```
 
 The offline check is registered **first** among the per-minute entries deliberately: `schedule:run` executes due events sequentially in registration order, and `app:process-queue` can hold the process for up to ~50s (see its `--max-time`) — registering it first would delay the offline check by up to that long every run. The preventive-work-order generator (Phase 8) only needs to run once a day — `next_maintenance_date` doesn't change minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed run harmless, since the next run just catches up. `runInBackground()` is deliberately not used for any of them: it shells out using POSIX-style command construction, which doesn't behave correctly under Windows Task Scheduler, a supported production target here (see [09-setup-and-operations.md](09-setup-and-operations.md)). `withoutOverlapping()` needs a working cache lock — satisfied by `CACHE_STORE=database` with the cache table migrated.
+
+`model:prune` (Phase 10) is passed `--model` explicitly rather than relying on Laravel's auto-discovery of every `Prunable` model under `app/Models` — `MachineLog` is the only one, and being explicit means a future `Prunable` model doesn't get silently swept by a schedule entry nobody wrote for it. See [Data retention](#data-retention-prunable-machinelog) below for what it deletes and why.
+
+## Audit logging (`spatie/laravel-activitylog`)
+
+`Machine`, `Building`, `WorkOrder`, and `Alert` use the `LogsActivity` trait, each defining `getActivitylogOptions()`:
+
+```php
+public function getActivitylogOptions(): LogOptions
+{
+    return LogOptions::defaults()
+        ->logOnly($this->fillable)
+        ->logOnlyDirty()
+        ->dontSubmitEmptyLogs();
+}
+```
+
+`logOnlyDirty()` + `dontSubmitEmptyLogs()` mean only attributes that actually changed are recorded, and a save with no real change writes nothing.
+
+**`Alert` is the one exception**, and deliberately narrower — `logOnly(['status', 'severity'])` instead of the full `$fillable`:
+
+```php
+public function getActivitylogOptions(): LogOptions
+{
+    return LogOptions::defaults()->logOnly(['status', 'severity'])->logOnlyDirty()->dontSubmitEmptyLogs();
+}
+```
+
+`AlertService::evaluate()` updates `value` and `machine_log_id` on the same open alert every time a matching reading arrives — for a metric stuck above threshold, that's once per sensor POST. Logging the full fillable set would flood the activity log with a row per reading instead of the state transitions (`open → acknowledged → resolved`, `warning → critical`) that are actually worth auditing.
+
+**The machine page's Activity feed** (`MachineService::getActivityFeed()`) is not just `Machine::activities()` — a machine's own field changes are too sparse to tell a useful story alone. It unions activity on the machine itself with activity on its work orders and alerts via a `subject_type`/`subject_id` query:
+
+```php
+public function getActivityFeed(Machine $machine, int $limit = 20): Collection
+{
+    $workOrderIds = $machine->workOrders()->pluck('id');
+    $alertIds = $machine->alerts()->pluck('id');
+
+    return Activity::query()
+        ->where(function (Builder $query) use ($machine, $workOrderIds, $alertIds) {
+            $query->where(fn ($q) => $q->where('subject_type', Machine::class)->where('subject_id', $machine->id))
+                ->orWhere(fn ($q) => $q->where('subject_type', WorkOrder::class)->whereIn('subject_id', $workOrderIds))
+                ->orWhere(fn ($q) => $q->where('subject_type', Alert::class)->whereIn('subject_id', $alertIds));
+        })
+        ->with('causer')->latest()->limit($limit)->get();
+}
+```
+
+This gives one combined timeline — "who changed what on this machine, and what happened to the work orders and alerts raised against it" — instead of three separate, sparser feeds.
+
+## Data retention: `Prunable` `MachineLog`
+
+`MachineLog` uses Laravel's `Prunable` trait rather than a hand-rolled cleanup command, so `model:prune` (see [Scheduled commands](#scheduled-commands) above) handles deletion in chunks with the framework's usual `ModelsPruned` event:
+
+```php
+public function prunable(): Builder
+{
+    $days = app(SettingInterface::class)->get('log_retention_days', 365);
+
+    return static::where('logged_at', '<', now()->subDays($days));
+}
+```
+
+The cutoff is read from the `log_retention_days` setting (default 365) on every run rather than being a fixed constant, so lowering it in Settings takes effect on the very next scheduled prune with no deploy.
 
 ## Interface → Service → Controller: layer responsibilities
 
@@ -247,6 +312,7 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `MaintenanceInterface` | `MaintenanceService` | `MaintenanceController`, `ReportService` (reuses `getStats()`/`getBuildingBreakdown()`/`getQueryForDataTable()` for the maintenance compliance report rather than recomputing its rules) |
 | `DashboardInterface` | `DashboardService` | `HomeController` |
 | `ReportInterface` | `ReportService` | `ReportController` |
+| `SettingInterface` | `SettingService` (cached with `Cache::rememberForever`, invalidated on every `update()`) | `SettingController`, `CheckOfflineDevices`, `GeneratePreventiveWorkOrders`, `AlertService` (extra alert emails, auto-fault toggle), `MachineService` (default thresholds for new machines), `MachineLog::prunable()`, `AppServiceProvider`'s `layouts.app` view composer (site-wide `$companyName`) |
 
 `AIInterface`'s binding is a closure, not a plain class-string, because it's the one case in this app where the implementation is chosen at runtime:
 
@@ -390,6 +456,14 @@ View::composer(['layouts.app', 'layouts.header'], function ($view) {
 ```
 
 Both views need the data explicitly listed since a composer only fires for the exact view name it's registered against, even though `header` is always `@include`d from `app`. Reach for a composer only for genuinely cross-cutting, layout-level data like this — a single page's own data still belongs in its controller action passing a `compact(...)`/`view(..., [...])` payload, not a composer.
+
+The sidebar's company name/logo heading (Phase 10) is the same pattern, one composer down:
+
+```php
+View::composer('layouts.app', function ($view) {
+    $view->with('companyName', $this->app->make(SettingInterface::class)->get('company_name'));
+});
+```
 
 ## Adding a new module
 

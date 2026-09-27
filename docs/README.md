@@ -19,6 +19,7 @@ Then, as needed:
 - **[08-frontend.md](08-frontend.md)** — Blade/Tailwind/DaisyUI/Alpine conventions.
 - **[09-setup-and-operations.md](09-setup-and-operations.md)** — local setup, queue worker, scheduler, deployment.
 - **[10-conventions.md](10-conventions.md)** — naming, folder layout, and the phase-based workflow this project is being built under.
+- **[11-testing.md](11-testing.md)** — how to run the test suite and write new feature tests.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed, phase by phase.
 
 ## Who this is for
@@ -27,6 +28,7 @@ Then, as needed:
 - **Hardware/firmware engineers** (e.g. wiring up a new sensor): read 05 only.
 - **Anyone reviewing security**: read 06.
 - **Anyone picking up the next phase of work**: read 10, then the CHANGELOG to see what's already done.
+- **Anyone adding or running tests**: read 11.
 
 ## Keeping these docs accurate
 

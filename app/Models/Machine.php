@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Machine model used by the Building Management System (manufacturing context).
@@ -15,7 +18,23 @@ use Illuminate\Contracts\Encryption\DecryptException;
  */
 class Machine extends Model
 {
+    use HasFactory;
     use SoftDeletes;
+    use LogsActivity;
+
+    /**
+     * Only fires when a fillable attribute actually changed (logOnlyDirty), skips the
+     * device-key columns entirely (they're already hidden/encrypted — no reason to also
+     * write their hashes into an audit log), and drops an update log with no real changes
+     * (dontSubmitEmptyLogs) rather than recording a no-op.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly($this->fillable)
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
 
     protected $fillable = [
         'name',

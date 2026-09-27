@@ -541,6 +541,59 @@
         </div>
     @endif
 
+    <!-- Activity -->
+    <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        <div class="card-body">
+            <h2 class="card-title mb-4">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Activity
+            </h2>
+
+            @if($activityFeed->isEmpty())
+                <p class="text-sm opacity-70">No changes recorded yet.</p>
+            @else
+                <ul class="timeline timeline-vertical timeline-compact">
+                    @foreach($activityFeed as $activity)
+                        <li>
+                            @unless($loop->first)<hr/>@endunless
+                            <div class="timeline-start text-xs opacity-60 whitespace-nowrap">{{ $activity->created_at->diffForHumans() }}</div>
+                            <div class="timeline-middle">
+                                <svg class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="timeline-end timeline-box">
+                                <p class="text-sm">
+                                    <span class="font-semibold">{{ $activity->causer->name ?? 'System' }}</span>
+                                    {{ $activity->description }}
+                                    <span class="opacity-70">{{ str_replace('_', ' ', \Illuminate\Support\Str::snake(class_basename($activity->subject_type))) }}</span>
+                                    @if($activity->subject_type === \App\Models\WorkOrder::class && $activity->subject)
+                                        <code class="text-xs">{{ $activity->subject->code }}</code>
+                                    @elseif($activity->subject_type === \App\Models\Alert::class && $activity->subject)
+                                        <span class="text-xs">#{{ $activity->subject->id }}</span>
+                                    @endif
+                                </p>
+                                @if($activity->event === 'updated' && $activity->properties->get('attributes'))
+                                    <ul class="text-xs opacity-70 mt-1 space-y-0.5">
+                                        @foreach($activity->properties->get('attributes') as $key => $newValue)
+                                            <li>
+                                                <span class="font-medium">{{ str_replace('_', ' ', $key) }}:</span>
+                                                {{ $activity->properties->get('old')[$key] ?? '—' }} → {{ $newValue }}
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+                            </div>
+                            @unless($loop->last)<hr/>@endunless
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    </div>
+
     <!-- Machine Logs -->
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">

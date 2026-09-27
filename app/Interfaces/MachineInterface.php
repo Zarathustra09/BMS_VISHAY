@@ -27,6 +27,14 @@ interface MachineInterface
 
     public function getLogTypeDistribution(Machine $machine): Collection;
 
+    /**
+     * A combined audit feed for the machine page's Activity tab: field-level changes to the
+     * machine itself, plus changes to its work orders and alerts (status transitions), all
+     * from spatie/laravel-activitylog — not just Machine's own activities() relation, since
+     * "what happened to this machine" includes the tasks and alerts raised against it.
+     */
+    public function getActivityFeed(Machine $machine, int $limit = 20): Collection;
+
     public function create(array $data): Machine;
 
     public function update(Machine $machine, array $data): Machine;

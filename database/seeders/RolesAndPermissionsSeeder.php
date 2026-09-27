@@ -64,6 +64,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // CRUD of its own.
         $permissions[] = 'reports.view';
 
+        // System-wide configuration (company name, alert recipients, offline/preventive
+        // timing, default thresholds, log retention) — deliberately admin-only, not granted
+        // to any other role below, unlike every other module here.
+        $permissions[] = 'settings.view';
+        $permissions[] = 'settings.update';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }

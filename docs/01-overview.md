@@ -19,6 +19,8 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs, alerts, work orders, maintenance) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |
+| Audit log | `spatie/laravel-activitylog` ^4.12 (v5 needs PHP ^8.4, which this app doesn't target) |
+| Testing | PHPUnit, `tests/Feature` + `tests/Unit`, SQLite `:memory:` — see [11-testing.md](11-testing.md) |
 
 ## Module status
 
@@ -40,8 +42,9 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Maintenance dashboard | ✅ Done | Overdue/due-in-7-days/due-in-30-days/completed-this-month stats, a per-building breakdown, and a server-side DataTable of machines due for maintenance; a daily `app:generate-preventive-work-orders` command auto-creates a preventive work order for machines approaching their `next_maintenance_date`, deduped so it never double-creates |
 | Reports & exports | ✅ Done | Four report types (sensor summary, alert history, work order summary, maintenance compliance) with date-range + building filters, an on-page stats/preview view, and a streamed CSV download per report |
 | Home dashboard | ✅ Done | Every stat, chart, and list is real (`DashboardInterface`): equipment availability, active/pending/open counts, a 7-day alerts trend, per-building machine health, and the 5 most recent alerts/work orders. Fabricated content with no real data source (revenue, "production units", facility occupancy, server/backup status, "Manage Tenants") was removed rather than kept as placeholders. |
-| Settings | 🔴 Planned | View is a static mockup; Phase 10 |
-| Audit log | 🔴 Planned | Phase 10 |
+| Settings | ✅ Done | Admin-only `settings/index` page backed by a cached `SettingInterface`/`SettingService`: company name, extra alert emails, offline timeout, preventive lead days, auto-fault-on-critical toggle, default alert thresholds for new machines, and log retention days. `CheckOfflineDevices` and `app:generate-preventive-work-orders` read their defaults from Settings when `--minutes`/lead days aren't passed on the command line. |
+| Audit log | ✅ Done | `spatie/laravel-activitylog` on `Machine`, `Building`, `WorkOrder` (full fillable, dirty-only) and `Alert` (narrowed to `status`/`severity` only, to avoid one log entry per sensor reading). A combined Activity feed on the machine page shows changes to the machine plus its work orders and alerts. |
+| Data retention | ✅ Done | `MachineLog` is `Prunable`, keeping rows newer than the `log_retention_days` setting (365 by default); a daily `model:prune --model=App\Models\MachineLog` schedule entry runs the cleanup. |
 
 See [CHANGELOG.md](CHANGELOG.md) for what's shipped so far and the plan document for what's next.
 
@@ -59,3 +62,5 @@ See [CHANGELOG.md](CHANGELOG.md) for what's shipped so far and the plan document
 | **Alert** | A record raised by `AlertService` when a sensor reading crosses a configured threshold, or when a device stops reporting — has a severity (warning/critical) and a status (open/acknowledged/resolved), and triggers an in-app + email notification to admins/managers. |
 | **Sensor threshold** | Per-machine, per-metric warning/critical bounds (e.g. `temperature.critical_max`), configured on the machine edit page — see [03-data-model.md](03-data-model.md#sensor_thresholds). |
 | **Work Order** | A maintenance or repair task against a machine — created manually (from the Work Orders page, a machine page, or an open alert), and from Phase 8 also generated automatically from a due maintenance schedule. Has a type (preventive/corrective/emergency/inspection), a priority, and a status (pending/in_progress/completed/cancelled), and is optionally assigned to a technician. |
+| **Setting** | A key-value row in the `settings` table (e.g. `offline_timeout_minutes`), read/written through the cached `SettingInterface` — see [03-data-model.md](03-data-model.md#settings). |
+| **Activity log** | A `spatie/laravel-activitylog` entry recording a field-level change to a model (who changed what, from what, to what) — see [02-architecture.md](02-architecture.md#audit-logging). |

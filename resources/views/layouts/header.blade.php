@@ -169,6 +169,7 @@
                         Profile
                     </a>
                 </li>
+                @can('settings.view')
                 <li>
                     <a href="{{ route('settings.index') }}" class="gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,6 +179,7 @@
                         Settings
                     </a>
                 </li>
+                @endcan
                 <div class="divider my-1"></div>
                 <li>
                     <a href="{{ route('logout') }}"

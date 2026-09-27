@@ -187,13 +187,14 @@ New in Phase 9. Read-only rollups of data every role can already see piecemeal v
 | GET | `/reports` | `reports.index` | `ReportController@index` | `reports.view` | Filter form + the selected report's stats and a capped (100-row) preview table |
 | GET | `/reports/export` | `reports.export` | `ReportController@export` | `reports.view` | **Streamed CSV download** for the selected report — unlike the on-page preview, this is not capped; `alert_history`/`work_order_summary`/`maintenance_compliance` stream via `cursor()` so exporting a large date range doesn't load every row into memory at once |
 
-## Other module pages (currently static views — see [01-overview.md](01-overview.md) for status)
+## Settings (Phase 10)
 
-| Method | URI | Name | Controller@Method |
-|---|---|---|---|
-| GET | `/settings` | `settings.index` | `SettingController@index` |
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/settings` | `settings.index` | `SettingController@index` | `settings.view` | Company name, alert emails, offline timeout, preventive lead days, auto-fault toggle, default alert thresholds, log retention days |
+| PUT | `/settings` | `settings.update` | `SettingController@update` | `settings.update` | Saves the form above via `SettingInterface::update()` |
 
-Requires `auth`; no permission middleware yet — Settings doesn't have real CRUD to gate until Phase 10 builds it out.
+Both `settings.view` and `settings.update` are admin-only — see [06-security.md](06-security.md).
 
 ## Hardware / sensor ingestion API (`routes/api.php`)
 

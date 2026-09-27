@@ -99,7 +99,7 @@ erDiagram
     }
 ```
 
-`MACHINE_STATUSES` and `LOG_TYPES` are currently empty placeholder tables (`id` + `timestamps` only) — see [Placeholder tables](#placeholder-tables-not-yet-used) below.
+`settings` and `activity_log` aren't shown above — neither has a foreign key into this graph (`settings` is a flat key-value store, `activity_log` references other tables only via a polymorphic `subject_type`/`subject_id`, not a real FK) — see their sections below. The `machine_statuses` and `log_types` placeholder tables (empty, `id`+`timestamps` only, never referenced by any query) were dropped in Phase 10.
 
 ## Tables
 
@@ -217,6 +217,8 @@ Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severi
 
 **Scopes**: `alerts()` (severity in error/critical), `byType($type)`, `recent($days = 7)`, `bySeverity($severity)`.
 
+**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
+
 ### `sensor_thresholds`
 
 Migration: [2026_09_26_191411_create_sensor_thresholds_table.php](../database/migrations/2026_09_26_191411_create_sensor_thresholds_table.php)
@@ -312,12 +314,40 @@ Indexes: `(status, priority)`, `machine_id`, `assigned_to`.
 - `code` has a database-level unique constraint as a backstop, but generation itself isn't concurrency-locked — acceptable at this app's scale, the same trade-off already made for `machine_code`.
 - **`generatePreventiveWorkOrders(int $leadDays)`** (Phase 8, run daily by `app:generate-preventive-work-orders`): creates a `preventive` work order, `created_by` null, for every machine with a non-null `next_maintenance_date` at or before `today + $leadDays`, excluding `inactive` machines and any machine that already has an open (`pending`/`in_progress`) preventive work order — that existing-open check is the dedupe, so running it twice in a row (or missing a day) never creates a duplicate. Priority is `high` if the machine is already overdue, else `medium`; `due_date` is set to the machine's `next_maintenance_date`. The same `inactive`-machine exclusion is applied by `MaintenanceService` to every dashboard count, so a machine the generator would skip also never shows as "overdue" on the dashboard.
 
-### Placeholder tables (not yet used)
+### `settings`
 
-These two tables exist as migrations but have **no columns beyond `id` and `timestamps`**, and their models ([MachineStatus.php](../app/Models/MachineStatus.php), [LogType.php](../app/Models/LogType.php)) have no fillable/casts/relations:
+Migration: [2026_09_27_051526_create_settings_table.php](../database/migrations/2026_09_27_051526_create_settings_table.php).
 
-- **`machine_statuses`** — not used; `machines.status` is a plain enum column instead. Planned for removal in Phase 10.
-- **`log_types`** — not used; `machine_logs.log_type` is a plain enum column instead. Planned for removal in Phase 10.
+A generic key-value store — one row per setting, rather than one column per setting on some singleton table — read and written exclusively through the cached `SettingInterface`/`SettingService` (see [02-architecture.md](02-architecture.md#container-binding-registry)), never queried directly.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| id | bigint PK | | |
+| key | string | | unique; one of `SettingInterface::KEYS` |
+| value | text | ✓ | JSON-encoded (`json_encode`/`json_decode`), so a value can be a string, number, bool, or array (e.g. `alert_emails`, `default_thresholds`) |
+| timestamps | | | |
+
+**Keys** (`SettingInterface::KEYS` / `::DEFAULTS`): `company_name`, `alert_emails` (array of strings), `offline_timeout_minutes`, `preventive_lead_days`, `auto_fault_on_critical` (bool), `default_thresholds` (array keyed by metric, same shape as a `sensor_thresholds` row), `log_retention_days`. A key with no row falls back to its default — `SettingService::all()` merges stored values over `DEFAULTS`, so a fresh install (or a key added later without a migration) never crashes on a missing setting.
+
+`SettingService` caches the merged result forever under `app.settings` and calls `Cache::forget()` on every `update()` — see [02-architecture.md](02-architecture.md#container-binding-registry) for consumers (the offline/preventive commands, `AlertService`, `MachineService`, `MachineLog::prunable()`, the sidebar's company name).
+
+### `activity_log`
+
+Migrations: [2026_09_27_052350_create_activity_log_table.php](../database/migrations/2026_09_27_052350_create_activity_log_table.php), [..._add_event_column...](../database/migrations/2026_09_27_052351_add_event_column_to_activity_log_table.php), [..._add_batch_uuid_column...](../database/migrations/2026_09_27_052352_add_batch_uuid_column_to_activity_log_table.php) — stock `spatie/laravel-activitylog` migrations, unmodified.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| id | bigint PK | | |
+| log_name | string | ✓ | defaults to `default`; unused here (single log name across all models) |
+| description | string | | e.g. `created`, `updated` |
+| subject_type / subject_id | morph | ✓ | the model the activity happened to — `Machine`, `Building`, `WorkOrder`, or `Alert` |
+| event | string | ✓ | `created`/`updated`/`deleted` (added by the second migration) |
+| causer_type / causer_id | morph | ✓ | who did it — the authenticated `User`, resolved automatically from the request; null for a system/console action (e.g. the preventive-work-order generator) |
+| properties | json | ✓ | `{"attributes": {...new values...}, "old": {...previous values...}}` for an `updated` event |
+| batch_uuid | uuid | ✓ | groups activities logged in the same `LogBatch` (added by the third migration; unused — no code opens a batch) |
+| timestamps | | | |
+
+See [02-architecture.md](02-architecture.md#audit-logging-spatielaravel-activitylog) for which models log, why `Alert` logs a narrower column set than the others, and how the machine page's combined Activity feed queries this table.
 
 ### Auth & permissions tables
 

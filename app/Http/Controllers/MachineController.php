@@ -67,6 +67,7 @@ class MachineController extends Controller
         $recentAlerts        = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
         $activeAlerts        = $this->alertService->getActiveForMachine($machine);
+        $activityFeed        = $this->machineService->getActivityFeed($machine);
         // Rendered once here so the page loads with the chart fully drawn — no fetch on
         // first paint, no flash while Alpine boots.
         $chart               = $this->machineLogService->getReadingSeries($machine);
@@ -75,7 +76,7 @@ class MachineController extends Controller
         $deviceKeyPlain   = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
-            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'chart',
+            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'activityFeed', 'chart',
             'canViewDeviceKey', 'deviceKeyPlain'
         ));
     }

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * A threshold breach (or, from Phase 6, a device-offline event) raised against a machine.
@@ -11,6 +13,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Alert extends Model
 {
+    use LogsActivity;
+
+    /**
+     * Deliberately narrower than logOnly($this->fillable) — AlertService::evaluate()
+     * updates `value`/`machine_log_id` on every single reading while an alert stays open
+     * (to track the latest reading behind it), which would otherwise flood the activity log
+     * with one row per sensor reading. Only status/severity transitions — the events an
+     * operator actually cares about — are logged.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'severity'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
+
     protected $fillable = [
         'machine_id',
         'machine_log_id',

@@ -3,12 +3,19 @@
 namespace App\Services;
 
 use App\Interfaces\MachineInterface;
+use App\Interfaces\SettingInterface;
+use App\Models\Alert;
 use App\Models\Machine;
+use App\Models\SensorThreshold;
+use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Spatie\Activitylog\Models\Activity;
 
 class MachineService implements MachineInterface
 {
+    public function __construct(protected SettingInterface $settings) {}
+
     public function getQueryForDataTable(array $filters): Builder
     {
         $query = Machine::with(['building', 'floor']);
@@ -83,9 +90,30 @@ class MachineService implements MachineInterface
             ->pluck('count', 'log_type');
     }
 
+    public function getActivityFeed(Machine $machine, int $limit = 20): Collection
+    {
+        $workOrderIds = $machine->workOrders()->pluck('id');
+        $alertIds = $machine->alerts()->pluck('id');
+
+        return Activity::query()
+            ->where(function (Builder $query) use ($machine, $workOrderIds, $alertIds) {
+                $query->where(fn ($q) => $q->where('subject_type', Machine::class)->where('subject_id', $machine->id))
+                    ->orWhere(fn ($q) => $q->where('subject_type', WorkOrder::class)->whereIn('subject_id', $workOrderIds))
+                    ->orWhere(fn ($q) => $q->where('subject_type', Alert::class)->whereIn('subject_id', $alertIds));
+            })
+            ->with('causer')
+            ->latest()
+            ->limit($limit)
+            ->get();
+    }
+
     public function create(array $data): Machine
     {
-        return Machine::create($data);
+        $machine = Machine::create($data);
+
+        $this->applyDefaultThresholds($machine);
+
+        return $machine;
     }
 
     public function update(Machine $machine, array $data): Machine
@@ -97,5 +125,21 @@ class MachineService implements MachineInterface
     public function delete(Machine $machine): bool
     {
         return $machine->delete();
+    }
+
+    /**
+     * Applies Settings' default_thresholds (configured on the Settings page) to a
+     * newly-created machine — existing machines are never touched by this, only new ones.
+     */
+    private function applyDefaultThresholds(Machine $machine): void
+    {
+        $defaults = $this->settings->get('default_thresholds', []);
+
+        foreach ($defaults as $metric => $bounds) {
+            SensorThreshold::create(array_merge(
+                ['machine_id' => $machine->id, 'metric' => $metric],
+                $bounds
+            ));
+        }
     }
 }

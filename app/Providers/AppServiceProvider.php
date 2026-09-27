@@ -13,6 +13,7 @@ use App\Interfaces\MaintenanceInterface;
 use App\Interfaces\PermissionInterface;
 use App\Interfaces\ReportInterface;
 use App\Interfaces\RoleInterface;
+use App\Interfaces\SettingInterface;
 use App\Interfaces\SuggestedQuestionInterface;
 use App\Interfaces\UserInterface;
 use App\Interfaces\WorkOrderInterface;
@@ -28,6 +29,7 @@ use App\Services\OpenAIService;
 use App\Services\PermissionService;
 use App\Services\ReportService;
 use App\Services\RoleService;
+use App\Services\SettingService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
 use App\Services\WorkOrderService;
@@ -62,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(MaintenanceInterface::class, MaintenanceService::class);
         $this->app->bind(DashboardInterface::class, DashboardService::class);
         $this->app->bind(ReportInterface::class, ReportService::class);
+        $this->app->bind(SettingInterface::class, SettingService::class);
     }
 
     /**
@@ -79,6 +82,13 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('unreadAlertCount', $user ? $user->unreadNotifications()->count() : 0);
             $view->with('recentAlertNotifications', $user ? $user->notifications()->latest()->limit(5)->get() : collect());
+        });
+
+        // The sidebar's brand text was hardcoded ("BMS VISHAY") before Phase 10's Settings
+        // page made company_name a real, editable value — shared the same way as the bell
+        // data above, since the sidebar isn't behind any one controller action either.
+        View::composer('layouts.app', function ($view) {
+            $view->with('companyName', $this->app->make(SettingInterface::class)->get('company_name'));
         });
     }
 }

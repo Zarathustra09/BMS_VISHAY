@@ -22,55 +22,16 @@
             </h1>
             <p class="text-sm opacity-70 mt-2">Configure your Building Management System preferences</p>
         </div>
-        <div class="flex gap-2">
-            <button class="btn btn-ghost gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Reset to Defaults
-            </button>
-            <button class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                Save Changes
-            </button>
-        </div>
     </div>
 
-    <!-- Settings Navigation Tabs -->
-    <div class="tabs tabs-boxed bg-base-100 shadow-lg border border-base-300/50 p-2">
-        <a class="tab tab-active gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
-            </svg>
-            Appearance
-        </a>
-        <a class="tab gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-            </svg>
-            Facilities
-        </a>
-        <a class="tab gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-            </svg>
-            Notifications
-        </a>
-        <a class="tab gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-            </svg>
-            Security
-        </a>
-        <a class="tab gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
-            </svg>
-            System
-        </a>
+    @if(session('success'))
+    <div class="alert alert-success shadow-lg animate-fadeIn">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span>{{ session('success') }}</span>
     </div>
+    @endif
 
     <!-- Theme Selection Section -->
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
@@ -268,335 +229,167 @@
         </div>
     </div>
 
-    <!-- General Preferences -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Display Settings -->
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-            <div class="card-body">
-                <h2 class="card-title flex items-center gap-2">
-                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
-                    Display Settings
-                </h2>
+    <!-- Application Settings -->
+    <form action="{{ route('settings.update') }}" method="POST" class="space-y-6">
+        @csrf
+        @method('PUT')
 
-                <div class="space-y-4 mt-4">
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-primary" checked />
-                            <div>
-                                <span class="label-text font-medium">Compact Mode</span>
-                                <p class="text-xs opacity-70">Show more information in less space</p>
-                            </div>
-                        </label>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Company -->
+            <div class="card bg-base-100 shadow-lg border border-base-300/50">
+                <div class="card-body">
+                    <h2 class="card-title flex items-center gap-2">
+                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                        Company
+                    </h2>
+
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text font-semibold">Company Name</span></label>
+                        <input type="text" name="company_name" value="{{ old('company_name', $settings['company_name']) }}"
+                               class="input input-bordered @error('company_name') input-error @enderror" required maxlength="255"/>
+                        @error('company_name')
+                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
+                        @else
+                            <label class="label"><span class="label-text-alt opacity-50">Shown in the sidebar</span></label>
+                        @enderror
                     </div>
+                </div>
+            </div>
 
-                    <div class="divider my-2"></div>
+            <!-- Data Retention -->
+            <div class="card bg-base-100 shadow-lg border border-base-300/50">
+                <div class="card-body">
+                    <h2 class="card-title flex items-center gap-2">
+                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                        Data Retention
+                    </h2>
 
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-primary" />
-                            <div>
-                                <span class="label-text font-medium">Animations</span>
-                                <p class="text-xs opacity-70">Enable smooth transitions and effects</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Default View</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option>Dashboard</option>
-                            <option>Buildings</option>
-                            <option>Machines</option>
-                            <option>Work Orders</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Items Per Page</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option>10</option>
-                            <option selected>25</option>
-                            <option>50</option>
-                            <option>100</option>
-                        </select>
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text font-semibold">Machine Log Retention (days)</span></label>
+                        <input type="number" name="log_retention_days" min="1" value="{{ old('log_retention_days', $settings['log_retention_days']) }}"
+                               class="input input-bordered @error('log_retention_days') input-error @enderror" required/>
+                        @error('log_retention_days')
+                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
+                        @else
+                            <label class="label"><span class="label-text-alt opacity-50">Sensor readings older than this are pruned daily (<code>app:generate-preventive-work-orders</code>'s sibling scheduled job, <code>model:prune</code>)</span></label>
+                        @enderror
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Localization -->
+        <!-- Alerting -->
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <h2 class="card-title flex items-center gap-2">
                     <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                     </svg>
-                    Localization
+                    Alerting
                 </h2>
 
-                <div class="space-y-4 mt-4">
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Language</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option selected>English (US)</option>
-                            <option>English (UK)</option>
-                            <option>Spanish</option>
-                            <option>French</option>
-                            <option>German</option>
-                            <option>Chinese</option>
-                            <option>Japanese</option>
-                        </select>
-                    </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text font-semibold">Offline Timeout (minutes)</span></label>
+                            <input type="number" name="offline_timeout_minutes" min="1" value="{{ old('offline_timeout_minutes', $settings['offline_timeout_minutes']) }}"
+                                   class="input input-bordered @error('offline_timeout_minutes') input-error @enderror" required/>
+                            @error('offline_timeout_minutes')
+                                <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
+                            @else
+                                <label class="label"><span class="label-text-alt opacity-50">How long a machine can go quiet before <code>app:check-offline-devices</code> raises an offline alert</span></label>
+                            @enderror
+                        </div>
 
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Timezone</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option selected>UTC-05:00 (Eastern Time)</option>
-                            <option>UTC-06:00 (Central Time)</option>
-                            <option>UTC-07:00 (Mountain Time)</option>
-                            <option>UTC-08:00 (Pacific Time)</option>
-                            <option>UTC+00:00 (UTC)</option>
-                            <option>UTC+01:00 (CET)</option>
-                        </select>
-                    </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text font-semibold">Preventive Lead Time (days)</span></label>
+                            <input type="number" name="preventive_lead_days" min="0" value="{{ old('preventive_lead_days', $settings['preventive_lead_days']) }}"
+                                   class="input input-bordered @error('preventive_lead_days') input-error @enderror" required/>
+                            @error('preventive_lead_days')
+                                <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
+                            @else
+                                <label class="label"><span class="label-text-alt opacity-50">How far ahead of a machine's next maintenance date <code>app:generate-preventive-work-orders</code> creates one</span></label>
+                            @enderror
+                        </div>
 
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Date Format</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option selected>MM/DD/YYYY</option>
-                            <option>DD/MM/YYYY</option>
-                            <option>YYYY-MM-DD</option>
-                            <option>DD.MM.YYYY</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Time Format</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option selected>12-hour (AM/PM)</option>
-                            <option>24-hour</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Manufacturing Settings -->
-    <div class="card bg-base-100 shadow-lg border border-base-300/50">
-        <div class="card-body">
-            <h2 class="card-title flex items-center gap-2">
-                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                </svg>
-                Manufacturing Operations
-            </h2>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-                <div class="space-y-4">
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-success" checked />
-                            <div>
-                                <span class="label-text font-medium">Real-time Monitoring</span>
-                                <p class="text-xs opacity-70">Track equipment status live</p>
+                        <div class="flex items-center gap-4 p-4 rounded-xl border border-base-300 bg-base-200/50">
+                            <div class="flex-1">
+                                <p class="font-semibold">Auto-Fault on Critical Alert</p>
+                                <p class="text-sm opacity-60">Automatically set a machine's status to Fault when a threshold reading is critical</p>
                             </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-warning" checked />
-                            <div>
-                                <span class="label-text font-medium">Maintenance Alerts</span>
-                                <p class="text-xs opacity-70">Notify when maintenance is due</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-error" checked />
-                            <div>
-                                <span class="label-text font-medium">Downtime Tracking</span>
-                                <p class="text-xs opacity-70">Log equipment downtime automatically</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Default Production Shift</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option>Morning Shift (6AM - 2PM)</option>
-                            <option selected>Day Shift (8AM - 4PM)</option>
-                            <option>Evening Shift (4PM - 12AM)</option>
-                            <option>Night Shift (12AM - 8AM)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-info" checked />
-                            <div>
-                                <span class="label-text font-medium">Quality Control Checks</span>
-                                <p class="text-xs opacity-70">Require QC approval for orders</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="toggle toggle-primary" />
-                            <div>
-                                <span class="label-text font-medium">Auto-assign Work Orders</span>
-                                <p class="text-xs opacity-70">Distribute tasks automatically</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="divider my-2"></div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Maintenance Frequency</span>
-                        </label>
-                        <select class="select select-bordered w-full">
-                            <option>Daily</option>
-                            <option selected>Weekly</option>
-                            <option>Bi-weekly</option>
-                            <option>Monthly</option>
-                            <option>Quarterly</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-medium">Efficiency Alert Threshold</span>
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <input type="range" min="50" max="100" value="80" class="range range-primary flex-1" />
-                            <span class="badge badge-primary">80%</span>
+                            <input type="hidden" name="auto_fault_on_critical" value="0"/>
+                            <input type="checkbox" name="auto_fault_on_critical" value="1"
+                                   class="toggle toggle-error toggle-lg"
+                                   {{ old('auto_fault_on_critical', $settings['auto_fault_on_critical']) ? 'checked' : '' }}/>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Notification Preferences -->
-    <div class="card bg-base-100 shadow-lg border border-base-300/50">
-        <div class="card-body">
-            <h2 class="card-title flex items-center gap-2">
-                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                </svg>
-                Notification Preferences
-            </h2>
-
-            <div class="overflow-x-auto mt-4">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Notification Type</th>
-                            <th class="text-center">Email</th>
-                            <th class="text-center">In-App</th>
-                            <th class="text-center">SMS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="font-medium">Equipment Failure</td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-error" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-error" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-error" checked /></td>
-                        </tr>
-                        <tr>
-                            <td class="font-medium">Maintenance Due</td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-warning" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-warning" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-warning" /></td>
-                        </tr>
-                        <tr>
-                            <td class="font-medium">Work Order Completed</td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-success" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-success" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-success" /></td>
-                        </tr>
-                        <tr>
-                            <td class="font-medium">Tenant Updates</td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-info" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-info" /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-info" /></td>
-                        </tr>
-                        <tr>
-                            <td class="font-medium">System Updates</td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-primary" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-primary" checked /></td>
-                            <td class="text-center"><input type="checkbox" class="checkbox checkbox-primary" /></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Danger Zone -->
-    <div class="card bg-error/5 border-2 border-error/20 shadow-lg">
-        <div class="card-body">
-            <h2 class="card-title flex items-center gap-2 text-error">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>
-                Danger Zone
-            </h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div class="card bg-base-100">
-                    <div class="card-body p-4">
-                        <h3 class="font-bold">Clear All Data</h3>
-                        <p class="text-sm opacity-70">Remove all cached data and reset preferences</p>
-                        <button class="btn btn-outline btn-error btn-sm mt-2">Clear Data</button>
-                    </div>
-                </div>
-
-                <div class="card bg-base-100">
-                    <div class="card-body p-4">
-                        <h3 class="font-bold">Export Data</h3>
-                        <p class="text-sm opacity-70">Download all your system data</p>
-                        <button class="btn btn-outline btn-warning btn-sm mt-2">Export Data</button>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-semibold">Extra Alert Recipients</span></label>
+                        <textarea name="alert_emails" rows="6" class="textarea textarea-bordered @error('alert_emails') textarea-error @enderror"
+                                  placeholder="one@example.com&#10;two@example.com">{{ old('alert_emails', implode("\n", $settings['alert_emails'])) }}</textarea>
+                        @error('alert_emails')
+                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
+                        @else
+                            <label class="label"><span class="label-text-alt opacity-50">One email per line — sent every threshold/offline alert, in addition to admins and managers</span></label>
+                        @enderror
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- Default Alert Thresholds for New Machines -->
+        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+            <div class="card-body">
+                <h2 class="card-title flex items-center gap-2">
+                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    Default Alert Thresholds for New Machines
+                </h2>
+                <p class="text-sm opacity-70">Applied automatically to every machine created from now on. Existing machines are unaffected — edit their thresholds individually on the machine's edit page.</p>
+
+                <div class="overflow-x-auto mt-4">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Warning Min</th>
+                                <th>Warning Max</th>
+                                <th>Critical Min</th>
+                                <th>Critical Max</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(\App\Interfaces\AlertInterface::METRIC_LABELS as $metric => $label)
+                                @php $bounds = $settings['default_thresholds'][$metric] ?? []; @endphp
+                                <tr>
+                                    <td class="font-medium whitespace-nowrap">{{ $label }}</td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_min]" value="{{ old('thresholds.'.$metric.'.warning_min', $bounds['warning_min'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_max]" value="{{ old('thresholds.'.$metric.'.warning_max', $bounds['warning_max'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_min]" value="{{ old('thresholds.'.$metric.'.critical_min', $bounds['critical_min'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
+                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_max]" value="{{ old('thresholds.'.$metric.'.critical_max', $bounds['critical_max'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Save Changes
+            </button>
+        </div>
+    </form>
 </div>
 
 <script>

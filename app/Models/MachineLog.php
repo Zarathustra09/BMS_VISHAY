@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Interfaces\SettingInterface;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
@@ -11,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class MachineLog extends Model
 {
+    use HasFactory;
+    use Prunable;
+
     /**
      * Explicit table name for clarity (matches migration).
      *
@@ -93,5 +99,18 @@ class MachineLog extends Model
     public function scopeBySeverity($query, string $severity)
     {
         return $query->where('severity', $severity);
+    }
+
+    /**
+     * Rows older than Settings' log_retention_days are deleted by the daily
+     * `php artisan model:prune` scheduled entry (routes/console.php). Deleting a log that an
+     * Alert references only nulls that alert's machine_log_id (nullOnDelete in the
+     * migration) — the alert itself is untouched.
+     */
+    public function prunable(): \Illuminate\Database\Eloquent\Builder
+    {
+        $days = app(SettingInterface::class)->get('log_retention_days', 365);
+
+        return static::where('logged_at', '<', now()->subDays($days));
     }
 }

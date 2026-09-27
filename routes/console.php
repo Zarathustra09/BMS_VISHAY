@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MachineLog;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -20,3 +21,9 @@ Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 // next_maintenance_date doesn't move minute to minute, and the generator's own dedupe
 // (an existing open preventive work order blocks a new one) makes a missed day harmless.
 Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
+
+// Deletes machine_logs older than Settings' log_retention_days (MachineLog::prunable()).
+// --model is explicit rather than letting model:prune auto-discover every Prunable model in
+// app/Models, so adding a second Prunable model later can't silently start getting pruned
+// by this same schedule entry without a deliberate change here.
+Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
