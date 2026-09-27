@@ -94,6 +94,21 @@ For local development, `php artisan schedule:work` runs the scheduler in the for
 
 The admin-only Settings page (`/settings`, `settings.view`/`settings.update`) holds operational configuration that used to be hardcoded: company name, extra alert-notification emails, the offline-detection timeout (`offline_timeout_minutes`, read by `app:check-offline-devices` when `--minutes` isn't passed), the preventive-maintenance lead time (`preventive_lead_days`, read by `app:generate-preventive-work-orders` when `--lead-days` isn't passed), an auto-fault-on-critical toggle, default alert thresholds applied to newly-created machines, and the machine-log retention window (`log_retention_days`, read by `MachineLog::prunable()`). Backed by `SettingInterface`/`SettingService`, cached forever and invalidated on every save — see [02-architecture.md](02-architecture.md#container-binding-registry). A change takes effect on the *next* run of the affected command/query; nothing needs restarting.
 
+## AI agent tooling (Laravel Boost)
+
+[laravel/boost](https://laravel.com/framework/docs/boost) is a dev-only dependency that gives AI coding agents (currently just Claude Code) Laravel-ecosystem guidelines, on-demand skills, and an MCP server for inspecting this app directly (schema, queries, logs, installed package versions) instead of guessing.
+
+```bash
+php artisan boost:mcp     # starts the MCP server manually (usually launched by the agent via .mcp.json)
+php artisan boost:update  # refreshes guidelines/skills after a package upgrade (also runs on every `composer update` via post-update-cmd)
+```
+
+Generated, machine-regenerated files are gitignored (`.mcp.json`, `boost.json`) and re-created by `boost:install`/`boost:update` — don't hand-edit them. `AGENTS.md` (Boost's guidelines file for this app) and `.claude/skills/**` **are** committed, same as `docs/`.
+
+App-specific conventions ([10-conventions.md](10-conventions.md)) are additionally mirrored into `.ai/rules/*` so an agent consults them automatically per file glob — see that doc's "AI agent rules" section for how a rule gets recorded.
+
+Set `BOOST_RULES_ENABLED=false` to disable the `.ai/rules` feature entirely (removes the `record-rule` MCP tool).
+
 ## Logs
 
 - Application logs: `storage/logs/laravel.log` (default `single` channel). This is also where mail bodies land while `MAIL_MAILER=log`.

@@ -110,6 +110,10 @@ $this->postJson('/api/machine-logs', [
 ], ['X-Device-Key' => $plainKey])->assertStatus(201);
 ```
 
+## AI agents querying the database
+
+Laravel Boost's Database Query / Database Schema MCP tools (see [09-setup-and-operations.md](09-setup-and-operations.md#ai-agent-tooling-laravel-boost)) run against whatever connection is currently configured — that's the real dev database outside of a test run, **not** the `sqlite`/`:memory:` connection `phpunit.xml` uses. An agent reasoning about test data or debugging a failing test should read fixtures/factories and the test's own setup, not query the live database and assume it reflects what a test sees.
+
 ## What's covered so far
 
 | Test file | Covers |

@@ -58,6 +58,18 @@ This project is being built in **small, sequential phases**, each scoped to one 
 
 Docs are updated in the *same* phase as the code change, not batched up for later — a doc that's one phase behind the code is already a source of confusion.
 
+## AI agent rules
+
+The conventions in this file are also mirrored, per-glob, into `.ai/rules/*.md` so an AI agent (see [09-setup-and-operations.md](09-setup-and-operations.md#ai-agent-tooling-laravel-boost)) is pointed at the relevant rule before it edits a matching file, rather than needing this whole document loaded upfront. `.ai/rules/index.md` maps globs to rule files and is regenerated automatically — never hand-edit it or add a rule file by hand.
+
+To add or change a rule, ask the agent to remember it (or use its `record-rule` tool directly) rather than editing `.ai/rules/*` yourself:
+
+```
+Remember that all money values are stored as integer cents, never as floats.
+```
+
+This file (`10-conventions.md`) stays the human-readable source of truth; `.ai/rules` is a derived, agent-facing index of the same conventions plus anything recorded since. If they drift, this file wins — update `.ai/rules` (via `record-rule`, not by hand) to match.
+
 ## Docs-update rule (what "affected" means)
 
 When you change something, update the doc that describes it:
