@@ -8,21 +8,25 @@ use App\Interfaces\BuildingInterface;
 use App\Interfaces\FloorInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
+use App\Interfaces\MaintenanceInterface;
 use App\Interfaces\PermissionInterface;
 use App\Interfaces\RoleInterface;
 use App\Interfaces\SuggestedQuestionInterface;
 use App\Interfaces\UserInterface;
+use App\Interfaces\WorkOrderInterface;
 use App\Services\AlertService;
 use App\Services\BuildingService;
 use App\Services\FloorService;
 use App\Services\GeminiService;
 use App\Services\MachineLogService;
 use App\Services\MachineService;
+use App\Services\MaintenanceService;
 use App\Services\OpenAIService;
 use App\Services\PermissionService;
 use App\Services\RoleService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
+use App\Services\WorkOrderService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -50,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(RoleInterface::class, RoleService::class);
         $this->app->bind(PermissionInterface::class, PermissionService::class);
         $this->app->bind(AlertInterface::class, AlertService::class);
+        $this->app->bind(WorkOrderInterface::class, WorkOrderService::class);
+        $this->app->bind(MaintenanceInterface::class, MaintenanceService::class);
     }
 
     /**

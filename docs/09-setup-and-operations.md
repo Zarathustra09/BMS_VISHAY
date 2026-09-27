@@ -56,19 +56,21 @@ AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the 
 - `php artisan app:process-queue` — checks `Queue::size()` first and skips entirely if empty (logs to the `queue_processing` channel), otherwise runs `queue:work --stop-when-empty --max-time=50 --timeout=60`. Designed to be triggered on a schedule (e.g. every minute) without leaving a worker running permanently.
 - `php artisan app:run-queue-worker` — simpler variant, always runs `queue:work --stop-when-empty` and logs start/finish.
 - `php artisan app:check-offline-devices {--minutes=}` — raises an `offline` alert for any machine whose `last_seen_at` is older than `--minutes` (default 10, see `AlertInterface::OFFLINE_AFTER_MINUTES`). Prints a summary either way, but only writes to `storage/logs/laravel.log` when it actually raises something — see [02-architecture.md](02-architecture.md) for the full flow.
+- `php artisan app:generate-preventive-work-orders {--lead-days=}` — creates a `preventive` work order for any machine whose `next_maintenance_date` falls within `--lead-days` (default 7), skipping `inactive` machines and any machine that already has an open preventive work order (so a missed day, or running it twice, never produces a duplicate). The work order is system-generated (`created_by` null) and unassigned unless a technician is added afterward.
 
-`app:process-queue` and `app:check-offline-devices` are both registered on the scheduler (below), running every minute.
+`app:process-queue` and `app:check-offline-devices` run every minute; `app:generate-preventive-work-orders` runs once daily — all three are registered on the scheduler (below).
 
 ## Scheduler
 
-`routes/console.php` registers two `Schedule::command(...)` entries, both `everyMinute()->withoutOverlapping()`:
+`routes/console.php` registers three `Schedule::command(...)` entries:
 
 ```php
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
+Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
 ```
 
-The offline check is listed **first** deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. Neither entry uses `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
+The offline check is listed **first** among the per-minute entries deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. The preventive-work-order generator only needs to run once a day since `next_maintenance_date` doesn't move minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed day harmless — it just catches up the next run. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. None of the three entries use `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
 
 A single cron/Task Scheduler entry drives both:
 
@@ -106,3 +108,5 @@ For local development, `php artisan schedule:work` runs the scheduler in the for
 | A table's columns look squeezed into the left half on first load | The main layout reveals page content ~300ms after load; the shared DataTables assets partial re-adjusts column widths ~400ms after load as a safety net. If it's still off, check the page sets `autoWidth: false` in its `.DataTable({...})` call |
 | A machine shows "Offline" on the page but the device is actively sending readings | Either the scheduler isn't running in this environment (`schedule:run`/`schedule:work`/cron/Task Scheduler — see Scheduler above), or check `machines.last_seen_at` directly: it's only stamped by `MachineLogService::store()`, so a reading inserted any other way (a seeder, a manual DB edit) won't update it |
 | The Live Sensor Readings chart on a machine page is empty even though `machine_logs` has rows for it | The selected/default metric has no non-null values in the last 7 days for that machine (`getReadingSeries()`'s `availableMetrics()` only offers metrics with data in that window) — check which of the 10 monitorable columns (`AlertInterface::METRICS`) are actually populated for that machine's logs |
+| A machine due for maintenance never gets a preventive work order | Either the scheduler isn't running (see Scheduler above), the machine has no `next_maintenance_date` set (nothing to compare against), the machine's `status` is `inactive` (deliberately excluded), or it already has an open preventive work order — `app:generate-preventive-work-orders` only ever creates one at a time per machine |
+| The maintenance dashboard shows a different overdue count than expected | It excludes `inactive` machines from every count (matching the work-order generator's own exclusion) — an inactive machine past its `next_maintenance_date` won't appear as overdue, since it's deliberately out of service |

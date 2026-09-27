@@ -152,16 +152,40 @@ Every authenticated user can manage their own account regardless of role — no 
 
 These live in `routes/web.php`, not `routes/api.php`, because they're called from a Blade view and need the `web` middleware group (session auth + CSRF). See [07-ai-insights.md](07-ai-insights.md).
 
+## Work Orders
+
+New in Phase 7. Same controller-constructor permission-gating pattern as Buildings/Machines, plus a fifth, narrower permission (`work-orders.update-status`) for the one non-CRUD action — see [06-security.md](06-security.md) for why a technician gets that instead of the broader `work-orders.update`. The resource route uses `->parameters(['work-orders' => 'workOrder'])` so the URI/controller parameter is `{workOrder}` (camelCase) rather than Laravel's default `{work_order}` for a hyphenated resource name. The index table is a **server-side** DataTable (Phase 4c pattern).
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/work-orders` | `work-orders.index` | `WorkOrderController@index` | `work-orders.view` | List page shell + stat tiles — the table loads via `work-orders.data` |
+| GET | `/work-orders/data` | `work-orders.data` | `WorkOrderController@data` | `work-orders.view` | **Ajax source for the work orders DataTable** — status/priority/type/machine filters. Registered before `Route::resource('work-orders', ...)`, same ordering reason as `buildings.data`. |
+| GET | `/work-orders/create` | `work-orders.create` | `WorkOrderController@create` | `work-orders.create` | Create form — accepts `?machine_id=` and/or `?alert_id=` to prefill from the "Create Work Order" button on a machine page or an open alert |
+| POST | `/work-orders` | `work-orders.store` | `WorkOrderController@store` | `work-orders.create` | Create |
+| GET | `/work-orders/{workOrder}` | `work-orders.show` | `WorkOrderController@show` | `work-orders.view` | Detail + the status-update workflow (Start/Complete/Cancel) |
+| GET | `/work-orders/{workOrder}/edit` | `work-orders.edit` | `WorkOrderController@edit` | `work-orders.update` | Edit form (title/description/machine/type/priority/assignee/due date — not status or the linked alert) |
+| PUT/PATCH | `/work-orders/{workOrder}` | `work-orders.update` | `WorkOrderController@update` | `work-orders.update` | Update |
+| DELETE | `/work-orders/{workOrder}` | `work-orders.destroy` | `WorkOrderController@destroy` | `work-orders.delete` | Soft-delete |
+| GET | `/work-orders/{workOrder}/delete` | `work-orders.confirm-delete` | `WorkOrderController@confirmDelete` | `work-orders.delete` | Confirmation page |
+| PATCH | `/work-orders/{workOrder}/status` | `work-orders.update-status` | `WorkOrderController@updateStatus` | `work-orders.update-status` | Transition status (pending → in_progress → completed, or → cancelled); a technician may only do this on a work order assigned to them — enforced in `WorkOrderService`, not this middleware — see [06-security.md](06-security.md) |
+
+## Maintenance
+
+New in Phase 8. Read-only — there's no CRUD on this page itself (the underlying data, `machines.next_maintenance_date` etc., is edited on the machine record; the actual tasks live in the Work Orders module), so it's a single permission like `permissions.view` rather than a CRUD set.
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/maintenance` | `maintenance.index` | `MaintenanceController@index` | `maintenance.view` | Dashboard: overdue/due-soon/due-this-month/completed-this-month stats, a per-building breakdown, and the machines table — the table loads via `maintenance.data` |
+| GET | `/maintenance/data` | `maintenance.data` | `MaintenanceController@data` | `maintenance.view` | **Ajax source for the "Machines Due for Maintenance" DataTable** — status (overdue/due_soon/due_month) and building filters |
+
 ## Other module pages (currently static views — see [01-overview.md](01-overview.md) for status)
 
 | Method | URI | Name | Controller@Method |
 |---|---|---|---|
-| GET | `/work-orders` | `work-orders.index` | `WorkOrderController@index` |
 | GET | `/reports` | `reports.index` | `ReportController@index` |
-| GET | `/maintenance` | `maintenance.index` | `MaintenanceController@index` |
 | GET | `/settings` | `settings.index` | `SettingController@index` |
 
-All require `auth`; no permission middleware yet — these modules don't have real CRUD to gate until their respective phases (5–10) build them out.
+All require `auth`; no permission middleware yet — these modules don't have real CRUD to gate until their respective phases (9–10) build them out.
 
 ## Hardware / sensor ingestion API (`routes/api.php`)
 

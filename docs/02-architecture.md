@@ -210,9 +210,10 @@ sequenceDiagram
 ```php
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
+Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
 ```
 
-The offline check is registered **first** deliberately: `schedule:run` executes due events sequentially in registration order, and `app:process-queue` can hold the process for up to ~50s (see its `--max-time`) — registering it first would delay the offline check by up to that long every run. `runInBackground()` is deliberately not used for either: it shells out using POSIX-style command construction, which doesn't behave correctly under Windows Task Scheduler, a supported production target here (see [09-setup-and-operations.md](09-setup-and-operations.md)). `withoutOverlapping()` needs a working cache lock — satisfied by `CACHE_STORE=database` with the cache table migrated.
+The offline check is registered **first** among the per-minute entries deliberately: `schedule:run` executes due events sequentially in registration order, and `app:process-queue` can hold the process for up to ~50s (see its `--max-time`) — registering it first would delay the offline check by up to that long every run. The preventive-work-order generator (Phase 8) only needs to run once a day — `next_maintenance_date` doesn't change minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed run harmless, since the next run just catches up. `runInBackground()` is deliberately not used for any of them: it shells out using POSIX-style command construction, which doesn't behave correctly under Windows Task Scheduler, a supported production target here (see [09-setup-and-operations.md](09-setup-and-operations.md)). `withoutOverlapping()` needs a working cache lock — satisfied by `CACHE_STORE=database` with the cache table migrated.
 
 ## Interface → Service → Controller: layer responsibilities
 
@@ -241,7 +242,9 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `UserInterface` | `UserService` | `UserController` |
 | `RoleInterface` | `RoleService` | `RoleController` |
 | `PermissionInterface` | `PermissionService` | `RoleController`, `PermissionController` |
-| `AlertInterface` | `AlertService` | `MachineLogService` (evaluates every reading), `MachineController` (thresholds + active-alerts card), `AlertController` |
+| `AlertInterface` | `AlertService` | `MachineLogService` (evaluates every reading), `MachineController` (thresholds + active-alerts card), `AlertController`, `WorkOrderService` (resolves the linked alert on completion) |
+| `WorkOrderInterface` | `WorkOrderService` | `WorkOrderController`, `app:generate-preventive-work-orders` |
+| `MaintenanceInterface` | `MaintenanceService` | `MaintenanceController` |
 
 `AIInterface`'s binding is a closure, not a plain class-string, because it's the one case in this app where the implementation is chosen at runtime:
 
@@ -293,6 +296,24 @@ try {
 ```
 
 Use this pattern — a small exception class under `app/Exceptions/`, named after the domain rule it protects (not `ValidationException`, which is for request-shape validation, not business rules) — whenever a service needs to refuse an otherwise well-formed request for a reason the controller shouldn't have to know in advance.
+
+A second example: `WorkOrderService::updateStatus()` throws `App\Exceptions\WorkOrderActionException` when a technician (anyone without `work-orders.update`) tries to change the status of a work order that isn't assigned to them:
+
+```php
+// WorkOrderService
+if (!$actor->can('work-orders.update') && $workOrder->assigned_to !== $actor->id) {
+    throw new WorkOrderActionException('You can only update the status of work orders assigned to you.');
+}
+
+// WorkOrderController
+try {
+    $this->workOrderService->updateStatus($workOrder, $validated['status'], $request->user(), $validated['resolution_notes'] ?? null);
+} catch (WorkOrderActionException $e) {
+    return back()->with('error', $e->getMessage());
+}
+```
+
+Note the rule is expressed in terms of a **permission the actor holds**, not a hardcoded role name check (`$actor->can('work-orders.update')`, not `$actor->hasRole('technician')`) — this is deliberate: it means the restriction automatically applies to any future role that gets `work-orders.update-status` without the broader `work-orders.update`, with no code change.
 
 ## List pages: server-side DataTables, with the layering intact
 

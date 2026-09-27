@@ -101,6 +101,14 @@ class Machine extends Model
     }
 
     /**
+     * Maintenance/repair tasks raised against this machine.
+     */
+    public function workOrders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
+
+    /**
      * Has this machine reported within the last $withinMinutes? False if it never has.
      */
     public function isOnline(int $withinMinutes): bool

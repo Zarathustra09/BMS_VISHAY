@@ -21,7 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $crudModules = ['buildings', 'floors', 'machines', 'users', 'roles'];
+        $crudModules = ['buildings', 'floors', 'machines', 'users', 'roles', 'work-orders'];
         $actions = ['view', 'create', 'update', 'delete'];
 
         $permissions = [];
@@ -47,6 +47,18 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions[] = 'alerts.acknowledge';
         $permissions[] = 'alerts.resolve';
 
+        // A technician needs to change a work order's status (start/complete/cancel it)
+        // without holding the broader work-orders.update — which also covers editing the
+        // title/description/assignment of *any* work order, not just their own. This
+        // narrower permission is what WorkOrderService::updateStatus() checks to decide
+        // whether the "only your own" restriction applies (see docs/06-security.md).
+        $permissions[] = 'work-orders.update-status';
+
+        // Read-only dashboard over machines' next_maintenance_date — no CRUD of its own
+        // (the underlying data is edited on the machine record; work orders are a separate
+        // module), so this is a single permission like permissions.view above.
+        $permissions[] = 'maintenance.view';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }
@@ -71,17 +83,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'roles.view',
             'permissions.view',
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
+            'work-orders.view', 'work-orders.create', 'work-orders.update', 'work-orders.update-status',
+            'maintenance.view',
         ]);
 
         // technician: field/hardware role — views everything, can update a machine's
-        // own record (status, maintenance dates), and is the one wiring up sensors and
-        // acting on alerts in the field.
+        // own record (status, maintenance dates), acts on alerts in the field, and works
+        // through their assigned work orders (create/edit/delete stay manager+ — see
+        // WorkOrderService::updateStatus() for the "only your own" enforcement).
         $technician->syncPermissions([
             'buildings.view',
             'floors.view',
             'machines.view', 'machines.update',
             'machines.view-device-key',
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
+            'work-orders.view', 'work-orders.update-status',
+            'maintenance.view',
         ]);
 
         // viewer: read-only across the board.
@@ -90,6 +107,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'floors.view',
             'machines.view',
             'alerts.view',
+            'work-orders.view',
+            'maintenance.view',
         ]);
     }
 }

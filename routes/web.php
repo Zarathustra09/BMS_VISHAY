@@ -53,9 +53,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'read'])->name('notifications.read');
     Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'readAll'])->name('notifications.read-all');
 
-    Route::get('/work-orders', [App\Http\Controllers\WorkOrderController::class, 'index'])->name('work-orders.index');
+    // Work Order Routes
+    // Same ordering requirement as buildings.data above.
+    Route::get('/work-orders/data', [App\Http\Controllers\WorkOrderController::class, 'data'])->name('work-orders.data');
+    Route::resource('work-orders', App\Http\Controllers\WorkOrderController::class)
+        ->parameters(['work-orders' => 'workOrder']);
+    Route::get('/work-orders/{workOrder}/delete', [App\Http\Controllers\WorkOrderController::class, 'confirmDelete'])->name('work-orders.confirm-delete');
+    Route::patch('/work-orders/{workOrder}/status', [App\Http\Controllers\WorkOrderController::class, 'updateStatus'])->name('work-orders.update-status');
+
     Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
     Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
+    Route::get('/maintenance/data', [App\Http\Controllers\MaintenanceController::class, 'data'])->name('maintenance.data');
     Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
     // Profile Routes
     Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'index'])->name('profile.index');

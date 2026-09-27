@@ -18,4 +18,9 @@
             </form>
         @endcan
     @endif
+    @if($alert->status === 'open' && $alert->machine)
+        @can('work-orders.create')
+            <a href="{{ route('work-orders.create', ['alert_id' => $alert->id, 'machine_id' => $alert->machine_id]) }}" class="btn btn-outline btn-xs">Create Work Order</a>
+        @endcan
+    @endif
 </div>

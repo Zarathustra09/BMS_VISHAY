@@ -15,3 +15,8 @@ Artisan::command('inspire', function () {
 // docs/09-setup-and-operations.md).
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
+
+// Preventive work orders only need to be (re)checked once a day — a machine's
+// next_maintenance_date doesn't move minute to minute, and the generator's own dedupe
+// (an existing open preventive work order blocks a new one) makes a missed day harmless.
+Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();

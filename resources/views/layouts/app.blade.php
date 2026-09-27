@@ -103,6 +103,7 @@
                             </a>
                         </li>
 
+        @can('work-orders.view')
         <li>
                             <a href="{{ route('work-orders.index') }}" class="gap-3 {{ request()->is('work-orders*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,6 +112,7 @@
                                 Work Orders
                             </a>
                         </li>
+                        @endcan
 
                         @can('alerts.view')
                         <li>
@@ -165,6 +167,7 @@
 
                         <div class="divider text-xs opacity-50 my-2">SERVICES</div>
 
+                        @can('maintenance.view')
                         <li>
                             <a href="{{ route('maintenance.index') }}" class="gap-3 {{ request()->is('maintenance*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,9 +175,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                 </svg>
                                 Maintenance
-                                <span class="badge badge-warning badge-sm">5</span>
                             </a>
                         </li>
+                        @endcan
 
                         <li>
                             <a href="{{ route('reports.index') }}" class="gap-3 {{ request()->is('reports*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">

@@ -16,7 +16,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Database | MySQL |
 | Queue | `database` driver |
 | Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN); light theme `corporate` is the default, dark theme `forest` is opt-in via a header toggle (see [08-frontend.md](08-frontend.md#theming)) |
-| Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs, alerts) |
+| Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs, alerts, work orders, maintenance) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |
 
@@ -36,8 +36,8 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Permissions page | ✅ Done | Read-only list of every permission grouped by module, showing which roles hold each one — new permissions are still added in code/seeder, not the UI |
 | Sensor thresholds & alerts | ✅ Done | Per-metric warning/critical bounds on the machine edit page; `AlertService::evaluate()` raises/escalates/auto-resolves alerts against every reading; in-app (header bell) + email notifications to admin/manager; alerts list is a server-side DataTable |
 | Offline device detection | ✅ Done | Scheduled `app:check-offline-devices` (every minute) raises an "offline" alert when a machine goes quiet for 10+ minutes; auto-resolves on the next reading; Online/Offline badge + live sensor chart on the machine page |
-| Work Orders | 🔴 Planned | `work_orders` table exists but is empty (`id` + timestamps only); Phase 7 |
-| Maintenance dashboard | 🔴 Planned | View is a static mockup; Phase 8 |
+| Work Orders | ✅ Done | Full CRUD (create/edit/show/delete, soft deletes) with a status workflow (pending → in_progress → completed/cancelled); can originate from a machine page or an open alert; completing an alert-linked work order resolves the alert, completing a preventive one advances the machine's maintenance schedule; assignee gets an in-app + email notification; list is a server-side DataTable; a technician may only update the status of a work order assigned to them |
+| Maintenance dashboard | ✅ Done | Overdue/due-in-7-days/due-in-30-days/completed-this-month stats, a per-building breakdown, and a server-side DataTable of machines due for maintenance; a daily `app:generate-preventive-work-orders` command auto-creates a preventive work order for machines approaching their `next_maintenance_date`, deduped so it never double-creates |
 | Reports & exports | 🔴 Planned | View is a static mockup; Phase 9 |
 | Home dashboard | 🟡 Partial | Real layout, but metrics are hardcoded placeholders; Phase 9 |
 | Settings | 🔴 Planned | View is a static mockup; Phase 10 |
@@ -58,4 +58,4 @@ See [CHANGELOG.md](CHANGELOG.md) for what's shipped so far and the plan document
 | **Severity** | One of `info`, `warning`, `error`, `critical` — set on a machine log to indicate how serious it is. |
 | **Alert** | A record raised by `AlertService` when a sensor reading crosses a configured threshold, or when a device stops reporting — has a severity (warning/critical) and a status (open/acknowledged/resolved), and triggers an in-app + email notification to admins/managers. |
 | **Sensor threshold** | Per-machine, per-metric warning/critical bounds (e.g. `temperature.critical_max`), configured on the machine edit page — see [03-data-model.md](03-data-model.md#sensor_thresholds). |
-| **Work Order** *(planned, Phase 7)* | A maintenance task, either created manually or generated automatically (e.g. from an alert or a due maintenance schedule), assigned to a technician. |
+| **Work Order** | A maintenance or repair task against a machine — created manually (from the Work Orders page, a machine page, or an open alert), and from Phase 8 also generated automatically from a due maintenance schedule. Has a type (preventive/corrective/emergency/inspection), a priority, and a status (pending/in_progress/completed/cancelled), and is optionally assigned to a technician. |
