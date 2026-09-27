@@ -70,7 +70,11 @@
                         </div>
                     @endif
                 </div>
-                <p class="text-sm opacity-70">{{ $machine->machine_code }} • {{ $machine->type }}</p>
+                <p class="text-sm opacity-70 flex items-center gap-1.5">
+                    {{ $machine->machine_code }} •
+                    <x-machine-type-icon :icon="$machine->machineType?->icon" class="w-4 h-4 inline" />
+                    {{ $machine->machineType?->name ?? 'Unknown Type' }}
+                </p>
             </div>
         </div>
         <div class="flex gap-2">
@@ -172,57 +176,18 @@
                             <span class="font-medium">{{ $machine->spec_voltage }} V</span>
                         </div>
                     @endif
-                    @if($machine->capacity_tons)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Capacity:</span>
-                            <span class="font-medium">{{ $machine->capacity_tons }} tons</span>
-                        </div>
+                    @if(count($specRows))
+                        <div class="divider my-2"></div>
                     @endif
-                    @if($machine->flow_lpm)
+                    @foreach($specRows as $row)
                         <div class="flex justify-between">
-                            <span class="opacity-70">Flow Rate:</span>
-                            <span class="font-medium">{{ $machine->flow_lpm }} L/min</span>
+                            <span class="opacity-70">{{ $row['label'] }}:</span>
+                            <span class="font-medium">{{ $row['value'] }}@if($row['unit']) {{ $row['unit'] }}@endif</span>
                         </div>
+                    @endforeach
+                    @if(! $machine->power_rating && ! $machine->spec_voltage && count($specRows) === 0)
+                        <p class="text-sm opacity-60">No specifications recorded.</p>
                     @endif
-                    @if($machine->fuel)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Fuel Type:</span>
-                            <span class="font-medium">{{ ucfirst(str_replace('_', ' ', $machine->fuel)) }}</span>
-                        </div>
-                    @endif
-                    @if($machine->capacity_persons)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Capacity:</span>
-                            <span class="font-medium">{{ $machine->capacity_persons }} persons</span>
-                        </div>
-                    @endif
-                    @if($machine->speed_m_s)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Speed:</span>
-                            <span class="font-medium">{{ $machine->speed_m_s }} m/s</span>
-                        </div>
-                    @endif
-                    @if($machine->head_m)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Head:</span>
-                            <span class="font-medium">{{ $machine->head_m }} m</span>
-                        </div>
-                    @endif
-                    @if($machine->cells)
-                        <div class="flex justify-between">
-                            <span class="opacity-70">Cells:</span>
-                            <span class="font-medium">{{ $machine->cells }}</span>
-                        </div>
-                    @endif
-                    <div class="divider my-2"></div>
-                    <div class="flex justify-between">
-                        <span class="opacity-70">Autostart:</span>
-                        <span class="font-medium">{{ $machine->autostart ? 'Yes' : 'No' }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="opacity-70">Makeup Valve:</span>
-                        <span class="font-medium">{{ $machine->makeup_valve ? 'Yes' : 'No' }}</span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1176,7 +1141,7 @@ document.addEventListener('alpine:init', () => {
        on the SVG elements themselves: CSS custom properties are only substituted inside CSS
        declarations, not SVG presentation attributes, so var(--color-primary) silently does
        nothing written as fill="var(--color-primary)". Using classes here means the whole
-       chart recolours instantly on a corporate/forest theme switch with no JS. */
+       chart recolours instantly on a light/forest theme switch with no JS. */
     .chart-grid      { stroke: color-mix(in oklab, var(--color-base-content) 12%, transparent); stroke-width: 1; }
     .chart-crosshair { stroke: color-mix(in oklab, var(--color-base-content) 40%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
     .chart-line      { fill: none; stroke: var(--color-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }

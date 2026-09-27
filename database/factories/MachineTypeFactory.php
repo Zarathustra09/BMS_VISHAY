@@ -13,7 +13,7 @@ class MachineTypeFactory extends Factory
     {
         return [
             'name' => ucwords(fake()->unique()->words(2, true)),
-            'icon' => '⚙️',
+            'icon' => 'cog',
             'description' => null,
             'spec_fields' => [],
         ];

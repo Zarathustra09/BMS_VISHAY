@@ -7,20 +7,12 @@ use App\Interfaces\MachineTypeInterface;
 use App\Models\Machine;
 use App\Models\MachineType;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MachineTypeService implements MachineTypeInterface
 {
     public function getAllWithMachineCounts(): Collection
     {
-        // Same rollout-window guard as isInUse() below — `machines.machine_type_id` is added
-        // in a later migration than this service, so withCount('machines') can't run yet.
-        if (! Schema::hasColumn('machines', 'machine_type_id')) {
-            return MachineType::orderBy('name')->get()
-                ->each(fn (MachineType $machineType) => $machineType->setAttribute('machines_count', 0));
-        }
-
         return MachineType::withCount('machines')->orderBy('name')->get();
     }
 
@@ -89,14 +81,9 @@ class MachineTypeService implements MachineTypeInterface
 
     public function isInUse(MachineType $machineType): bool
     {
-        // `machines.machine_type_id` is added in a later migration than this service — this
-        // guard lets MachineTypeService (and its delete-protection tests) work correctly
-        // during the rollout window before that column exists. Once it always exists, the
-        // guard is simply always false and falls through to the real check.
-        if (! Schema::hasColumn('machines', 'machine_type_id')) {
-            return false;
-        }
-
+        // withTrashed(): the machine_type_id FK uses restrictOnDelete(), which the database
+        // enforces regardless of Machine's own soft-delete state — a soft-deleted machine
+        // still counts as "in use" for this check.
         return Machine::withTrashed()->where('machine_type_id', $machineType->id)->exists();
     }
 

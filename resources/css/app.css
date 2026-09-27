@@ -3,20 +3,86 @@
 
 /*
  * DaisyUI 5, compiled via the @tailwindcss/vite plugin (see vite.config.js) instead of the
- * browser CDN — see docs/08-frontend.md. Every theme below is daisyUI's stock definition —
- * none are customised. `corporate` is the default (light) theme, matching the `<html
- * data-theme="corporate">` no-JS fallback in layouts/app.blade.php; `forest` is the app's
- * dark theme (green primary — see the Forest card in settings/index.blade.php, captioned
- * "Dark Green Theme"). The rest are offered in the Settings theme picker.
+ * browser CDN — see docs/08-frontend.md. `light` (a light version of forest's green — see the
+ * override below) is the default theme, matching the `<html data-theme="light">` no-JS
+ * fallback in layouts/app.blade.php; `forest` is the app's dark theme (green primary — see the
+ * Forest card in settings/index.blade.php, captioned "Dark Green Theme"). `corporate` (stock
+ * blue) remains available from the Settings theme picker for anyone who prefers it, but is no
+ * longer the default or one of the two themes the header's light/dark toggle switches between.
  *
  * A previous version of this file had a `@plugin "daisyui/theme" { name: "forest"; ... }`
  * block overriding forest with a pink/magenta palette (verbatim daisyUI theme-generator
  * scaffold, never tuned for this app). It sat under Tailwind v3 `@tailwind` directives with
  * no Vite Tailwind plugin, so it was dead code for months — nothing ever compiled it, and the
  * app rendered stock green forest from the CDN the whole time. Removed rather than fixed.
+ *
+ * Two themes below are now partially overridden (see docs/08-frontend.md's "Theme overrides"
+ * for the full rationale) — every other theme, and every token these two don't list, is still
+ * daisyUI's stock definition:
+ *   - `forest`: only its corner-radius/depth tokens are overridden, to match `light`'s/
+ *     `corporate`'s square edges. Stock forest ships pill-shaped inputs (`--radius-field: 2rem`),
+ *     which made every field's corners visibly change shape when switching light/dark.
+ *   - `light`: repalette to a light version of forest's green — the app's default theme.
  */
 @plugin "daisyui" {
-    themes: corporate --default, forest, light, dark, cupcake, cyberpunk, synthwave, business;
+    themes: light --default, corporate, forest, dark, cupcake, cyberpunk, synthwave, business;
+}
+
+/*
+ * `@plugin "daisyui/theme" { name: "<built-in-theme-name>"; ... }` merges onto that built-in
+ * theme's own token set rather than replacing it (see node_modules/daisyui/theme/index.js:
+ * `themeTokens = { ...builtinTheme, ...customThemeTokens }`), so only the tokens actually being
+ * changed need listing here — everything else (forest's greens, light's status colors) is
+ * untouched. The one trap: `color-scheme` defaults to `"normal"` in that plugin, and
+ * `"normal"` is truthy — `colorScheme || builtinTheme.colorScheme` therefore never falls back
+ * to the built-in theme's own scheme, so every override block below sets `color-scheme`
+ * explicitly, or forest would silently stop being treated as a dark theme.
+ */
+@plugin "daisyui/theme" {
+    name: "forest";
+    default: false;
+    prefersdark: false;
+    color-scheme: "dark";
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.25rem;
+    --depth: 0;
+}
+
+/*
+ * This is the app's default theme (`default: true` below, matching `light --default` in the
+ * themes list above — both are needed: the list above marks `light` default among the stock
+ * theme set, this block's own `default: true` carries that marker onto the *merged* rule this
+ * block emits, so a page with no explicit `data-theme` attribute at all still gets the
+ * overridden palette below, not stock light's blue).
+ *
+ * Forest's own primary (oklch(68.6% 0.185 149) — a light, vivid green) is tuned for a dark
+ * background and reads too washed-out as text/links on white, so this uses Tailwind's darker
+ * 700-weight shades of forest's same three hues (green/teal/cyan) instead of forest's literal
+ * color values. Status colors (info/success/warning/error) are left as stock `light`'s own —
+ * they're already tuned for a light background and aren't part of forest's identity.
+ */
+@plugin "daisyui/theme" {
+    name: "light";
+    default: true;
+    prefersdark: false;
+    color-scheme: "light";
+    --color-base-100: oklch(100% 0 0); /* white */
+    --color-base-200: oklch(98.2% 0.018 155.826); /* green-50  #f0fdf4 */
+    --color-base-300: oklch(92.8% 0.006 264.531); /* gray-200  #e5e7eb — keeps field borders visible on white */
+    --color-base-content: oklch(26.6% 0.065 152.934); /* green-950 */
+    --color-primary: oklch(52.7% 0.154 150.069); /* green-700 #15803d — forest's hue, darkened for contrast on white */
+    --color-primary-content: oklch(100% 0 0);
+    --color-secondary: oklch(51.1% 0.096 186.391); /* teal-700 #0f766e — forest's secondary hue */
+    --color-secondary-content: oklch(100% 0 0);
+    --color-accent: oklch(52% 0.105 223.128); /* cyan-700 #0e7490 — forest's accent hue */
+    --color-accent-content: oklch(100% 0 0);
+    --color-neutral: oklch(30.698% 0.039 171.364); /* forest's own neutral, unchanged */
+    --color-neutral-content: oklch(96% 0.007 171);
+    --radius-selector: 0.25rem;
+    --radius-field: 0.25rem;
+    --radius-box: 0.25rem;
+    --depth: 0;
 }
 
 /*

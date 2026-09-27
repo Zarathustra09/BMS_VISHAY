@@ -7,6 +7,7 @@ use App\Interfaces\SettingInterface;
 use App\Models\Alert;
 use App\Models\Floor;
 use App\Models\Machine;
+use App\Models\MachineType;
 use App\Models\SensorThreshold;
 use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,14 +20,14 @@ class MachineService implements MachineInterface
 
     public function getQueryForDataTable(array $filters): Builder
     {
-        $query = Machine::with(['building', 'floor']);
+        $query = Machine::with(['building', 'floor', 'machineType']);
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-        if (! empty($filters['type']) && $filters['type'] !== 'all') {
-            $query->where('type', $filters['type']);
+        if (! empty($filters['machine_type_id']) && $filters['machine_type_id'] !== 'all') {
+            $query->where('machine_type_id', $filters['machine_type_id']);
         }
 
         if (! empty($filters['building_id']) && $filters['building_id'] !== 'all') {
@@ -52,14 +53,9 @@ class MachineService implements MachineInterface
         ];
     }
 
-    public function getDistinctTypes(): Collection
-    {
-        return Machine::select('type')->distinct()->whereNotNull('type')->pluck('type');
-    }
-
     public function findById(int $id): Machine
     {
-        return Machine::with(['building', 'floor'])->findOrFail($id);
+        return Machine::with(['building', 'floor', 'machineType'])->findOrFail($id);
     }
 
     public function getLogStats(Machine $machine): array
@@ -96,6 +92,11 @@ class MachineService implements MachineInterface
         $workOrderIds = $machine->workOrders()->pluck('id');
         $alertIds = $machine->alerts()->pluck('id');
 
+        // Labelled from the machine's *current* type — if a change was made under a since-
+        // replaced type, its keys just fall back to a de-slugged raw key instead of a proper
+        // label, which is an acceptable simplification for a display-only feed.
+        $specLabels = collect($machine->machineType?->specFields() ?? [])->pluck('label', 'key');
+
         return Activity::query()
             ->where(function (Builder $query) use ($machine, $workOrderIds, $alertIds) {
                 $query->where(fn ($q) => $q->where('subject_type', Machine::class)->where('subject_id', $machine->id))
@@ -105,11 +106,14 @@ class MachineService implements MachineInterface
             ->with('causer')
             ->latest()
             ->limit($limit)
-            ->get();
+            ->get()
+            ->map(fn (Activity $activity) => $this->expandSpecificationChanges($activity, $specLabels));
     }
 
     public function create(array $data): Machine
     {
+        $data = $this->withNormalizedSpecifications($data);
+
         $machine = Machine::create($data);
 
         $this->applyDefaultThresholds($machine);
@@ -119,9 +123,40 @@ class MachineService implements MachineInterface
 
     public function update(Machine $machine, array $data): Machine
     {
+        $data = $this->withNormalizedSpecifications($data);
+
         $machine->update($data);
 
         return $machine->fresh();
+    }
+
+    /**
+     * The specs a machine's show page renders for its current type — [label, value, unit]
+     * per field, skipping any field with no stored value. `power_rating`/`spec_voltage` are
+     * real columns on Machine and aren't part of this; the view renders them separately.
+     *
+     * @return list<array{label: string, value: mixed, unit: ?string}>
+     */
+    public function specificationRows(Machine $machine): array
+    {
+        $specs = $machine->specifications ?? [];
+        $rows = [];
+
+        foreach ($machine->machineType?->specFields() ?? [] as $field) {
+            $value = $specs[$field['key']] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'label' => $field['label'],
+                'value' => $value,
+                'unit' => $field['unit'] ?? null,
+            ];
+        }
+
+        return $rows;
     }
 
     public function delete(Machine $machine): bool
@@ -150,5 +185,92 @@ class MachineService implements MachineInterface
                 $bounds
             ));
         }
+    }
+
+    /**
+     * Rebuilds $data['specifications'] against the selected type's own field keys, so a
+     * request carrying another type's keys — or a key that doesn't belong to any field on the
+     * chosen type at all — can never reach storage. This is the actual enforcement; the
+     * controller's validation rules only shape what a well-formed request looks like.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withNormalizedSpecifications(array $data): array
+    {
+        if (! array_key_exists('machine_type_id', $data)) {
+            return $data;
+        }
+
+        $type = MachineType::find($data['machine_type_id']);
+
+        $data['specifications'] = $type
+            ? $this->normalizeSpecifications($type, $data['specifications'] ?? [])
+            : [];
+
+        return $data;
+    }
+
+    /**
+     * Keeps only $type's own field keys, drops an empty value, and casts a number field to a
+     * float — everything else in $input (another type's keys, or junk from a hand-crafted
+     * request) is silently discarded.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function normalizeSpecifications(MachineType $type, array $input): array
+    {
+        $result = [];
+
+        foreach ($type->specFields() as $field) {
+            $value = $input[$field['key']] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $result[$field['key']] = $field['type'] === 'number' ? (float) $value : (string) $value;
+        }
+
+        return $result;
+    }
+
+    /**
+     * If this activity's diff touched `specifications` (a single old/new pair of JSON
+     * objects), expands it into one old/new pair per changed spec key, labelled from the
+     * machine's type — the Activity tab's generic "field: old → new" rendering
+     * (machines/show.blade.php) otherwise has to `{{ }}`-echo a raw array, which throws.
+     */
+    private function expandSpecificationChanges(Activity $activity, Collection $specLabels): Activity
+    {
+        $attributes = $activity->properties->get('attributes');
+
+        if (! is_array($attributes) || ! array_key_exists('specifications', $attributes)) {
+            return $activity;
+        }
+
+        $old = $activity->properties->get('old', []);
+        $newSpecs = (array) ($attributes['specifications'] ?? []);
+        $oldSpecs = (array) ($old['specifications'] ?? []);
+
+        unset($attributes['specifications'], $old['specifications']);
+
+        foreach (array_unique(array_merge(array_keys($newSpecs), array_keys($oldSpecs))) as $key) {
+            $newValue = $newSpecs[$key] ?? null;
+            $oldValue = $oldSpecs[$key] ?? null;
+
+            if ($newValue === $oldValue) {
+                continue;
+            }
+
+            $label = $specLabels->get($key, str_replace('_', ' ', $key));
+            $attributes[$label] = $newValue ?? '—';
+            $old[$label] = $oldValue ?? '—';
+        }
+
+        $activity->properties = collect(['attributes' => $attributes, 'old' => $old]);
+
+        return $activity;
     }
 }

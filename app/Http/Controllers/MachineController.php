@@ -5,13 +5,14 @@ namespace App\Http\Controllers;
 use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
 use App\Enums\MachineStatus;
-use App\Enums\MachineType;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
+use App\Interfaces\MachineTypeInterface;
 use App\Models\Building;
 use App\Models\Floor;
 use App\Models\Machine;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,7 @@ class MachineController extends Controller
         protected MachineInterface $machineService,
         protected AlertInterface $alertService,
         protected MachineLogInterface $machineLogService,
+        protected MachineTypeInterface $machineTypeService,
     ) {
         $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings']);
         $this->middleware('permission:machines.create')->only(['create', 'store']);
@@ -31,10 +33,10 @@ class MachineController extends Controller
     public function index()
     {
         $stats = $this->machineService->getStats();
-        $types = $this->machineService->getDistinctTypes();
+        $machineTypes = $this->machineTypeService->getForSelect();
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
-        return view('machines.index', compact('stats', 'types', 'buildings'));
+        return view('machines.index', compact('stats', 'machineTypes', 'buildings'));
     }
 
     public function data(MachinesDataTable $dataTable)
@@ -45,8 +47,9 @@ class MachineController extends Controller
     public function create()
     {
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
+        $machineTypes = $this->machineTypeService->getForSelect();
 
-        return view('machines.create', compact('buildings'));
+        return view('machines.create', compact('buildings', 'machineTypes'));
     }
 
     public function store(Request $request)
@@ -61,13 +64,14 @@ class MachineController extends Controller
 
     public function show(Machine $machine)
     {
-        $machine->load(['building', 'floor']);
+        $machine->load(['building', 'floor', 'machineType']);
 
         $logStats = $this->machineService->getLogStats($machine);
         $recentAlerts = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
         $activeAlerts = $this->alertService->getActiveForMachine($machine);
         $activityFeed = $this->machineService->getActivityFeed($machine);
+        $specRows = $this->machineService->specificationRows($machine);
         // Rendered once here so the page loads with the chart fully drawn — no fetch on
         // first paint, no flash while Alpine boots.
         $chart = $this->machineLogService->getReadingSeries($machine);
@@ -77,7 +81,7 @@ class MachineController extends Controller
 
         return view('machines.show', compact(
             'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'activityFeed', 'chart',
-            'canViewDeviceKey', 'deviceKeyPlain'
+            'specRows', 'canViewDeviceKey', 'deviceKeyPlain'
         ));
     }
 
@@ -111,8 +115,9 @@ class MachineController extends Controller
             ? Floor::where('building_id', $machine->building_id)->get()
             : collect();
         $thresholds = $this->alertService->getThresholds($machine);
+        $machineTypes = $this->machineTypeService->getForSelect();
 
-        return view('machines.edit', compact('machine', 'buildings', 'floors', 'thresholds'));
+        return view('machines.edit', compact('machine', 'buildings', 'floors', 'thresholds', 'machineTypes'));
     }
 
     public function update(Request $request, Machine $machine)
@@ -176,13 +181,15 @@ class MachineController extends Controller
 
     private function validateMachine(Request $request, ?Machine $machine = null): array
     {
+        [$specRules, $specAttributes] = $this->specificationRules($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'machine_code' => [
                 'required', 'string', 'max:100',
                 Rule::unique('machines', 'machine_code')->ignore($machine?->id),
             ],
-            'type' => ['required', Rule::enum(MachineType::class)],
+            'machine_type_id' => ['required', 'exists:machine_types,id'],
             'manufacturer' => 'nullable|string|max:255',
             'model_number' => 'nullable|string|max:255',
             'serial_number' => 'nullable|string|max:255',
@@ -223,25 +230,62 @@ class MachineController extends Controller
                 }
             }],
             'maintenance_interval_days' => 'nullable|integer|min:1',
-            'capacity_tons' => 'nullable|numeric|min:0',
             'spec_voltage' => 'nullable|numeric|min:0',
-            'fuel' => 'nullable|string|max:255',
-            'autostart' => 'boolean',
-            'capacity_persons' => 'nullable|integer|min:0',
-            'speed_m_s' => 'nullable|numeric|min:0',
-            'flow_lpm' => 'nullable|integer|min:0',
-            'head_m' => 'nullable|numeric|min:0',
-            'cells' => 'nullable|integer|min:0',
-            'makeup_valve' => 'boolean',
             'is_critical' => 'boolean',
-        ]);
+            'specifications' => ['nullable', 'array'],
+            ...$specRules,
+        ], [], $specAttributes);
 
         // Checkboxes submit nothing at all when unchecked, so this normalises them to
         // booleans after validation, matching the app's existing convention for this.
         $validated['is_critical'] = $request->boolean('is_critical');
-        $validated['autostart'] = $request->boolean('autostart');
-        $validated['makeup_valve'] = $request->boolean('makeup_valve');
 
         return $validated;
+    }
+
+    /**
+     * Builds `specifications.{key}` rules (and their human-readable attribute names for error
+     * messages) from the request's selected machine type's own spec_fields — looked up through
+     * the service, never a direct model query, per the "no model queries in controllers" rule.
+     *
+     * @return array{0: array<string, array<int, string>>, 1: array<string, string>}
+     */
+    private function specificationRules(Request $request): array
+    {
+        $typeId = $request->input('machine_type_id');
+
+        if (! $typeId || ! is_numeric($typeId)) {
+            return [[], []];
+        }
+
+        try {
+            $type = $this->machineTypeService->findById((int) $typeId);
+        } catch (ModelNotFoundException) {
+            return [[], []];
+        }
+
+        $rules = [];
+        $attributes = [];
+
+        foreach ($type->specFields() as $field) {
+            $key = $field['key'];
+            $fieldRules = [$field['required'] ?? false ? 'required' : 'nullable'];
+
+            if (($field['type'] ?? 'text') === 'number') {
+                $fieldRules[] = 'numeric';
+
+                if (isset($field['min'])) {
+                    $fieldRules[] = "min:{$field['min']}";
+                }
+            } else {
+                $fieldRules[] = 'string';
+                $fieldRules[] = 'max:255';
+            }
+
+            $rules["specifications.{$key}"] = $fieldRules;
+            $attributes["specifications.{$key}"] = $field['label'];
+        }
+
+        return [$rules, $attributes];
     }
 }

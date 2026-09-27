@@ -15,7 +15,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Authorization | `spatie/laravel-permission` ^6.25 (roles + permissions) |
 | Database | MySQL |
 | Queue | `database` driver |
-| Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (via CDN), Alpine.js (via CDN); light theme `corporate` is the default, dark theme `forest` is opt-in via a header toggle (see [08-frontend.md](08-frontend.md#theming)) |
+| Frontend | Blade templates, Tailwind CSS v4 + DaisyUI v5 (Vite build), Alpine.js (via CDN); light theme `light` (a light version of forest's green) is the default, dark theme `forest` is opt-in via a header toggle (see [08-frontend.md](08-frontend.md#theming)) |
 | Data tables | `yajra/laravel-datatables` (server-side PHP), jQuery + DataTables JS (via CDN) — high-volume list pages (buildings, machines, machine logs, alerts, work orders, maintenance) |
 | Build tooling | Vite |
 | AI providers | OpenAI (`gpt-4o`, Responses API) and Google Gemini (`gemini-2.0-flash-exp`), switchable via `AI_PROVIDER` |
@@ -29,7 +29,7 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Buildings | ✅ Done | Full CRUD, image upload, cascading delete of floors/machines; list is a server-side DataTable |
 | Floors | ✅ Done | Full CRUD (JSON API style, used by the machine create/edit forms) |
 | Machines | ✅ Done | Full CRUD, filters, stats, device API key management; list is a server-side DataTable |
-| Machine Types | ✅ Done | Full CRUD (no detail page — the edit page shows everything, same reasoning as Users). Each type defines its own JSON specification-field list (Text/Number, with unit/step/min for Number), replacing the hard-coded `App\Enums\MachineType`. Seeded with the nine types the app previously hard-coded. A type can't be deleted while any machine — including a soft-deleted one — still uses it. List is a client-side DataTable (small, admin-maintained). |
+| Machine Types | ✅ Done | Full CRUD (no detail page — the edit page shows everything, same reasoning as Users). Each type defines its own JSON specification-field list (Text/Number, with unit/step/min for Number), replacing the hard-coded `App\Enums\MachineType`. Seeded with the nine types the app previously hard-coded. A type can't be deleted while any machine — including a soft-deleted one — still uses it. List is a client-side DataTable (small, admin-maintained). Machines now reference a type via `machine_type_id`, with per-type specs stored in `machines.specifications` (JSON) — the create/edit machine form's Type select and spec fields are fully DB-driven. |
 | Machine Logs / sensor ingestion | ✅ Done | `POST /api/machine-logs`, authenticated via per-machine device key; the log history on `machines/show` is a server-side DataTable (severity/type/date filters) — the highest-volume table in the app |
 | AI Insights (chat) | ✅ Done | Queued job + cache-polling UI, OpenAI/Gemini switchable |
 | Roles & permissions | ✅ Done | `admin`/`manager`/`technician`/`viewer`, CRUD-granular permissions (`{module}.view/create/update/delete`) across buildings, floors, machines, users, plus the special `machines.view-device-key`. More modules gain their own set as they're built (work orders, alerts, reports, settings). |

@@ -17,8 +17,6 @@ interface MachineInterface
 
     public function getStats(): array;
 
-    public function getDistinctTypes(): Collection;
-
     public function findById(int $id): Machine;
 
     public function getLogStats(Machine $machine): array;
@@ -40,6 +38,14 @@ interface MachineInterface
     public function update(Machine $machine, array $data): Machine;
 
     public function delete(Machine $machine): bool;
+
+    /**
+     * [label, value, unit] rows for $machine's currently-stored specifications, per its
+     * type's field definitions — feeds the Specifications card on machines/show.blade.php.
+     *
+     * @return list<array{label: string, value: mixed, unit: ?string}>
+     */
+    public function specificationRows(Machine $machine): array;
 
     /**
      * Whether $floorId exists and, when $buildingId is given, belongs to that building —

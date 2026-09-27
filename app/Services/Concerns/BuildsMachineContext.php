@@ -52,12 +52,23 @@ trait BuildsMachineContext
         $context = "=== MACHINE INFORMATION ===\n";
         $context .= "Name: {$machine->name}\n";
         $context .= "Code: {$machine->machine_code}\n";
-        $context .= "Type: {$machine->type}\n";
+        $context .= 'Type: '.($machine->machineType?->name ?? 'Unknown')."\n";
         $context .= "Status: {$machine->status}\n";
-        $context .= "Location: {$machine->location}\n";
-        $context .= "Manufacturer: " . ($machine->manufacturer ?? 'N/A') . "\n";
-        $context .= "Model: " . ($machine->model_number ?? 'N/A') . "\n";
-        $context .= "Is Critical: " . ($machine->is_critical ? 'Yes' : 'No') . "\n";
+        $context .= 'Location: '.($machine->building?->name ?? 'N/A').' / '.($machine->floor?->name ?? 'N/A')."\n";
+        $context .= 'Manufacturer: '.($machine->manufacturer ?? 'N/A')."\n";
+        $context .= 'Model: '.($machine->model_number ?? 'N/A')."\n";
+        $context .= 'Is Critical: '.($machine->is_critical ? 'Yes' : 'No')."\n";
+
+        foreach ($machine->machineType?->specFields() ?? [] as $field) {
+            $value = $machine->specifications[$field['key']] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $unit = $field['unit'] ?? null;
+            $context .= "{$field['label']}: {$value}".($unit ? " {$unit}" : '')."\n";
+        }
 
         if ($machine->power_rating) {
             $context .= "Power Rating: {$machine->power_rating} kW\n";
@@ -72,7 +83,7 @@ trait BuildsMachineContext
         if ($machine->next_maintenance_date) {
             $context .= "Next Maintenance: {$machine->next_maintenance_date->format('Y-m-d')}\n";
             $daysUntil = now()->diffInDays($machine->next_maintenance_date, false);
-            $context .= "Maintenance Status: " . ($daysUntil < 0 ? "OVERDUE by " . abs($daysUntil) . " days" : "Due in {$daysUntil} days") . "\n";
+            $context .= 'Maintenance Status: '.($daysUntil < 0 ? 'OVERDUE by '.abs($daysUntil).' days' : "Due in {$daysUntil} days")."\n";
         }
 
         $context .= "\n=== LOG STATISTICS ===\n";
@@ -87,7 +98,7 @@ trait BuildsMachineContext
         foreach ($sensorAverages as $key => $value) {
             if ($value !== null) {
                 $label = ucwords(str_replace(['avg_', '_'], ['', ' '], $key));
-                $context .= "{$label}: " . round($value, 2) . "\n";
+                $context .= "{$label}: ".round($value, 2)."\n";
             }
         }
 
@@ -110,13 +121,21 @@ trait BuildsMachineContext
                 $context .= "Type: {$log->log_type}, Severity: {$log->severity}, Event: {$log->event}";
 
                 $sensors = [];
-                if ($log->temperature) $sensors[] = "Temp: {$log->temperature}°C";
-                if ($log->power_consumption) $sensors[] = "Power: {$log->power_consumption}kW";
-                if ($log->vibration_rms) $sensors[] = "Vibration: {$log->vibration_rms}RMS";
-                if ($log->pressure) $sensors[] = "Pressure: {$log->pressure}bar";
+                if ($log->temperature) {
+                    $sensors[] = "Temp: {$log->temperature}°C";
+                }
+                if ($log->power_consumption) {
+                    $sensors[] = "Power: {$log->power_consumption}kW";
+                }
+                if ($log->vibration_rms) {
+                    $sensors[] = "Vibration: {$log->vibration_rms}RMS";
+                }
+                if ($log->pressure) {
+                    $sensors[] = "Pressure: {$log->pressure}bar";
+                }
 
-                if (!empty($sensors)) {
-                    $context .= " | " . implode(', ', $sensors);
+                if (! empty($sensors)) {
+                    $context .= ' | '.implode(', ', $sensors);
                 }
                 $context .= "\n";
             }
@@ -130,7 +149,7 @@ trait BuildsMachineContext
      */
     protected function buildPrompt(string $context, string $userMessage): string
     {
-        $systemPrompt = "You are an expert Building Management System (BMS) AI assistant specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
+        $systemPrompt = 'You are an expert Building Management System (BMS) AI assistant specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
 
 When analyzing machine data:
 1. Identify patterns in sensor readings and log events
@@ -141,8 +160,8 @@ When analyzing machine data:
 
 Always be concise, professional, and data-driven in your responses. Format important findings with bullet points and highlight critical issues.
 
-";
+';
 
-        return $systemPrompt . $context . "\n\n=== USER QUESTION ===\n" . $userMessage;
+        return $systemPrompt.$context."\n\n=== USER QUESTION ===\n".$userMessage;
     }
 }

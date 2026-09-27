@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="corporate">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,11 +10,12 @@
     <title>{{ config('app.name', 'Laravel') }} - @yield('title', 'Dashboard')</title>
 
     <!--
-        Light ("corporate") is the default theme; dark ("forest") is opt-in via the header
-        toggle or the Settings page, both of which write the same localStorage 'theme' key.
-        This runs synchronously before any stylesheet so there's no flash of the wrong theme
-        on load. window.setTheme is the single place that changes the theme anywhere in the
-        app — the header toggle and settings/index.blade.php both call it.
+        Light ("light" — a light version of forest's green, see resources/css/app.css) is the
+        default theme; dark ("forest") is opt-in via the header toggle or the Settings page,
+        both of which write the same localStorage 'theme' key. This runs synchronously before
+        any stylesheet so there's no flash of the wrong theme on load. window.setTheme is the
+        single place that changes the theme anywhere in the app — the header toggle and
+        settings/index.blade.php both call it.
     -->
     <script>
         (function () {
@@ -26,8 +27,8 @@
                 });
             };
 
-            var stored = 'corporate';
-            try { stored = localStorage.getItem('theme') || 'corporate'; } catch (e) {}
+            var stored = 'light';
+            try { stored = localStorage.getItem('theme') || 'light'; } catch (e) {}
             document.documentElement.setAttribute('data-theme', stored);
         })();
     </script>

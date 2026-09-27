@@ -143,27 +143,25 @@ Migration: [2026_02_18_082718_create_floors_table.php](../database/migrations/20
 
 ### `machines`
 
-Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations/2026_02_19_142824_create_machines_table.php), [add_device_key_to_machines_table](../database/migrations/2026_09_26_063758_add_device_key_to_machines_table.php), [add_device_key_encrypted_to_machines_table](../database/migrations/2026_09_26_070637_add_device_key_encrypted_to_machines_table.php)
+Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations/2026_02_19_142824_create_machines_table.php), [add_device_key_to_machines_table](../database/migrations/2026_09_26_063758_add_device_key_to_machines_table.php), [add_device_key_encrypted_to_machines_table](../database/migrations/2026_09_26_070637_add_device_key_encrypted_to_machines_table.php), [add_machine_type_id_and_specifications_to_machines_table](../database/migrations/2026_09_27_202033_add_machine_type_id_and_specifications_to_machines_table.php), [backfill_machine_types_on_machines_table](../database/migrations/2026_09_27_202034_backfill_machine_types_on_machines_table.php), [drop_type_and_spec_columns_from_machines_table](../database/migrations/2026_09_27_202035_drop_type_and_spec_columns_from_machines_table.php)
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | id | bigint PK | | |
 | name | string | | |
 | machine_code | string | | **unique** |
-| type | string | | HVAC, Generator, Elevator, Pump, etc. — free text, indexed |
+| machine_type_id | bigint FK → machine_types.id | ✓ | `restrictOnDelete()` — a type in use by any machine (including a soft-deleted one) can't be deleted; see `machine_types` below |
 | manufacturer, model_number, serial_number | string | ✓ | |
 | building_id | bigint FK → buildings.id | ✓ | `onDelete('set null')`, indexed |
 | floor_id | bigint FK → floors.id | ✓ | `onDelete('set null')`, indexed |
 | description | text | ✓ | |
+| specifications | json | ✓ | Keyed by the machine's `machineType->spec_fields` keys (e.g. `{"capacity_tons": 200}`) — replaces the old dedicated per-type spec columns. `MachineService::normalizeSpecifications()` strips any key that doesn't belong to the machine's current type before storage. |
 | status | enum | | `active`, `inactive`, `maintenance`, `fault` — default `active` |
-| power_rating | decimal(10,2) | ✓ | kW |
+| power_rating | decimal(10,2) | ✓ | kW — every machine has this regardless of type, so it stayed a real column rather than moving into `specifications` |
 | ip_address | string | ✓ | |
 | installation_date, last_maintenance_date, next_maintenance_date | date | ✓ | |
 | maintenance_interval_days | integer | ✓ | |
-| capacity_tons, spec_voltage, fuel, autostart | mixed | ✓ | HVAC/generator-specific specs |
-| capacity_persons, speed_m_s | mixed | ✓ | elevator-specific specs |
-| flow_lpm, head_m | mixed | ✓ | pump-specific specs |
-| cells, makeup_valve | mixed | ✓ | cooling-tower-specific specs |
+| spec_voltage | decimal(8,2) | ✓ | V — same reasoning as `power_rating` |
 | is_critical | boolean | | default `false`, indexed |
 | **device_key** | string(64) | ✓ | SHA-256 hash of the device's plaintext API key. **Unique.** Never exposed as plaintext — see below. |
 | **device_key_encrypted** | text | ✓ | `Crypt::encryptString()` of the plaintext key, so it can be decrypted and shown again to an authorized user. |
@@ -175,23 +173,23 @@ Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations
 
 Both columns are in the model's `$hidden` array, so they never appear in `toArray()`/`toJson()` output even accidentally.
 
-**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `hasMany(MachineLog)` (as `logs()`), `hasMany(SensorThreshold)` (as `thresholds()`), `hasMany(Alert)` (as `alerts()`).
+**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `belongsTo(MachineType)` (as `machineType()`), `hasMany(MachineLog)` (as `logs()`), `hasMany(SensorThreshold)` (as `thresholds()`), `hasMany(Alert)` (as `alerts()`).
 
 **Scopes**: `active()`, `critical()`, `byBuilding($id)`, `byFloor($id)`.
 
-**Casts**: decimals cast to `decimal:2`/`decimal:3` strings, dates cast to `date`, `last_seen_at` cast to `datetime`, booleans cast to `boolean`.
+**Casts**: `specifications` cast to `array`, decimals cast to `decimal:2`/`decimal:3` strings, dates cast to `date`, `last_seen_at` cast to `datetime`, booleans cast to `boolean`.
 
 ### `machine_types`
 
 Migrations: [2026_09_27_144009_create_machine_types_table.php](../database/migrations/2026_09_27_144009_create_machine_types_table.php), [2026_09_27_144010_seed_default_machine_types.php](../database/migrations/2026_09_27_144010_seed_default_machine_types.php)
 
-Replaces the hard-coded `App\Enums\MachineType` (now removed) with a database-backed, admin-editable list — see `machine-types.*` in [04-routes.md](04-routes.md) and [06-security.md](06-security.md). Each type owns its own specification fields, so different types can collect different specs without a schema change.
+Replaces the hard-coded `App\Enums\MachineType` (now removed) with a database-backed, admin-editable list — see `machine-types.*` in [04-routes.md](04-routes.md) and [06-security.md](06-security.md). Each type owns its own specification fields, so different types can collect different specs without a schema change. Every machine now references a type via `machines.machine_type_id`, with its own per-type values stored in `machines.specifications` (JSON) — see `machines` above.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | id | bigint PK | | |
 | name | string(100) | | **unique** |
-| icon | string(16) | ✓ | An emoji, shown next to the type's name |
+| icon | string(16) | ✓ | A key from the predetermined `App\Enums\MachineTypeIcon` set (e.g. `cube`, `fire`, `lightning-bolt`), not free text — rendered as an inline SVG by `<x-machine-type-icon>`. Was a free-text emoji before `convert_machine_type_icons_to_keys`; see [08-frontend.md](08-frontend.md). |
 | description | text | ✓ | |
 | spec_fields | json | ✓ | An ordered list of field definitions — see below. Nullable because MySQL can't default a JSON column; application code always writes an array and reads it back with `?? []` (`MachineType::specFields()`). |
 | timestamps | | | |
@@ -211,7 +209,7 @@ Replaces the hard-coded `App\Enums\MachineType` (now removed) with a database-ba
 
 **Casts**: `spec_fields` cast to `array`.
 
-**Deletion is blocked while any machine — including a soft-deleted one — is still assigned the type** (`MachineTypeService::isInUse()`/`delete()`); the FK on `machines.machine_type_id` (added in a later migration) also enforces this at the database level via `restrictOnDelete()`.
+**Deletion is blocked while any machine — including a soft-deleted one — is still assigned the type** (`MachineTypeService::isInUse()`/`delete()`); the FK on `machines.machine_type_id` also enforces this at the database level via `restrictOnDelete()`. The temporary `Schema::hasColumn('machines', 'machine_type_id')` rollout guards that used to sit in `isInUse()`/`getAllWithMachineCounts()` (needed while the column didn't exist yet) are gone now that it always does.
 
 Seeded with nine types matching the specs the app's machine form used to hard-code per type (Chiller, Cooling Tower, Generator, Elevator, Pump, HVAC, Compressor, Boiler, Other) — see the seed migration for the exact field list per type.
 

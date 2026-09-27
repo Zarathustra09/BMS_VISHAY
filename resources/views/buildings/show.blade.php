@@ -304,7 +304,7 @@
                                     </div>
                                     <div>
                                         <h3 class="font-bold">{{ $machine->name ?? 'Machine ' . $loop->iteration }}</h3>
-                                        <p class="text-xs opacity-70">{{ $machine->machine_type ?? 'N/A' }}</p>
+                                        <p class="text-xs opacity-70">{{ $machine->machineType?->name ?? 'N/A' }}</p>
                                     </div>
                                 </div>
                                 <div class="badge badge-sm badge-{{ ($machine->status ?? '') === 'operational' ? 'success' : (($machine->status ?? '') === 'maintenance' ? 'warning' : 'error') }}">

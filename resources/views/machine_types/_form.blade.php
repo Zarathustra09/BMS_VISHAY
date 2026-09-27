@@ -44,11 +44,35 @@
             <x-form.input name="name" label="Name" required maxlength="100"
                           placeholder="e.g., Chiller" :value="$machineType?->name ?? null" />
 
-            <x-form.input name="icon" label="Icon" maxlength="16"
-                          placeholder="e.g., 🧊 (optional emoji)" :value="$machineType?->icon ?? null" />
-
             <x-form.textarea name="description" label="Description" :rows="3" span maxlength="1000"
                               :value="$machineType?->description ?? null" />
+
+            <div class="flex flex-col gap-1.5 md:col-span-2">
+                <label class="label py-0">
+                    <span class="text-sm font-medium">Icon <span class="text-error">*</span></span>
+                </label>
+
+                @php
+                    $selectedIcon = old('icon', $machineType?->icon ?? 'cog');
+                @endphp
+
+                <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                    @foreach(\App\Enums\MachineTypeIcon::cases() as $iconCase)
+                        <label class="cursor-pointer" title="{{ $iconCase->label() }}">
+                            <input type="radio" name="icon" value="{{ $iconCase->value }}"
+                                   class="peer sr-only" @checked($selectedIcon === $iconCase->value) />
+                            <div class="flex flex-col items-center justify-center gap-1 rounded-lg border border-base-300 p-3 text-base-content/70 hover:bg-base-200 peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-primary transition-colors">
+                                <x-machine-type-icon :icon="$iconCase->value" />
+                                <span class="text-[10px] text-center leading-tight">{{ $iconCase->label() }}</span>
+                            </div>
+                        </label>
+                    @endforeach
+                </div>
+
+                @error('icon')
+                    <p class="text-error text-xs mt-0.5">{{ $message }}</p>
+                @enderror
+            </div>
         </x-form.section>
 
         <div class="card bg-base-100 shadow-lg border border-base-300/50" x-data="specFieldBuilder(@js($seedFields), @js($fieldErrors))">

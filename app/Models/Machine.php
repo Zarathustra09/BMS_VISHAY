@@ -2,25 +2,28 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Contracts\Encryption\DecryptException;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Machine model used by the Building Management System (manufacturing context).
- * Stores explicit specification columns (no JSON) for easy querying and reporting.
+ * Its type-specific specifications are stored as a `specifications` JSON column, keyed by the
+ * field keys defined on its `machineType` — see App\Models\MachineType and
+ * MachineService::normalizeSpecifications(). `power_rating` and `spec_voltage` stay as real
+ * columns, since every machine has them regardless of type.
  */
 class Machine extends Model
 {
     use HasFactory;
-    use SoftDeletes;
     use LogsActivity;
+    use SoftDeletes;
 
     /**
      * Only fires when a fillable attribute actually changed (logOnlyDirty), skips the
@@ -39,13 +42,14 @@ class Machine extends Model
     protected $fillable = [
         'name',
         'machine_code',
-        'type',
+        'machine_type_id',
         'manufacturer',
         'model_number',
         'serial_number',
         'building_id',
         'floor_id',
         'description',
+        'specifications',
         'status',
         'power_rating',
         'ip_address',
@@ -53,16 +57,7 @@ class Machine extends Model
         'last_maintenance_date',
         'next_maintenance_date',
         'maintenance_interval_days',
-        'capacity_tons',
         'spec_voltage',
-        'fuel',
-        'autostart',
-        'capacity_persons',
-        'speed_m_s',
-        'flow_lpm',
-        'head_m',
-        'cells',
-        'makeup_valve',
         'is_critical',
     ];
 
@@ -81,17 +76,11 @@ class Machine extends Model
         'installation_date' => 'date',
         'last_maintenance_date' => 'date',
         'next_maintenance_date' => 'date',
-        'capacity_tons' => 'decimal:2',
         'spec_voltage' => 'decimal:2',
-        'autostart' => 'boolean',
-        'capacity_persons' => 'integer',
-        'speed_m_s' => 'decimal:2',
-        'flow_lpm' => 'integer',
-        'head_m' => 'decimal:2',
-        'cells' => 'integer',
-        'makeup_valve' => 'boolean',
+        'specifications' => 'array',
         'building_id' => 'integer',
         'floor_id' => 'integer',
+        'machine_type_id' => 'integer',
         'last_seen_at' => 'datetime',
     ];
 
@@ -178,6 +167,14 @@ class Machine extends Model
     }
 
     /**
+     * The machine's type, whose spec_fields define what `specifications` holds for it.
+     */
+    public function machineType(): BelongsTo
+    {
+        return $this->belongsTo(MachineType::class);
+    }
+
+    /**
      * Scope for active machines
      */
     public function scopeActive($query)
@@ -232,7 +229,7 @@ class Machine extends Model
      */
     public function decryptDeviceKey(): ?string
     {
-        if (!$this->device_key_encrypted) {
+        if (! $this->device_key_encrypted) {
             return null;
         }
 

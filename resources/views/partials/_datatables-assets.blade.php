@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-dt@2/css/dataTables.dataTables.min.css">
     <style>
         /* Blend DataTables' own stylesheet with whichever DaisyUI theme is active (light
-           "corporate" by default, dark "forest" via the header toggle) rather than relying
+           "light" by default, dark "forest" via the header toggle) rather than relying
            on Tailwind-generated utility classes for DOM DataTables injects at runtime — the
            Tailwind v4 browser CDN compiler only scans the DOM present at page load.
            DaisyUI v5 color variables (--color-base-100 etc.), not the old v4 hsl(var(--b1))

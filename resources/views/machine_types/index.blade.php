@@ -66,7 +66,10 @@
                         @foreach($machineTypes as $machineType)
                         <tr>
                             <td>
-                                <span class="font-medium">{{ $machineType->icon }} {{ $machineType->name }}</span>
+                                <span class="font-medium inline-flex items-center gap-2">
+                                    <x-machine-type-icon :icon="$machineType->icon" class="w-5 h-5 text-primary" />
+                                    {{ $machineType->name }}
+                                </span>
                             </td>
                             <td>
                                 @forelse($machineType->specFields() as $field)

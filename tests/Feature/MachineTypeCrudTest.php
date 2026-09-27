@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Interfaces\MachineTypeInterface;
+use App\Models\Machine;
 use App\Models\MachineType;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -127,6 +128,7 @@ class MachineTypeCrudTest extends TestCase
 
         $response = $this->post(route('machine-types.store'), [
             'name' => 'Test Type',
+            'icon' => 'cog',
             'spec_fields' => [
                 ['label' => 'Capacity', 'type' => 'number'],
                 ['label' => 'Capacity', 'type' => 'text'],
@@ -142,7 +144,7 @@ class MachineTypeCrudTest extends TestCase
 
         $response = $this->post(route('machine-types.store'), [
             'name' => 'Custom Type',
-            'icon' => '🔩',
+            'icon' => 'lightning-bolt',
             'spec_fields' => [
                 ['label' => 'Capacity', 'type' => 'number', 'unit' => 'tons', 'step' => '0.01', 'min' => '0', 'required' => '1'],
                 ['label' => 'Notes', 'type' => 'text'],
@@ -176,6 +178,7 @@ class MachineTypeCrudTest extends TestCase
 
         $response = $this->put(route('machine-types.update', $machineType), [
             'name' => 'Renaming Type',
+            'icon' => 'cog',
             'spec_fields' => [
                 ['key' => $originalKey, 'label' => 'Max Capacity', 'type' => 'number', 'required' => false],
             ],
@@ -203,6 +206,7 @@ class MachineTypeCrudTest extends TestCase
         // silently graft this row onto whatever "borrowed_key" already means elsewhere.
         $response = $this->put(route('machine-types.update', $machineType), [
             'name' => 'Foreign Key Type',
+            'icon' => 'cog',
             'spec_fields' => [
                 ['key' => 'borrowed_key', 'label' => 'Suspicious Field', 'type' => 'text'],
             ],
@@ -218,6 +222,7 @@ class MachineTypeCrudTest extends TestCase
 
         $response = $this->post(route('machine-types.store'), [
             'name' => 'Text Only Type',
+            'icon' => 'fire',
             'spec_fields' => [
                 ['label' => 'Fuel', 'type' => 'text', 'unit' => 'ignored', 'step' => '1', 'min' => '0'],
             ],
@@ -233,6 +238,38 @@ class MachineTypeCrudTest extends TestCase
         $this->assertArrayNotHasKey('min', $field);
     }
 
+    public function test_an_icon_outside_the_predetermined_set_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $response = $this->post(route('machine-types.store'), [
+            'name' => 'Bad Icon Type',
+            'icon' => 'skull-and-crossbones',
+        ]);
+
+        $response->assertInvalid(['icon']);
+        $this->assertDatabaseMissing('machine_types', ['name' => 'Bad Icon Type']);
+    }
+
+    public function test_seeded_types_use_icon_keys_not_emoji(): void
+    {
+        $chiller = MachineType::where('name', 'Chiller')->firstOrFail();
+
+        $this->assertSame('cube', $chiller->icon);
+    }
+
+    public function test_index_renders_each_types_icon_svg(): void
+    {
+        $this->actingAsManager();
+
+        $response = $this->get(route('machine-types.index'));
+
+        $response->assertOk();
+        // One <svg> per row rendered by <x-machine-type-icon> — proves the icon is drawn as
+        // an SVG, not printed as raw emoji text.
+        $response->assertSee('<svg', false);
+    }
+
     public function test_admin_deletes_an_unused_type(): void
     {
         $this->actingAsAdmin();
@@ -242,6 +279,31 @@ class MachineTypeCrudTest extends TestCase
 
         $response->assertRedirect(route('machine-types.index'));
         $this->assertDatabaseMissing('machine_types', ['id' => $machineType->id]);
+    }
+
+    public function test_type_used_by_a_machine_cannot_be_deleted(): void
+    {
+        $this->actingAsAdmin();
+        $machineType = app(MachineTypeInterface::class)->create(['name' => 'In-Use Type']);
+        Machine::factory()->create(['machine_type_id' => $machineType->id]);
+
+        $response = $this->delete(route('machine-types.destroy', $machineType));
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('machine_types', ['id' => $machineType->id]);
+    }
+
+    public function test_type_used_only_by_a_soft_deleted_machine_cannot_be_deleted(): void
+    {
+        $this->actingAsAdmin();
+        $machineType = app(MachineTypeInterface::class)->create(['name' => 'Soft-Deleted Machine Type']);
+        $machine = Machine::factory()->create(['machine_type_id' => $machineType->id]);
+        $machine->delete();
+
+        $response = $this->delete(route('machine-types.destroy', $machineType));
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('machine_types', ['id' => $machineType->id]);
     }
 
     public function test_index_create_and_edit_pages_render(): void

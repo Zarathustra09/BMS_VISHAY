@@ -5,13 +5,13 @@
     rail on wide screens, and every field visible at once — type-specific spec fields are
     shown/hidden via Alpine rather than gated behind a "Next" button.
 
-    Expects: $machine (Machine|null — null on create), $buildings, $floors (only meaningful
-    on edit — see MachineController@edit), and, on edit only, $thresholds.
+    Expects: $machine (Machine|null — null on create), $buildings, $machineTypes, $floors (only
+    meaningful on edit — see MachineController@edit), and, on edit only, $thresholds.
 --}}
 @php
     $isEdit = (bool) ($machine ?? null);
 
-    $typeValue = old('type', $machine?->type ?? '');
+    $machineTypeIdValue = old('machine_type_id', $machine?->machine_type_id ?? '');
     $statusValue = old('status', $machine?->status ?? 'active');
     $buildingValue = old('building_id', $machine?->building_id ?? '');
     $floorValue = old('floor_id', $machine?->floor_id ?? '');
@@ -22,8 +22,17 @@
     $actionUrl = $isEdit ? route('machines.update', $machine) : route('machines.store');
     $cancelHref = $isEdit ? route('machines.show', $machine) : route('machines.index');
 
+    // Keyed by id-as-string, since every id coming out of the DOM (select value, JSON keys)
+    // is a string — comparing as anything else is a recurring source of "it just won't switch"
+    // bugs with Alpine.
+    $specFieldsByTypeId = $machineTypes->mapWithKeys(fn ($type) => [(string) $type->id => $type->spec_fields ?? []]);
+
+    $specErrors = collect($errors->keys())
+        ->filter(fn ($key) => str_starts_with($key, 'specifications.'))
+        ->mapWithKeys(fn ($key) => [substr($key, strlen('specifications.')) => $errors->first($key)]);
+
     $seed = [
-        'machineType' => $typeValue,
+        'machineTypeId' => (string) $machineTypeIdValue,
         'selectedBuilding' => (string) $buildingValue,
         'currentFloorId' => $floorValue !== '' && $floorValue !== null ? (int) $floorValue : null,
         // Edit preloads the current building's floors so there's no fetch-on-first-paint;
@@ -32,8 +41,9 @@
         'lastMaintenance' => $lastMaintenanceValue,
         'maintenanceInterval' => $maintenanceIntervalValue,
         'nextMaintenance' => $nextMaintenanceValue,
-        'specFieldsByType' => collect(\App\Enums\MachineType::cases())
-            ->mapWithKeys(fn ($case) => [$case->value => $case->specFields()]),
+        'specFieldsByTypeId' => $specFieldsByTypeId,
+        'specValues' => old('specifications', $machine?->specifications ?? []),
+        'specErrors' => $specErrors,
     ];
 @endphp
 
@@ -94,9 +104,9 @@
                 <x-form.input name="machine_code" label="Machine Code" required maxlength="100"
                               placeholder="e.g., MCH-001" :value="$machine?->machine_code ?? null" />
 
-                <x-form.select name="type" label="Type" required placeholder="Select a type"
-                                x-model="machineType" @change="onMachineTypeChange()"
-                                :options="\App\Enums\MachineType::options()" :selected="$typeValue" />
+                <x-form.select name="machine_type_id" label="Type" required placeholder="Select a type"
+                                x-model="machineTypeId"
+                                :options="$machineTypes->pluck('name', 'id')->all()" :selected="$machineTypeIdValue" />
 
                 <x-form.select name="status" label="Status" required
                                 :options="\App\Enums\MachineStatus::options()" :selected="$statusValue" />
@@ -135,65 +145,46 @@
             </x-form.section>
 
             <x-form.section id="specifications" title="Specifications" subtitle="Fields shown depend on the selected Type">
-                <div x-show="!machineType" class="md:col-span-2 alert alert-info alert-soft">
+                <div x-show="!machineTypeId" class="md:col-span-2 alert alert-info alert-soft">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                     <span>Select a Machine Type in the Identification section to see relevant spec fields.</span>
                 </div>
 
-                <div x-show="showsSpec('capacity_tons')">
-                    <x-form.input type="number" name="capacity_tons" label="Capacity (tons)" step="0.01" min="0"
-                                  placeholder="e.g., 200.00" :value="$machine?->capacity_tons ?? null" />
+                <div x-show="machineTypeId && currentFields().length === 0" class="md:col-span-2 alert alert-soft">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                    </svg>
+                    <span>This type has no specification fields defined. Add some from Machine Types.</span>
                 </div>
 
-                <div x-show="showsSpec('cells')">
-                    <x-form.input type="number" name="cells" label="Cooling Tower Cells" min="0"
-                                  :value="$machine?->cells ?? null" />
-                </div>
-
-                <div x-show="showsSpec('makeup_valve')">
-                    <x-form.toggle name="makeup_valve" label="Makeup Water Valve"
-                                    description="Automatically refills water lost to evaporation"
-                                    :checked="$machine?->makeup_valve ?? false" />
-                </div>
-
-                <div x-show="showsSpec('fuel')">
-                    <x-form.input name="fuel" label="Fuel Type" list="fuelSuggestions" maxlength="255"
-                                  :value="$machine?->fuel ?? null" />
-                </div>
-
-                <div x-show="showsSpec('autostart')">
-                    <x-form.toggle name="autostart" label="Auto-start on Power Restore"
-                                    :checked="$machine?->autostart ?? false" />
-                </div>
-
-                <div x-show="showsSpec('capacity_persons')">
-                    <x-form.input type="number" name="capacity_persons" label="Capacity (persons)" min="0"
-                                  :value="$machine?->capacity_persons ?? null" />
-                </div>
-
-                <div x-show="showsSpec('speed_m_s')">
-                    <x-form.input type="number" name="speed_m_s" label="Speed (m/s)" step="0.01" min="0"
-                                  :value="$machine?->speed_m_s ?? null" />
-                </div>
-
-                <div x-show="showsSpec('flow_lpm')">
-                    <x-form.input type="number" name="flow_lpm" label="Flow (L/min)" min="0"
-                                  :value="$machine?->flow_lpm ?? null" />
-                </div>
-
-                <div x-show="showsSpec('head_m')">
-                    <x-form.input type="number" name="head_m" label="Head (m)" step="0.01" min="0"
-                                  :value="$machine?->head_m ?? null" />
-                </div>
+                <template x-for="field in currentFields()" :key="field.key">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="label py-0" x-bind:for="'spec_' + field.key">
+                            <span class="text-sm font-medium">
+                                <span x-text="field.label"></span>
+                                <template x-if="field.unit"><span class="opacity-60" x-text="' (' + field.unit + ')'"></span></template>
+                                <template x-if="field.required"><span class="text-error">*</span></template>
+                            </span>
+                        </label>
+                        <input
+                            x-bind:type="field.type === 'number' ? 'number' : 'text'"
+                            x-bind:id="'spec_' + field.key"
+                            x-bind:name="'specifications[' + field.key + ']'"
+                            x-model="specValues[field.key]"
+                            x-bind:step="field.type === 'number' ? (field.step || 'any') : null"
+                            x-bind:min="field.type === 'number' ? field.min : null"
+                            x-bind:required="field.required"
+                            x-bind:class="{ 'input-error': specErrors[field.key] }"
+                            class="input w-full"
+                        />
+                        <template x-if="specErrors[field.key]">
+                            <p class="text-error text-xs mt-0.5" x-text="specErrors[field.key]"></p>
+                        </template>
+                    </div>
+                </template>
             </x-form.section>
-
-            <datalist id="fuelSuggestions">
-                @foreach(\App\Enums\FuelType::values() as $fuelOption)
-                    <option value="{{ $fuelOption }}"></option>
-                @endforeach
-            </datalist>
 
             <x-form.section id="maintenance" title="Maintenance Schedule">
                 <x-form.input type="date" name="last_maintenance_date" label="Last Maintenance Date"
@@ -308,7 +299,7 @@
 <script>
 function machineForm(seed) {
     return {
-        machineType: seed.machineType || '',
+        machineTypeId: seed.machineTypeId || '',
         selectedBuilding: seed.selectedBuilding || '',
         currentFloorId: seed.currentFloorId,
         floors: seed.floors || [],
@@ -316,28 +307,16 @@ function machineForm(seed) {
         lastMaintenance: seed.lastMaintenance || '',
         maintenanceInterval: seed.maintenanceInterval || '',
         nextMaintenance: seed.nextMaintenance || '',
-        specFieldsByType: seed.specFieldsByType || {},
-        allSpecFields: ['capacity_tons', 'cells', 'makeup_valve', 'fuel', 'autostart', 'capacity_persons', 'speed_m_s', 'flow_lpm', 'head_m'],
+        specFieldsByTypeId: seed.specFieldsByTypeId || {},
+        specValues: seed.specValues || {},
+        specErrors: seed.specErrors || {},
         submitting: false,
 
-        showsSpec(field) {
-            return (this.specFieldsByType[this.machineType] || []).includes(field);
-        },
-
-        // A hidden spec field is still present in the DOM (x-show only toggles display), so
-        // a value typed under one Type would otherwise silently submit under another — this
-        // clears every spec field that doesn't belong to the newly-selected type.
-        onMachineTypeChange() {
-            const keep = this.specFieldsByType[this.machineType] || [];
-            this.allSpecFields.filter(field => !keep.includes(field)).forEach(field => {
-                const el = document.querySelector(`#machineForm [name="${field}"]`);
-                if (!el) return;
-                if (el.type === 'checkbox') {
-                    el.checked = false;
-                } else {
-                    el.value = '';
-                }
-            });
+        // The <select>'s value is always a string, and JSON object keys are always strings —
+        // comparing machineTypeId as anything else is exactly the kind of "it just won't
+        // switch" bug this app has already shipped once (see docs/08-frontend.md).
+        currentFields() {
+            return this.specFieldsByTypeId[this.machineTypeId] || [];
         },
 
         async loadFloors() {

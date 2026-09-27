@@ -15,6 +15,8 @@
 ```
 app/
   Console/Commands/     — custom artisan commands (app:process-queue, etc.)
+  Enums/                 — backed enums (MachineStatus, MachineTypeIcon)
+  Exceptions/            — domain exceptions a service throws and its controller catches (RoleActionException, MachineTypeActionException)
   Http/
     Controllers/         — web controllers
     Controllers/API/     — API-only controllers

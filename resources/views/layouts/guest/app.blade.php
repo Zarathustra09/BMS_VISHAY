@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="corporate">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,8 +11,8 @@
          pages, just respecting whatever's already stored. -->
     <script>
         (function () {
-            var stored = 'corporate';
-            try { stored = localStorage.getItem('theme') || 'corporate'; } catch (e) {}
+            var stored = 'light';
+            try { stored = localStorage.getItem('theme') || 'light'; } catch (e) {}
             document.documentElement.setAttribute('data-theme', stored);
         })();
     </script>

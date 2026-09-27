@@ -78,14 +78,14 @@
                         </div>
                         <div class="grid grid-cols-5 gap-1 h-8">
                             <div class="rounded bg-white"></div>
-                            <div class="rounded bg-[#570df8]"></div>
-                            <div class="rounded bg-[#f000b8]"></div>
-                            <div class="rounded bg-[#37cdbe]"></div>
-                            <div class="rounded bg-[#f3f4f6]"></div>
+                            <div class="rounded bg-[#15803d]"></div>
+                            <div class="rounded bg-[#0f766e]"></div>
+                            <div class="rounded bg-[#0e7490]"></div>
+                            <div class="rounded bg-[#f0fdf4]"></div>
                         </div>
                         <div class="flex items-center gap-2 mt-2">
                             <div class="w-4 h-4 rounded-full bg-white border"></div>
-                            <span class="text-xs opacity-70">Clean & Bright</span>
+                            <span class="text-xs opacity-70">Light Green Theme</span>
                         </div>
                     </div>
                 </div>
@@ -386,7 +386,7 @@ function markActiveTheme(theme) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var savedTheme = localStorage.getItem('theme') || 'corporate';
+    var savedTheme = localStorage.getItem('theme') || 'light';
     markActiveTheme(savedTheme);
 });
 </script>

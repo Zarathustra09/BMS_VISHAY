@@ -92,8 +92,8 @@
 
                 <select id="typeFilter" class="select w-full lg:w-48">
                     <option value="">All Types</option>
-                    @foreach($types as $type)
-                        <option value="{{ $type }}">{{ $type }}</option>
+                    @foreach($machineTypes as $type)
+                        <option value="{{ $type->id }}">{{ $type->name }}</option>
                     @endforeach
                 </select>
 
@@ -140,14 +140,14 @@
                 url: '{{ route('machines.data') }}',
                 data: function (d) {
                     d.status = $('#statusFilter').val();
-                    d.type = $('#typeFilter').val();
+                    d.machine_type_id = $('#typeFilter').val();
                     d.building_id = $('#buildingFilter').val();
                 }
             },
             columns: [
                 {data: 'machine', name: 'name'},
                 {data: 'status', name: 'status'},
-                {data: 'type', name: 'type'},
+                {data: 'type', name: 'type', orderable: false, searchable: false},
                 {data: 'building_name', name: 'building_name', orderable: false, searchable: false},
                 {data: 'floor_name', name: 'floor_name', orderable: false, searchable: false},
                 {data: 'manufacturer', name: 'manufacturer'},

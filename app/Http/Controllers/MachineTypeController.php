@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\MachineTypeIcon;
 use App\Exceptions\MachineTypeActionException;
 use App\Interfaces\MachineTypeInterface;
 use App\Models\MachineType;
@@ -93,7 +94,7 @@ class MachineTypeController extends Controller
                 'required', 'string', 'max:100',
                 Rule::unique('machine_types', 'name')->ignore($machineType?->id),
             ],
-            'icon' => 'nullable|string|max:16',
+            'icon' => ['required', Rule::enum(MachineTypeIcon::class)],
             'description' => 'nullable|string|max:1000',
             'spec_fields' => 'nullable|array',
             'spec_fields.*.label' => 'required|string|max:100',

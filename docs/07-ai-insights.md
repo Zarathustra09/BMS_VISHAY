@@ -42,15 +42,13 @@ Both providers share identical context-building logic via the `App\Services\Conc
 
 `buildMachineContext(Machine $machine): string` assembles a plain-text context block containing:
 
-- Machine info: name, code, type, status, manufacturer, model, criticality, power rating, installation age, maintenance dates/status.
+- Machine info: name, code, type (`machineType->name`), status, location (`building->name` / `floor->name`), manufacturer, model, criticality, power rating, installation age, maintenance dates/status, and each of the machine's stored `specifications` values, labelled from its type's `spec_fields` (e.g. "Capacity: 200 tons").
 - Log statistics: total/today/this-week counts, critical/error/warning counts.
 - Sensor averages over the last 50 logs (temperature, power, vibration, pressure, humidity, voltage).
 - The last 10 error/critical alerts.
 - The last 10 raw log entries with their sensor readings.
 
 `buildPrompt(string $context, string $userMessage): string` wraps that context with a system prompt instructing the model to act as a BMS analyst, then appends the user's question.
-
-⚠ **Known bug**: `buildMachineContext()` references `$machine->location`, but `Machine` has no `location` attribute (location is expressed via `building`/`floor` relationships instead). This renders as an empty `Location:` line in the context — harmless, but worth fixing (populate it from `$machine->building?->name . ' / ' . $machine->floor?->name`) next time this file is touched.
 
 ## Suggested questions
 

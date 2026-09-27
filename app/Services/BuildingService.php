@@ -14,11 +14,11 @@ class BuildingService implements BuildingInterface
     {
         $query = Building::withCount(['floors', 'machines']);
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['type']) && $filters['type'] !== 'all') {
+        if (! empty($filters['type']) && $filters['type'] !== 'all') {
             $query->where('type', $filters['type']);
         }
 
@@ -28,12 +28,12 @@ class BuildingService implements BuildingInterface
     public function getStats(): array
     {
         return [
-            'total'       => Building::count(),
+            'total' => Building::count(),
             'operational' => Building::where('status', 'Operational')->count(),
             // Matches the old collection-sum behaviour: only machines actually
             // assigned to a building (building_id is nullable on machines).
-            'machines'    => Machine::whereNotNull('building_id')->count(),
-            'floors'      => Floor::count(),
+            'machines' => Machine::whereNotNull('building_id')->count(),
+            'floors' => Floor::count(),
         ];
     }
 
@@ -42,7 +42,7 @@ class BuildingService implements BuildingInterface
      */
     public function getBuildingById($id): Building
     {
-        return Building::with(['floors', 'machines'])->findOrFail($id);
+        return Building::with(['floors', 'machines.machineType'])->findOrFail($id);
     }
 
     /**
@@ -60,6 +60,7 @@ class BuildingService implements BuildingInterface
     {
         $building = Building::findOrFail($id);
         $building->update($data);
+
         return $building;
     }
 
@@ -69,6 +70,7 @@ class BuildingService implements BuildingInterface
     public function deleteBuilding($id): bool
     {
         $building = Building::findOrFail($id);
+
         return $building->delete();
     }
 }

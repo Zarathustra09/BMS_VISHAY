@@ -2,21 +2,42 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use App\Models\Machine;
 use App\Models\Building;
+use App\Models\Machine;
+use App\Models\MachineType;
 use Carbon\Carbon;
 use Faker\Factory as Faker;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class MachineAndLogSeeder extends Seeder
 {
+    /**
+     * A hand-written type's raw name normalised to how MachineType rows are actually named —
+     * only "CoolingTower" (no space) disagrees with the seeded default types.
+     */
+    private const TYPE_NAME_ALIASES = [
+        'CoolingTower' => 'Cooling Tower',
+    ];
+
+    /**
+     * The old spec-column keys this seeder's $machines array still writes, and the icon a
+     * firstOrCreate()'d MachineType should get if it doesn't already exist.
+     *
+     * @var array<int, string>
+     */
+    private const SPEC_KEYS = [
+        'capacity_tons', 'fuel', 'autostart', 'capacity_persons',
+        'speed_m_s', 'flow_lpm', 'head_m', 'cells', 'makeup_valve',
+    ];
+
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
         $faker = Faker::create();
+        $typeCache = [];
         $statuses = ['active', 'inactive', 'maintenance', 'fault'];
         $logTypes = ['status_change', 'maintenance', 'alarm', 'sensor_reading', 'operation', 'error'];
         $severities = ['info', 'warning', 'error', 'critical'];
@@ -26,27 +47,28 @@ class MachineAndLogSeeder extends Seeder
         $buildings = Building::all();
         if ($buildings->isEmpty()) {
             $this->command->info('No buildings found, skipping machine seeding.');
+
             return;
         }
 
         // map machine type -> preferred building types
         $typeToBuildingTypes = [
-            'HVAC' => ['Office','Manufacturing','Data Center','Training'],
-            'AHU' => ['Office','Data Center','Training'],
-            'Generator' => ['Manufacturing','Warehouse','Data Center','Support'],
-            'Compressor' => ['Manufacturing','Warehouse'],
-            'Chiller' => ['Manufacturing','Data Center'],
+            'HVAC' => ['Office', 'Manufacturing', 'Data Center', 'Training'],
+            'AHU' => ['Office', 'Data Center', 'Training'],
+            'Generator' => ['Manufacturing', 'Warehouse', 'Data Center', 'Support'],
+            'Compressor' => ['Manufacturing', 'Warehouse'],
+            'Chiller' => ['Manufacturing', 'Data Center'],
             'Boiler' => ['Manufacturing'],
-            'Pump' => ['Manufacturing','Warehouse'],
-            'CoolingTower' => ['Manufacturing','Data Center'],
+            'Pump' => ['Manufacturing', 'Warehouse'],
+            'CoolingTower' => ['Manufacturing', 'Data Center'],
             'CNC Machine' => ['Manufacturing'],
             'Injection Molding' => ['Manufacturing'],
             'Robotic Arm' => ['Manufacturing'],
             'Conveyor' => ['Manufacturing'],
-            'Elevator' => ['Office','Manufacturing','Support'],
-            'Transformer' => ['Manufacturing','Data Center'],
-            'UPS' => ['Data Center','Office'],
-            'AHU' => ['Office','Data Center','Training'],
+            'Elevator' => ['Office', 'Manufacturing', 'Support'],
+            'Transformer' => ['Manufacturing', 'Data Center'],
+            'UPS' => ['Data Center', 'Office'],
+            'AHU' => ['Office', 'Data Center', 'Training'],
         ];
 
         // Define 20 diverse machines for manufacturing BMS (location removed)
@@ -464,7 +486,7 @@ class MachineAndLogSeeder extends Seeder
             }
 
             // fallback to any building
-            if (!$building) {
+            if (! $building) {
                 $building = $buildings->random();
             }
 
@@ -475,11 +497,15 @@ class MachineAndLogSeeder extends Seeder
             $mData['building_id'] = $building->id;
             $mData['floor_id'] = $floor ? $floor->id : null;
 
+            $machineType = $mData['type'];
+            $mData['machine_type_id'] = $this->resolveMachineTypeId($machineType, $typeCache);
+            $mData['specifications'] = $this->extractSpecifications($mData);
+            unset($mData['type']);
+
             // create machine (location string removed)
             $machine = Machine::create($mData);
 
             $logs = [];
-            $machineType = $mData['type'];
 
             for ($i = 0; $i < $logsPerMachine; $i++) {
                 // Spread logs over last 120 days with varied distribution
@@ -520,10 +546,61 @@ class MachineAndLogSeeder extends Seeder
                 }
             }
 
-            if (!empty($logs)) {
+            if (! empty($logs)) {
                 DB::table('machine_logs')->insert($logs);
             }
         }
+    }
+
+    /**
+     * Finds or creates the MachineType for one of this seeder's hand-written `type` strings,
+     * caching the lookup for the rest of the run.
+     *
+     * @param  array<string, MachineType>  $typeCache
+     */
+    private function resolveMachineTypeId(string $rawType, array &$typeCache): int
+    {
+        $name = self::TYPE_NAME_ALIASES[$rawType] ?? $rawType;
+
+        if (! isset($typeCache[$name])) {
+            $typeCache[$name] = MachineType::firstOrCreate(
+                ['name' => $name],
+                ['icon' => 'cog', 'spec_fields' => []]
+            );
+        }
+
+        return $typeCache[$name]->id;
+    }
+
+    /**
+     * Pulls this seeder's old spec-column keys out of $mData (which otherwise has no fillable
+     * home for them any more) and returns them as the `specifications` JSON payload.
+     *
+     * @param  array<string, mixed>  $mData
+     * @return array<string, mixed>
+     */
+    private function extractSpecifications(array &$mData): array
+    {
+        $specifications = [];
+
+        foreach (self::SPEC_KEYS as $key) {
+            if (! array_key_exists($key, $mData)) {
+                continue;
+            }
+
+            $value = $mData[$key];
+            unset($mData[$key]);
+
+            if ($value === null) {
+                continue;
+            }
+
+            $specifications[$key] = in_array($key, ['autostart', 'makeup_valve'], true)
+                ? ($value ? 'Yes' : 'No')
+                : $value;
+        }
+
+        return $specifications;
     }
 
     /**
@@ -550,9 +627,16 @@ class MachineAndLogSeeder extends Seeder
     private function generateSeverity(): string
     {
         $rand = rand(1, 100);
-        if ($rand <= 65) return 'info';
-        if ($rand <= 88) return 'warning';
-        if ($rand <= 97) return 'error';
+        if ($rand <= 65) {
+            return 'info';
+        }
+        if ($rand <= 88) {
+            return 'warning';
+        }
+        if ($rand <= 97) {
+            return 'error';
+        }
+
         return 'critical';
     }
 
@@ -725,6 +809,7 @@ class MachineAndLogSeeder extends Seeder
         ];
 
         $typeEvents = $events[$logType] ?? ['System event logged'];
+
         return $typeEvents[array_rand($typeEvents)];
     }
 }
