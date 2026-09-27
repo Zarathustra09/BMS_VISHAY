@@ -18,6 +18,15 @@
         </div>
     </div>
 
+    <x-form.errors />
+
+    @php
+        $typeOptions = ['corrective' => 'Corrective', 'preventive' => 'Preventive', 'emergency' => 'Emergency', 'inspection' => 'Inspection'];
+        $priorityOptions = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'urgent' => 'Urgent'];
+        $machineOptions = $machines->pluck('name', 'id')->all();
+        $assigneeOptions = $assignees->pluck('name', 'id')->all();
+    @endphp
+
     <div class="card bg-base-100 shadow-xl border border-base-300/50">
         <div class="card-body">
             <form action="{{ route('work-orders.store') }}" method="POST" class="space-y-6">
@@ -38,89 +47,29 @@
                 @endif
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text font-semibold">Title <span class="text-error">*</span></span></label>
-                        <input type="text" name="title" value="{{ old('title') }}"
-                               placeholder="e.g., Replace chiller compressor bearing"
-                               class="input input-bordered @error('title') input-error @enderror" required maxlength="255"/>
-                        @error('title')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.input name="title" label="Title" required span maxlength="255"
+                                  placeholder="e.g., Replace chiller compressor bearing" />
 
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text font-semibold">Description</span></label>
-                        <textarea name="description" rows="3" class="textarea textarea-bordered @error('description') textarea-error @enderror"
-                                  placeholder="What needs to be done?">{{ old('description') }}</textarea>
-                        @error('description')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.textarea name="description" label="Description" :rows="3" span
+                                      placeholder="What needs to be done?" />
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Machine <span class="text-error">*</span></span></label>
-                        <select name="machine_id" class="select select-bordered @error('machine_id') select-error @enderror" required>
-                            <option value="" disabled {{ old('machine_id', $machineId) ? '' : 'selected' }}>Select machine</option>
-                            @foreach($machines as $machine)
-                                <option value="{{ $machine->id }}" {{ (int) old('machine_id', $machineId) === $machine->id ? 'selected' : '' }}>{{ $machine->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('machine_id')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.select name="machine_id" label="Machine" required
+                                    placeholder="Select machine" :options="$machineOptions"
+                                    :selected="$machineId" />
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Type <span class="text-error">*</span></span></label>
-                        <select name="type" class="select select-bordered @error('type') select-error @enderror" required>
-                            @foreach(['corrective' => 'Corrective', 'preventive' => 'Preventive', 'emergency' => 'Emergency', 'inspection' => 'Inspection'] as $val => $label)
-                                <option value="{{ $val }}" {{ old('type', $type) === $val ? 'selected' : '' }}>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        @error('type')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.select name="type" label="Type" required
+                                    :options="$typeOptions" :selected="$type" />
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Priority <span class="text-error">*</span></span></label>
-                        <select name="priority" class="select select-bordered @error('priority') select-error @enderror" required>
-                            @foreach(['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'urgent' => 'Urgent'] as $val => $label)
-                                <option value="{{ $val }}" {{ old('priority', 'medium') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        @error('priority')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.select name="priority" label="Priority" required
+                                    :options="$priorityOptions" selected="medium" />
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Assign To</span></label>
-                        <select name="assigned_to" class="select select-bordered @error('assigned_to') select-error @enderror">
-                            <option value="">— Unassigned —</option>
-                            @foreach($assignees as $assignee)
-                                <option value="{{ $assignee->id }}" {{ (int) old('assigned_to') === $assignee->id ? 'selected' : '' }}>{{ $assignee->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('assigned_to')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.select name="assigned_to" label="Assign To"
+                                    placeholder="— Unassigned —" :options="$assigneeOptions" />
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Due Date</span></label>
-                        <input type="date" name="due_date" value="{{ old('due_date') }}"
-                               class="input input-bordered @error('due_date') input-error @enderror"/>
-                        @error('due_date')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @enderror
-                    </div>
+                    <x-form.input type="date" name="due_date" label="Due Date" />
                 </div>
 
-                <div class="flex justify-end gap-3 pt-4 border-t border-base-300">
-                    <a href="{{ route('work-orders.index') }}" class="btn btn-ghost">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Create Work Order</button>
-                </div>
+                <x-form.actions :cancel-href="route('work-orders.index')" submit-label="Create Work Order" />
             </form>
         </div>
     </div>

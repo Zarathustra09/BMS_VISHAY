@@ -34,28 +34,28 @@
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
             <form action="{{ route('reports.index') }}" method="GET" class="flex flex-col lg:flex-row gap-4 items-end">
-                <div class="form-control flex-1 min-w-[10rem]">
-                    <label class="label"><span class="label-text font-semibold">Report</span></label>
-                    <select name="type" class="select select-bordered">
+                <div class="flex flex-col gap-1.5 flex-1 min-w-[10rem]">
+                    <label class="label py-0"><span class="text-sm font-medium">Report</span></label>
+                    <select name="type" class="select w-full">
                         @foreach($reportLabels as $val => $label)
                             <option value="{{ $val }}" {{ $type === $val ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
 
-                <div class="form-control">
-                    <label class="label"><span class="label-text font-semibold">From</span></label>
-                    <input type="date" name="date_from" value="{{ $filters['date_from'] }}" class="input input-bordered" {{ $type === 'maintenance_compliance' ? 'disabled' : '' }}/>
+                <div class="flex flex-col gap-1.5">
+                    <label class="label py-0"><span class="text-sm font-medium">From</span></label>
+                    <input type="date" name="date_from" value="{{ $filters['date_from'] }}" class="input w-full" {{ $type === 'maintenance_compliance' ? 'disabled' : '' }}/>
                 </div>
 
-                <div class="form-control">
-                    <label class="label"><span class="label-text font-semibold">To</span></label>
-                    <input type="date" name="date_to" value="{{ $filters['date_to'] }}" class="input input-bordered" {{ $type === 'maintenance_compliance' ? 'disabled' : '' }}/>
+                <div class="flex flex-col gap-1.5">
+                    <label class="label py-0"><span class="text-sm font-medium">To</span></label>
+                    <input type="date" name="date_to" value="{{ $filters['date_to'] }}" class="input w-full" {{ $type === 'maintenance_compliance' ? 'disabled' : '' }}/>
                 </div>
 
-                <div class="form-control flex-1 min-w-[10rem]">
-                    <label class="label"><span class="label-text font-semibold">Building</span></label>
-                    <select name="building_id" class="select select-bordered">
+                <div class="flex flex-col gap-1.5 flex-1 min-w-[10rem]">
+                    <label class="label py-0"><span class="text-sm font-medium">Building</span></label>
+                    <select name="building_id" class="select w-full">
                         <option value="">All Buildings</option>
                         @foreach($buildings as $building)
                             <option value="{{ $building->id }}" {{ (string) $filters['building_id'] === (string) $building->id ? 'selected' : '' }}>{{ $building->name }}</option>

@@ -34,8 +34,8 @@
         <!-- Production Status -->
 
         <!-- Search -->
-        <div class="form-control hidden sm:block">
-            <label class="input input-bordered input-sm flex items-center gap-2 bg-base-200/50 focus-within:bg-base-200">
+        <div class="hidden sm:block">
+            <label class="input input-sm flex items-center gap-2 bg-base-200/50 focus-within:bg-base-200">
                 <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>

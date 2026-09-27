@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\SettingInterface;
 use App\Models\Alert;
+use App\Models\Floor;
 use App\Models\Machine;
 use App\Models\SensorThreshold;
 use App\Models\WorkOrder;
@@ -20,19 +21,19 @@ class MachineService implements MachineInterface
     {
         $query = Machine::with(['building', 'floor']);
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['type']) && $filters['type'] !== 'all') {
+        if (! empty($filters['type']) && $filters['type'] !== 'all') {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['building_id']) && $filters['building_id'] !== 'all') {
+        if (! empty($filters['building_id']) && $filters['building_id'] !== 'all') {
             $query->where('building_id', $filters['building_id']);
         }
 
-        if (!empty($filters['floor_id']) && $filters['floor_id'] !== 'all') {
+        if (! empty($filters['floor_id']) && $filters['floor_id'] !== 'all') {
             $query->where('floor_id', $filters['floor_id']);
         }
 
@@ -42,12 +43,12 @@ class MachineService implements MachineInterface
     public function getStats(): array
     {
         return [
-            'total'       => Machine::count(),
-            'active'      => Machine::where('status', 'active')->count(),
+            'total' => Machine::count(),
+            'active' => Machine::where('status', 'active')->count(),
             'maintenance' => Machine::where('status', 'maintenance')->count(),
-            'fault'       => Machine::where('status', 'fault')->count(),
-            'inactive'    => Machine::where('status', 'inactive')->count(),
-            'critical'    => Machine::where('is_critical', true)->count(),
+            'fault' => Machine::where('status', 'fault')->count(),
+            'inactive' => Machine::where('status', 'inactive')->count(),
+            'critical' => Machine::where('is_critical', true)->count(),
         ];
     }
 
@@ -64,11 +65,11 @@ class MachineService implements MachineInterface
     public function getLogStats(Machine $machine): array
     {
         return [
-            'total'    => $machine->logs()->count(),
-            'today'    => $machine->logs()->whereDate('logged_at', today())->count(),
-            'week'     => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
+            'total' => $machine->logs()->count(),
+            'today' => $machine->logs()->whereDate('logged_at', today())->count(),
+            'week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
             'critical' => $machine->logs()->where('severity', 'critical')->count(),
-            'errors'   => $machine->logs()->where('severity', 'error')->count(),
+            'errors' => $machine->logs()->where('severity', 'error')->count(),
             'warnings' => $machine->logs()->where('severity', 'warning')->count(),
         ];
     }
@@ -119,12 +120,20 @@ class MachineService implements MachineInterface
     public function update(Machine $machine, array $data): Machine
     {
         $machine->update($data);
+
         return $machine->fresh();
     }
 
     public function delete(Machine $machine): bool
     {
         return $machine->delete();
+    }
+
+    public function floorBelongsToBuilding(int $floorId, ?int $buildingId): bool
+    {
+        return Floor::where('id', $floorId)
+            ->when($buildingId, fn (Builder $query) => $query->where('building_id', $buildingId))
+            ->exists();
     }
 
     /**

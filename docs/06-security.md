@@ -89,6 +89,10 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `machines.update` | ✅ | ✅ | ✅ | – |
 | `machines.delete` | ✅ | – | – | – |
 | `machines.view-device-key` | ✅ | ✅ | ✅ | – |
+| `machine-types.view` | ✅ | ✅ | ✅ | ✅ |
+| `machine-types.create` | ✅ | ✅ | – | – |
+| `machine-types.update` | ✅ | ✅ | – | – |
+| `machine-types.delete` | ✅ | – | – | – |
 | `users.view` | ✅ | ✅ | – | – |
 | `users.create` | ✅ | – | – | – |
 | `users.update` | ✅ | – | – | – |

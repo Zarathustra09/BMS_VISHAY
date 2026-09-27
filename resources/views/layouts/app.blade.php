@@ -36,10 +36,6 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-
     <!-- Alpine.js for reactive components -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     @stack('styles')
@@ -102,6 +98,17 @@
                                 Machines
                             </a>
                         </li>
+
+                        @can('machine-types.view')
+                        <li>
+                            <a href="{{ route('machine-types.index') }}" class="gap-3 {{ request()->is('machine-types*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 10.83V6a3 3 0 013-3z"></path>
+                                </svg>
+                                Machine Types
+                            </a>
+                        </li>
+                        @endcan
 
         @can('work-orders.view')
         <li>
@@ -261,15 +268,31 @@
 
     @stack('scripts')
     <script>
-        // Hide skeleton loader and show actual content when page is fully loaded
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                document.getElementById('content-loader').style.display = 'none';
-                const actualContent = document.getElementById('actual-content');
+        // Hide skeleton loader and show actual content. `.content-hidden`/`.content-visible`
+        // only started actually doing anything once app.css was compiled for real (see
+        // docs/08-frontend.md) — before that this ran the same way but had no visible effect.
+        // Now that it does, a single window.load listener would strand the page on a stalled
+        // image or a blocked CDN script (Alpine/jQuery/DataTables), since `load` waits on
+        // every one of them. revealContent() is idempotent and called from three triggers —
+        // whichever fires first wins, and the timeout guarantees the page can never stay
+        // hidden indefinitely.
+        function revealContent() {
+            const loader = document.getElementById('content-loader');
+            const actualContent = document.getElementById('actual-content');
+            if (loader) loader.style.display = 'none';
+            if (actualContent) {
                 actualContent.classList.remove('content-hidden');
                 actualContent.classList.add('content-visible');
-            }, 300);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(revealContent, 300);
         });
+        window.addEventListener('load', function() {
+            setTimeout(revealContent, 300);
+        });
+        setTimeout(revealContent, 2000);
     </script>
 </body>
 </html>

@@ -40,4 +40,11 @@ interface MachineInterface
     public function update(Machine $machine, array $data): Machine;
 
     public function delete(Machine $machine): bool;
+
+    /**
+     * Whether $floorId exists and, when $buildingId is given, belongs to that building —
+     * backs the "floor must belong to the selected building" validation rule in
+     * MachineController::validateMachine() without a model query in the controller.
+     */
+    public function floorBelongsToBuilding(int $floorId, ?int $buildingId): bool;
 }

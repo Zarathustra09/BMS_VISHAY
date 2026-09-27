@@ -230,6 +230,7 @@
     </div>
 
     <!-- Application Settings -->
+    @php $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']); @endphp
     <form action="{{ route('settings.update') }}" method="POST" class="space-y-6">
         @csrf
         @method('PUT')
@@ -245,16 +246,9 @@
                         Company
                     </h2>
 
-                    <div class="form-control mt-2">
-                        <label class="label"><span class="label-text font-semibold">Company Name</span></label>
-                        <input type="text" name="company_name" value="{{ old('company_name', $settings['company_name']) }}"
-                               class="input input-bordered @error('company_name') input-error @enderror" required maxlength="255"/>
-                        @error('company_name')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @else
-                            <label class="label"><span class="label-text-alt opacity-50">Shown in the sidebar</span></label>
-                        @enderror
-                    </div>
+                    <x-form.input name="company_name" label="Company Name" required maxlength="255"
+                                  :value="$settings['company_name']"
+                                  help="Shown in the sidebar" />
                 </div>
             </div>
 
@@ -268,16 +262,9 @@
                         Data Retention
                     </h2>
 
-                    <div class="form-control mt-2">
-                        <label class="label"><span class="label-text font-semibold">Machine Log Retention (days)</span></label>
-                        <input type="number" name="log_retention_days" min="1" value="{{ old('log_retention_days', $settings['log_retention_days']) }}"
-                               class="input input-bordered @error('log_retention_days') input-error @enderror" required/>
-                        @error('log_retention_days')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @else
-                            <label class="label"><span class="label-text-alt opacity-50">Sensor readings older than this are pruned daily (<code>app:generate-preventive-work-orders</code>'s sibling scheduled job, <code>model:prune</code>)</span></label>
-                        @enderror
-                    </div>
+                    <x-form.input type="number" name="log_retention_days" label="Machine Log Retention (days)" required min="1"
+                                  :value="$settings['log_retention_days']"
+                                  help="Sensor readings older than this are pruned daily (<code>app:generate-preventive-work-orders</code>'s sibling scheduled job, <code>model:prune</code>)" />
                 </div>
             </div>
         </div>
@@ -294,50 +281,24 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
                     <div class="space-y-4">
-                        <div class="form-control">
-                            <label class="label"><span class="label-text font-semibold">Offline Timeout (minutes)</span></label>
-                            <input type="number" name="offline_timeout_minutes" min="1" value="{{ old('offline_timeout_minutes', $settings['offline_timeout_minutes']) }}"
-                                   class="input input-bordered @error('offline_timeout_minutes') input-error @enderror" required/>
-                            @error('offline_timeout_minutes')
-                                <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                            @else
-                                <label class="label"><span class="label-text-alt opacity-50">How long a machine can go quiet before <code>app:check-offline-devices</code> raises an offline alert</span></label>
-                            @enderror
-                        </div>
+                        <x-form.input type="number" name="offline_timeout_minutes" label="Offline Timeout (minutes)" required min="1"
+                                      :value="$settings['offline_timeout_minutes']"
+                                      help="How long a machine can go quiet before <code>app:check-offline-devices</code> raises an offline alert" />
 
-                        <div class="form-control">
-                            <label class="label"><span class="label-text font-semibold">Preventive Lead Time (days)</span></label>
-                            <input type="number" name="preventive_lead_days" min="0" value="{{ old('preventive_lead_days', $settings['preventive_lead_days']) }}"
-                                   class="input input-bordered @error('preventive_lead_days') input-error @enderror" required/>
-                            @error('preventive_lead_days')
-                                <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                            @else
-                                <label class="label"><span class="label-text-alt opacity-50">How far ahead of a machine's next maintenance date <code>app:generate-preventive-work-orders</code> creates one</span></label>
-                            @enderror
-                        </div>
+                        <x-form.input type="number" name="preventive_lead_days" label="Preventive Lead Time (days)" required min="0"
+                                      :value="$settings['preventive_lead_days']"
+                                      help="How far ahead of a machine's next maintenance date <code>app:generate-preventive-work-orders</code> creates one" />
 
-                        <div class="flex items-center gap-4 p-4 rounded-xl border border-base-300 bg-base-200/50">
-                            <div class="flex-1">
-                                <p class="font-semibold">Auto-Fault on Critical Alert</p>
-                                <p class="text-sm opacity-60">Automatically set a machine's status to Fault when a threshold reading is critical</p>
-                            </div>
-                            <input type="hidden" name="auto_fault_on_critical" value="0"/>
-                            <input type="checkbox" name="auto_fault_on_critical" value="1"
-                                   class="toggle toggle-error toggle-lg"
-                                   {{ old('auto_fault_on_critical', $settings['auto_fault_on_critical']) ? 'checked' : '' }}/>
-                        </div>
+                        <x-form.toggle name="auto_fault_on_critical" color="error"
+                                        label="Auto-Fault on Critical Alert"
+                                        description="Automatically set a machine's status to Fault when a threshold reading is critical"
+                                        :checked="$settings['auto_fault_on_critical']" />
                     </div>
 
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Extra Alert Recipients</span></label>
-                        <textarea name="alert_emails" rows="6" class="textarea textarea-bordered @error('alert_emails') textarea-error @enderror"
-                                  placeholder="one@example.com&#10;two@example.com">{{ old('alert_emails', implode("\n", $settings['alert_emails'])) }}</textarea>
-                        @error('alert_emails')
-                            <label class="label"><span class="label-text-alt text-error">{{ $message }}</span></label>
-                        @else
-                            <label class="label"><span class="label-text-alt opacity-50">One email per line — sent every threshold/offline alert, in addition to admins and managers</span></label>
-                        @enderror
-                    </div>
+                    <x-form.textarea name="alert_emails" label="Extra Alert Recipients" :rows="6"
+                                      :value="$alertEmailsValue"
+                                      placeholder="one@example.com&#10;two@example.com"
+                                      help="One email per line — sent every threshold/offline alert, in addition to admins and managers" />
                 </div>
             </div>
         </div>
@@ -369,10 +330,19 @@
                                 @php $bounds = $settings['default_thresholds'][$metric] ?? []; @endphp
                                 <tr>
                                     <td class="font-medium whitespace-nowrap">{{ $label }}</td>
-                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_min]" value="{{ old('thresholds.'.$metric.'.warning_min', $bounds['warning_min'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
-                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][warning_max]" value="{{ old('thresholds.'.$metric.'.warning_max', $bounds['warning_max'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
-                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_min]" value="{{ old('thresholds.'.$metric.'.critical_min', $bounds['critical_min'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
-                                    <td><input type="number" step="any" name="thresholds[{{ $metric }}][critical_max]" value="{{ old('thresholds.'.$metric.'.critical_max', $bounds['critical_max'] ?? '') }}" class="input input-bordered input-sm w-28"/></td>
+                                    @foreach(['warning_min', 'warning_max', 'critical_min', 'critical_max'] as $bound)
+                                        @php $errorKey = "thresholds.$metric.$bound"; @endphp
+                                        <td>
+                                            <input type="number" step="any"
+                                                   name="thresholds[{{ $metric }}][{{ $bound }}]"
+                                                   value="{{ old($errorKey, $bounds[$bound] ?? '') }}"
+                                                   aria-label="{{ $label }} {{ str_replace('_', ' ', $bound) }}"
+                                                   class="input input-sm w-28 @error($errorKey) input-error @enderror" />
+                                            @error($errorKey)
+                                                <p class="text-error text-xs mt-0.5">{{ $message }}</p>
+                                            @enderror
+                                        </td>
+                                    @endforeach
                                 </tr>
                             @endforeach
                         </tbody>

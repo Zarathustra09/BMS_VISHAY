@@ -81,23 +81,8 @@
                         @csrf
                         @method('PUT')
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium">Full Name</span>
-                                </label>
-                                <input type="text" name="name" value="{{ old('name', Auth::user()->name) }}"
-                                       class="input input-bordered focus:input-primary @error('name') input-error @enderror" required />
-                                @error('name')<span class="text-error text-xs mt-1">{{ $message }}</span>@enderror
-                            </div>
-
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium">Email Address</span>
-                                </label>
-                                <input type="email" name="email" value="{{ old('email', Auth::user()->email) }}"
-                                       class="input input-bordered focus:input-primary @error('email') input-error @enderror" required />
-                                @error('email')<span class="text-error text-xs mt-1">{{ $message }}</span>@enderror
-                            </div>
+                            <x-form.input name="name" label="Full Name" :value="Auth::user()->name" required />
+                            <x-form.input name="email" type="email" label="Email Address" :value="Auth::user()->email" required />
                         </div>
 
                         <div class="flex justify-end mt-4">
@@ -125,29 +110,18 @@
                     <form action="{{ route('profile.update-password') }}" method="POST" class="mt-4 space-y-3">
                         @csrf
                         @method('PUT')
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text">Current Password</span>
-                            </label>
-                            <input type="password" name="current_password"
-                                   class="input input-bordered focus:input-primary @error('current_password') input-error @enderror" required />
-                            @error('current_password')<span class="text-error text-xs mt-1">{{ $message }}</span>@enderror
+                        <x-form.input type="password" name="current_password" label="Current Password" required />
+                        <x-form.input type="password" name="password" label="New Password" required />
+                        <x-form.input type="password" name="password_confirmation" label="Confirm New Password" required />
+
+                        <div class="flex justify-end mt-4">
+                            <button type="submit" class="btn btn-primary gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Update Password
+                            </button>
                         </div>
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text">New Password</span>
-                            </label>
-                            <input type="password" name="password"
-                                   class="input input-bordered focus:input-primary @error('password') input-error @enderror" required />
-                            @error('password')<span class="text-error text-xs mt-1">{{ $message }}</span>@enderror
-                        </div>
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text">Confirm New Password</span>
-                            </label>
-                            <input type="password" name="password_confirmation" class="input input-bordered focus:input-primary" required />
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm w-full">Update Password</button>
                     </form>
                 </div>
             </div>

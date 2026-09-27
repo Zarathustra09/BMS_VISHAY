@@ -181,6 +181,40 @@ Both columns are in the model's `$hidden` array, so they never appear in `toArra
 
 **Casts**: decimals cast to `decimal:2`/`decimal:3` strings, dates cast to `date`, `last_seen_at` cast to `datetime`, booleans cast to `boolean`.
 
+### `machine_types`
+
+Migrations: [2026_09_27_144009_create_machine_types_table.php](../database/migrations/2026_09_27_144009_create_machine_types_table.php), [2026_09_27_144010_seed_default_machine_types.php](../database/migrations/2026_09_27_144010_seed_default_machine_types.php)
+
+Replaces the hard-coded `App\Enums\MachineType` (now removed) with a database-backed, admin-editable list — see `machine-types.*` in [04-routes.md](04-routes.md) and [06-security.md](06-security.md). Each type owns its own specification fields, so different types can collect different specs without a schema change.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| id | bigint PK | | |
+| name | string(100) | | **unique** |
+| icon | string(16) | ✓ | An emoji, shown next to the type's name |
+| description | text | ✓ | |
+| spec_fields | json | ✓ | An ordered list of field definitions — see below. Nullable because MySQL can't default a JSON column; application code always writes an array and reads it back with `?? []` (`MachineType::specFields()`). |
+| timestamps | | | |
+
+**`spec_fields` shape** — a JSON array of objects:
+
+```json
+[
+  { "key": "capacity_tons", "label": "Capacity", "type": "number", "unit": "tons", "step": "0.01", "min": 0, "required": false },
+  { "key": "fuel", "label": "Fuel", "type": "text", "required": false }
+]
+```
+
+`type` is `text` or `number` only; `unit`/`step`/`min` only apply to (and are only stored for) a `number` field. **`key` is generated once, from the label, when a field is first created, and never changes again** — it is what a machine's `specifications` JSON (see `machines` below) is indexed by, so renaming a field's label later can't orphan data already stored under its key. `MachineTypeService` enforces this: a submitted `spec_fields.*.key` must already belong to the type being updated, or it's rejected.
+
+**Relationships** ([MachineType.php](../app/Models/MachineType.php)): `hasMany(Machine)` (as `machines()`).
+
+**Casts**: `spec_fields` cast to `array`.
+
+**Deletion is blocked while any machine — including a soft-deleted one — is still assigned the type** (`MachineTypeService::isInUse()`/`delete()`); the FK on `machines.machine_type_id` (added in a later migration) also enforces this at the database level via `restrictOnDelete()`.
+
+Seeded with nine types matching the specs the app's machine form used to hard-code per type (Chiller, Cooling Tower, Generator, Elevator, Pump, HVAC, Compressor, Boiler, Other) — see the seed migration for the exact field list per type.
+
 ### `machine_logs`
 
 Migration: [2026_02_19_142853_create_machine_logs_table.php](../database/migrations/2026_02_19_142853_create_machine_logs_table.php)

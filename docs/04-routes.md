@@ -73,6 +73,20 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 | PUT | `/machines/{machine}/thresholds` | `machines.thresholds.update` | `MachineController@updateThresholds` | `machines.update` | Save this machine's alert warning/critical bounds (Phase 5) — a separate form/route from the edit wizard, since it persists through `AlertService` rather than `MachineService` |
 | GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` and `?range=` (`1h`\|`24h`\|`7d`) query params, both validated against a fixed list; polled every 30s by the chart's Alpine component |
 
+## Machine Types
+
+`Route::resource('machine-types', ...)->except('show')` — no detail page; the edit page already shows everything (see [08-frontend.md](08-frontend.md)). A distinct `/machine-types` URI prefix, not `/machines/types` — the sidebar's active-link check for Machines matches `request()->is('machines*')`, which would also (wrongly) light up on the latter.
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/machine-types` | `machine-types.index` | `MachineTypeController@index` | `machine-types.view` | List page (client-side DataTable — see [02-architecture.md](02-architecture.md)) |
+| GET | `/machine-types/create` | `machine-types.create` | `MachineTypeController@create` | `machine-types.create` | Create form |
+| POST | `/machine-types` | `machine-types.store` | `MachineTypeController@store` | `machine-types.create` | Create |
+| GET | `/machine-types/{machineType}/edit` | `machine-types.edit` | `MachineTypeController@edit` | `machine-types.update` | Edit form (also shows machine-count and in-use state) |
+| PUT/PATCH | `/machine-types/{machineType}` | `machine-types.update` | `MachineTypeController@update` | `machine-types.update` | Update |
+| DELETE | `/machine-types/{machineType}` | `machine-types.destroy` | `MachineTypeController@destroy` | `machine-types.delete` | Delete — refused while any machine (including soft-deleted) still uses the type |
+| GET | `/machine-types/{machineType}/delete` | `machine-types.confirm-delete` | `MachineTypeController@confirmDelete` | `machine-types.delete` | Confirmation page |
+
 ## Users
 
 New in Phase 4. Same controller-constructor permission-gating pattern. The index page is modal-driven (add/edit/reset-password/delete all happen via DaisyUI `<dialog>` modals on the one page) rather than separate create/edit pages — see [08-frontend.md](08-frontend.md). As of the DataTables pass, the index table itself loads via `users.data`, and the edit/reset-password/delete modals are a single shared instance each, populated by JS from the clicked row (ajax-rendered rows can't carry a pre-built modal per row).

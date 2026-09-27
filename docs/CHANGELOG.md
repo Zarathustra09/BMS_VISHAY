@@ -2,6 +2,40 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Phase 3 of Machine Types rework — Machine Types CRUD module (2026-09-27)
+
+New database-backed Machine Types module, following the "Adding a new module" checklist in `docs/02-architecture.md`. Machines themselves are untouched in this phase — `machines.type` and its dedicated spec columns still exist and are unaffected; wiring machines up to the new `machine_types` table is Phase 4.
+
+- **`machine_types` table** (`name` unique, `icon`, `description`, `spec_fields` JSON) plus a data migration seeding the nine types the app previously hard-coded in `App\Enums\MachineType` (Chiller, Cooling Tower, Generator, Elevator, Pump, HVAC, Compressor, Boiler, Other), each with the same specification fields that type's machine form used to hard-code. A field's `key` is generated once from its label and never changes — it's what a machine's future `specifications` JSON will be indexed by, so renaming a label later can't orphan stored data. See `docs/03-data-model.md`.
+- **`MachineType` model**, `MachineTypeFactory` (with a `withFields()` state), `MachineTypeInterface` / `MachineTypeService` (bound in `AppServiceProvider`), and `MachineTypeActionException` — the same Interface → Service → Controller layering every other module uses (`docs/02-architecture.md`).
+- **`MachineTypeService` owns the key-immutability rule**: updating a type accepts a field's key only if it already belongs to that type; a fabricated or foreign key is rejected with `MachineTypeActionException`, caught by the controller and flashed as an error. It also strips unit/step/min from a `text` field (those only apply to `number`) and re-indexes fields as a clean list.
+- **Delete is blocked while any machine — including a soft-deleted one — is still assigned the type** (`MachineTypeService::isInUse()`). Since `machines.machine_type_id` doesn't exist until Phase 4, this (and the machine-count on the index page) carries a temporary `Schema::hasColumn()` guard that returns "not in use"/zero until that column exists — removed once Phase 4 lands.
+- **`MachineTypeController`**: full CRUD except `show` (a type is small reference data and its edit page already shows everything — the same "good reason" exception `users/` sets, per `docs/08-frontend.md`). Validation is a private `validateMachineType()` using `Validator::make()->after()` for the cross-field duplicate-key check, matching this codebase's documented validation convention (`docs/10-conventions.md`) rather than a Form Request.
+- **Routes**: `Route::resource('machine-types', ...)->except('show')` under its own `/machine-types` prefix — deliberately not `/machines/types`, since the sidebar's Machines link matches `request()->is('machines*')`, which would also (wrongly) highlight that URL.
+- **Views** (`resources/views/machine_types/`): a client-side DataTable index (small, admin-maintained list — no ajax endpoint needed, same pattern as `roles/index`), and a shared `_form.blade.php` with the app's first dynamic add/remove-row Alpine repeater for building a type's specification fields (Label, Kind, Unit/Step/Min for Number, Required, reorder/remove) — see the new entry in `docs/08-frontend.md`. Sidebar gets a `machine-types.view`-gated "Machine Types" item under Machines.
+- **Permissions**: `machine-types.{view,create,update,delete}` added to `RolesAndPermissionsSeeder`'s `$crudModules`. Admin gets all four; manager gets view/create/update; technician and viewer get view only — delete stays admin-only, like every other module.
+- **Tests**: `tests/Feature/MachineTypeCrudTest.php` (15 tests) — auth/permission gating, name/kind/duplicate-key validation with message-text assertions, key generation and immutability (including the foreign-key-reuse rejection), number-attribute stripping on text fields, unused-type deletion, and page rendering.
+- Full suite green: 49 tests passing.
+
+## Phase 2 of Machine Types rework — restored the documented validation convention (2026-09-27)
+
+`docs/10-conventions.md` has always said validation lives in the controller (inline, or a private `validate…()` helper for a larger rule set — it names `MachineController::validateMachine()` as the example) and that this codebase does not use Form Request classes. A previous round introduced `App\Http\Requests\{Machine,Store,Update}Request` for machines anyway, which quietly contradicted the documented convention. This phase corrects that; no request/response behavior changes.
+
+- Deleted `app/Http/Requests/MachineRequest.php`, `StoreMachineRequest.php` and `UpdateMachineRequest.php` (and the now-empty `app/Http/Requests/` directory).
+- Reinstated a `private function validateMachine(Request $request, ?Machine $machine = null): array` on `MachineController`, called from `store()`/`update()`, with the exact same rules the Form Requests held: `Rule::enum` for type/status, `ip` for the IP address, closures for the floor-belongs-to-building and maintenance-date-ordering checks, and the post-validation `$request->boolean()` coercion for the three checkbox fields.
+- The floor-existence check's database lookup moved out of the controller and into a new `MachineService::floorBelongsToBuilding(int $floorId, ?int $buildingId): bool` (declared on `MachineInterface` too) — per `docs/02-architecture.md`'s anti-pattern rule against querying models directly in a controller.
+- Verified behavior-preserving: the full `MachineValidationTest` suite (8 tests covering invalid type, invalid IP, cross-building floor, date ordering, a full valid payload, and unchecked-toggle persistence) passes unchanged.
+- No doc changes needed beyond this entry — `docs/10-conventions.md` was already correct; the code just didn't match it.
+
+## Phase 1 of Machine Types rework — fixed three machine-form bugs (2026-09-27)
+
+Three reported bugs on `machines/_form.blade.php`, all traced to the same root cause for two of them.
+
+- **Floor dropdown never populated, and specification fields never switched with the selected Type.** `x-data="machineForm(@json($seed))"` used `@json()`, which emits raw JSON with double quotes — the first one terminates the `x-data` HTML attribute early, so Alpine received `machineForm({` and silently failed to initialize the whole component. Every binding on the page was dead as a result (`selectedBuilding is not defined`, `loadFloors is not defined`, `onMachineTypeChange is not defined` in the browser console). Fixed by switching to `@js($seed)`, which compiles to `JSON.parse('…')` with the JSON single-quoted — the same helper `machines/show.blade.php`'s `sensorChart(@js($chart))` already used correctly. See the new rule in [08-frontend.md](08-frontend.md#interactivity-patterns).
+- **Section headings rendered as `Location &amp; Power`.** `<x-form.section title="Location &amp; Power">` passed an already-HTML-escaped string, and the component's `{{ $title }}` escaped it a second time. Fixed by passing the raw `&` and letting Blade escape it exactly once.
+- Added regression assertions to `test_the_machine_create_page_renders` (`tests/Feature/MachineValidationTest.php`) for both: the page must contain `machineForm(JSON.parse(` and must not contain `&amp;amp;`.
+- Verified in-browser with Boost `browser-logs`: picking a building populates its floors; picking a Type shows that Type's spec fields; both section headings render correctly; no Alpine console errors.
+
 ## Tooling — Laravel Boost installed (2026-09-27)
 
 Added [laravel/boost](https://laravel.com/framework/docs/boost) (`^2.10`, dev-only) so AI coding agents get Laravel-ecosystem guidelines, on-demand skills, and an MCP server for inspecting this app (schema, queries, logs) instead of guessing from training data. No `app/` code touched.

@@ -302,6 +302,7 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `FloorInterface` | `FloorService` | `FloorController` |
 | `MachineInterface` | `MachineService` | `MachineController` |
 | `MachineLogInterface` | `MachineLogService` | `API\MachineLogController` |
+| `MachineTypeInterface` | `MachineTypeService` | `MachineTypeController` |
 | `SuggestedQuestionInterface` | `SuggestedQuestionService` | `AIController` |
 | `AIInterface` | `OpenAIService` **or** `GeminiService`, chosen at resolve time by `config('services.ai.provider')` (env `AI_PROVIDER`) | `ProcessMachineAIInsight` job |
 | `UserInterface` | `UserService` | `UserController` |

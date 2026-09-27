@@ -68,7 +68,7 @@
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
             <div class="flex flex-col lg:flex-row gap-4 mb-4">
-                <select id="statusFilter" class="select select-bordered w-full lg:w-44">
+                <select id="statusFilter" class="select w-full lg:w-44">
                     <option value="">All Status</option>
                     <option value="pending">Pending</option>
                     <option value="in_progress">In Progress</option>
@@ -76,7 +76,7 @@
                     <option value="cancelled">Cancelled</option>
                 </select>
 
-                <select id="priorityFilter" class="select select-bordered w-full lg:w-44">
+                <select id="priorityFilter" class="select w-full lg:w-44">
                     <option value="">All Priorities</option>
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -84,7 +84,7 @@
                     <option value="urgent">Urgent</option>
                 </select>
 
-                <select id="typeFilter" class="select select-bordered w-full lg:w-44">
+                <select id="typeFilter" class="select w-full lg:w-44">
                     <option value="">All Types</option>
                     <option value="corrective">Corrective</option>
                     <option value="preventive">Preventive</option>
@@ -92,7 +92,7 @@
                     <option value="inspection">Inspection</option>
                 </select>
 
-                <select id="machineFilter" class="select select-bordered w-full lg:w-64">
+                <select id="machineFilter" class="select w-full lg:w-64">
                     <option value="">All Machines</option>
                     @foreach($machines as $machine)
                         <option value="{{ $machine->id }}">{{ $machine->name }}</option>

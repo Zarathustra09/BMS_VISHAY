@@ -207,48 +207,18 @@
                 </div>
 
                 <!-- Confirmation Input -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text font-semibold">Building Name Confirmation <span class="text-error">*</span></span>
-                    </label>
-                    <input type="text"
-                           name="confirmation_name"
-                           id="confirmationInput"
-                           placeholder="Type the building name exactly as shown above"
-                           class="input input-bordered @error('confirmation_name') input-error @enderror"
-                           autocomplete="off"
-                           required />
-                    @error('confirmation_name')
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ $message }}</span>
-                        </label>
-                    @else
-                        <label class="label">
-                            <span class="label-text-alt">This field is case-sensitive and must match exactly</span>
-                        </label>
-                    @enderror
-                </div>
+                <x-form.input name="confirmation_name" id="confirmationInput" label="Building Name Confirmation" required
+                              placeholder="Type the building name exactly as shown above" autocomplete="off"
+                              help="This field is case-sensitive and must match exactly" />
 
                 <!-- Checkboxes for Acknowledgment -->
                 <div class="space-y-3">
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge1" name="acknowledge1" required />
-                            <span class="label-text">I understand that this action cannot be undone</span>
-                        </label>
-                    </div>
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge2" name="acknowledge2" required />
-                            <span class="label-text">I acknowledge that all floors ({{ $building->floors?->count() ?? 0 }}) will be permanently deleted</span>
-                        </label>
-                    </div>
-                    <div class="form-control">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" class="checkbox checkbox-error" id="acknowledge3" name="acknowledge3" required />
-                            <span class="label-text">I acknowledge that all machines ({{ $building->machines?->count() ?? 0 }}) will be permanently deleted</span>
-                        </label>
-                    </div>
+                    <x-form.checkbox name="acknowledge1" id="acknowledge1" required class="checkbox-error"
+                                      label="I understand that this action cannot be undone" />
+                    <x-form.checkbox name="acknowledge2" id="acknowledge2" required class="checkbox-error"
+                                      :label="'I acknowledge that all floors (' . ($building->floors?->count() ?? 0) . ') will be permanently deleted'" />
+                    <x-form.checkbox name="acknowledge3" id="acknowledge3" required class="checkbox-error"
+                                      :label="'I acknowledge that all machines (' . ($building->machines?->count() ?? 0) . ') will be permanently deleted'" />
                 </div>
 
                 <!-- Action Buttons -->

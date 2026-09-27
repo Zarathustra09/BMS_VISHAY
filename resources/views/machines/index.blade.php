@@ -82,7 +82,7 @@
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
             <div class="flex flex-col lg:flex-row gap-4 mb-4">
-                <select id="statusFilter" class="select select-bordered w-full lg:w-48">
+                <select id="statusFilter" class="select w-full lg:w-48">
                     <option value="">All Status</option>
                     <option value="active">Active</option>
                     <option value="maintenance">Maintenance</option>
@@ -90,14 +90,14 @@
                     <option value="inactive">Inactive</option>
                 </select>
 
-                <select id="typeFilter" class="select select-bordered w-full lg:w-48">
+                <select id="typeFilter" class="select w-full lg:w-48">
                     <option value="">All Types</option>
                     @foreach($types as $type)
                         <option value="{{ $type }}">{{ $type }}</option>
                     @endforeach
                 </select>
 
-                <select id="buildingFilter" class="select select-bordered w-full lg:w-48">
+                <select id="buildingFilter" class="select w-full lg:w-48">
                     <option value="">All Buildings</option>
                     @foreach($buildings as $building)
                         <option value="{{ $building->id }}">{{ $building->name }}</option>

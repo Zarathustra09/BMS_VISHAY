@@ -19,6 +19,24 @@
         </div>
     </div>
 
+    <x-form.errors />
+
+    @php
+        $statusOptions = [
+            'Operational' => 'Operational',
+            'Under Construction' => 'Under Construction',
+            'Maintenance' => 'Maintenance',
+            'Inactive' => 'Inactive',
+        ];
+        $typeOptions = [
+            'Production Facility' => 'Production Facility',
+            'Warehouse' => 'Warehouse',
+            'Office Building' => 'Office Building',
+            'R&D Center' => 'R&D Center',
+            'Distribution Center' => 'Distribution Center',
+        ];
+    @endphp
+
     <!-- Form Card -->
     <div class="card bg-base-100 shadow-xl border border-base-300/50">
         <div class="card-body">
@@ -37,10 +55,10 @@
                         <span class="badge badge-ghost">Optional</span>
                     </div>
 
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Upload Building Photo</span>
-                            <span class="label-text-alt">Max 2MB (JPG, PNG, GIF)</span>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="label py-0">
+                            <span class="text-sm font-medium">Upload Building Photo</span>
+                            <span class="text-xs opacity-60 ml-auto">Max 2MB (JPG, PNG, GIF)</span>
                         </label>
                         <div class="flex items-center gap-4">
                             <div class="avatar">
@@ -52,12 +70,10 @@
                             </div>
                             <div class="flex-1">
                                 <input type="file" name="image" accept="image/*"
-                                       class="file-input file-input-bordered w-full @error('image') file-input-error @enderror"
+                                       class="file-input w-full @error('image') file-input-error @enderror"
                                        id="imageInput" />
                                 @error('image')
-                                    <label class="label">
-                                        <span class="label-text-alt text-error">{{ $message }}</span>
-                                    </label>
+                                    <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                                 @enderror
                             </div>
                         </div>
@@ -79,82 +95,19 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Building Name -->
-                        <div class="form-control md:col-span-2">
-                            <label class="label">
-                                <span class="label-text font-semibold">Building Name <span class="text-error">*</span></span>
-                            </label>
-                            <input type="text" name="name" placeholder="e.g., Main Production Facility"
-                                   class="input input-bordered @error('name') input-error @enderror"
-                                   value="{{ old('name') }}" required maxlength="255" />
-                            @error('name')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @else
-                                <label class="label">
-                                    <span class="label-text-alt opacity-50">Enter a descriptive name</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="name" label="Building Name" required span
+                                      placeholder="e.g., Main Production Facility" maxlength="255"
+                                      help="Enter a descriptive name" />
 
-                        <!-- Building Code -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Building Code <span class="text-error">*</span></span>
-                            </label>
-                            <input type="text" name="code" placeholder="e.g., BLD-001"
-                                   class="input input-bordered @error('code') input-error @enderror"
-                                   value="{{ old('code') }}" required maxlength="50" />
-                            @error('code')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @else
-                                <label class="label">
-                                    <span class="label-text-alt opacity-50">Unique identifier</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="code" label="Building Code" required
+                                      placeholder="e.g., BLD-001" maxlength="50"
+                                      help="Unique identifier" />
 
-                        <!-- Building Status -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Status <span class="text-error">*</span></span>
-                            </label>
-                            <select name="status" class="select select-bordered @error('status') select-error @enderror" required>
-                                <option value="" disabled selected>Select status</option>
-                                <option value="Operational" {{ old('status') === 'Operational' ? 'selected' : '' }}>Operational</option>
-                                <option value="Under Construction" {{ old('status') === 'Under Construction' ? 'selected' : '' }}>Under Construction</option>
-                                <option value="Maintenance" {{ old('status') === 'Maintenance' ? 'selected' : '' }}>Maintenance</option>
-                                <option value="Inactive" {{ old('status') === 'Inactive' ? 'selected' : '' }}>Inactive</option>
-                            </select>
-                            @error('status')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.select name="status" label="Status" required
+                                        placeholder="Select status" :options="$statusOptions" />
 
-                        <!-- Building Type -->
-                        <div class="form-control md:col-span-2">
-                            <label class="label">
-                                <span class="label-text font-semibold">Building Type <span class="text-error">*</span></span>
-                            </label>
-                            <select name="type" class="select select-bordered @error('type') select-error @enderror" required>
-                                <option value="" disabled selected>Select building type</option>
-                                <option value="Production Facility" {{ old('type') === 'Production Facility' ? 'selected' : '' }}>Production Facility</option>
-                                <option value="Warehouse" {{ old('type') === 'Warehouse' ? 'selected' : '' }}>Warehouse</option>
-                                <option value="Office Building" {{ old('type') === 'Office Building' ? 'selected' : '' }}>Office Building</option>
-                                <option value="R&D Center" {{ old('type') === 'R&D Center' ? 'selected' : '' }}>R&D Center</option>
-                                <option value="Distribution Center" {{ old('type') === 'Distribution Center' ? 'selected' : '' }}>Distribution Center</option>
-                            </select>
-                            @error('type')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.select name="type" label="Building Type" required span
+                                        placeholder="Select building type" :options="$typeOptions" />
                     </div>
                 </div>
 
@@ -173,50 +126,12 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Address -->
-                        <div class="form-control md:col-span-2">
-                            <label class="label">
-                                <span class="label-text font-semibold">Street Address</span>
-                            </label>
-                            <input type="text" name="address" placeholder="e.g., 123 Industrial Blvd"
-                                   class="input input-bordered @error('address') input-error @enderror"
-                                   value="{{ old('address') }}" maxlength="500" />
-                            @error('address')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="address" label="Street Address" span
+                                      placeholder="e.g., 123 Industrial Blvd" maxlength="500" />
 
-                        <!-- City -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">City</span>
-                            </label>
-                            <input type="text" name="city" placeholder="e.g., Springfield"
-                                   class="input input-bordered @error('city') input-error @enderror"
-                                   value="{{ old('city') }}" maxlength="100" />
-                            @error('city')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="city" label="City" placeholder="e.g., Springfield" maxlength="100" />
 
-                        <!-- State -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">State</span>
-                            </label>
-                            <input type="text" name="state" placeholder="e.g., IL"
-                                   class="input input-bordered @error('state') input-error @enderror"
-                                   value="{{ old('state') }}" maxlength="100" />
-                            @error('state')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="state" label="State" placeholder="e.g., IL" maxlength="100" />
                     </div>
                 </div>
 
@@ -234,35 +149,11 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Contact Name -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Contact Name</span>
-                            </label>
-                            <input type="text" name="emergency_contact_name" placeholder="e.g., John Doe"
-                                   class="input input-bordered @error('emergency_contact_name') input-error @enderror"
-                                   value="{{ old('emergency_contact_name') }}" maxlength="255" />
-                            @error('emergency_contact_name')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input name="emergency_contact_name" label="Contact Name"
+                                      placeholder="e.g., John Doe" maxlength="255" />
 
-                        <!-- Contact Phone -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">Phone Number</span>
-                            </label>
-                            <input type="tel" name="emergency_contact_phone" placeholder="e.g., (555) 123-4567"
-                                   class="input input-bordered @error('emergency_contact_phone') input-error @enderror"
-                                   value="{{ old('emergency_contact_phone') }}" maxlength="20" />
-                            @error('emergency_contact_phone')
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ $message }}</span>
-                                </label>
-                            @enderror
-                        </div>
+                        <x-form.input type="tel" name="emergency_contact_phone" label="Phone Number"
+                                      placeholder="e.g., (555) 123-4567" maxlength="20" />
                     </div>
                 </div>
 
@@ -279,36 +170,14 @@
                         <h2 class="text-xl font-bold">Additional Notes</h2>
                     </div>
 
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">Notes</span>
-                            <span class="label-text-alt opacity-70">Optional - Max 1000 characters</span>
-                        </label>
-                        <textarea name="notes" class="textarea textarea-bordered h-32 @error('notes') textarea-error @enderror"
-                                  placeholder="Any additional information about this building..." maxlength="1000">{{ old('notes') }}</textarea>
-                        @error('notes')
-                            <label class="label">
-                                <span class="label-text-alt text-error">{{ $message }}</span>
-                            </label>
-                        @enderror
-                    </div>
+                    <x-form.textarea name="notes" label="Notes" :rows="5" maxlength="1000"
+                                      placeholder="Any additional information about this building..."
+                                      help="Optional — max 1000 characters"
+                                      class="h-32" />
                 </div>
 
                 <!-- Form Actions -->
-                <div class="flex justify-end gap-3 pt-6 border-t border-base-300">
-                    <a href="{{ route('buildings.index') }}" class="btn btn-ghost gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                        Cancel
-                    </a>
-                    <button type="submit" class="btn btn-primary gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Create Building
-                    </button>
-                </div>
+                <x-form.actions :cancel-href="route('buildings.index')" submit-label="Create Building" />
             </form>
         </div>
     </div>
@@ -331,4 +200,3 @@ document.getElementById('imageInput').addEventListener('change', function(e) {
 </script>
 @endpush
 @endsection
-

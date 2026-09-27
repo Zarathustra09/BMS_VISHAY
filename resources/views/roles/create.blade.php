@@ -25,16 +25,9 @@
 
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
-                <div class="form-control max-w-sm">
-                    <label class="label"><span class="label-text font-medium">Role Name</span></label>
-                    <input type="text" name="name" value="{{ old('name') }}" placeholder="e.g. shift-supervisor"
-                           class="input input-bordered @error('name') input-error @enderror" required autofocus />
-                    @error('name')
-                        <span class="text-error text-xs mt-1">{{ $message }}</span>
-                    @else
-                        <label class="label"><span class="label-text-alt">Lowercase letters, numbers, and hyphens only</span></label>
-                    @enderror
-                </div>
+                <x-form.input name="name" label="Role Name" required autofocus class="max-w-sm"
+                              placeholder="e.g. shift-supervisor"
+                              help="Lowercase letters, numbers, and hyphens only" />
             </div>
         </div>
 

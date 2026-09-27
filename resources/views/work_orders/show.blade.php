@@ -173,11 +173,8 @@
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="status" value="completed">
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-semibold">Resolution Notes</span></label>
-                        <textarea name="resolution_notes" rows="3" class="textarea textarea-bordered"
-                                  placeholder="What was done to resolve this?"></textarea>
-                    </div>
+                    <x-form.textarea name="resolution_notes" label="Resolution Notes" :rows="3"
+                                      placeholder="What was done to resolve this?" />
                     <button type="submit" class="btn btn-success gap-2">Mark Complete</button>
                 </form>
             @endif

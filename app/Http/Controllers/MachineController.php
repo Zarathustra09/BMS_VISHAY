@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
+use App\Enums\MachineStatus;
+use App\Enums\MachineType;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
@@ -11,7 +13,6 @@ use App\Models\Building;
 use App\Models\Floor;
 use App\Models\Machine;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class MachineController extends Controller
@@ -29,8 +30,8 @@ class MachineController extends Controller
 
     public function index()
     {
-        $stats     = $this->machineService->getStats();
-        $types     = $this->machineService->getDistinctTypes();
+        $stats = $this->machineService->getStats();
+        $types = $this->machineService->getDistinctTypes();
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
         return view('machines.index', compact('stats', 'types', 'buildings'));
@@ -50,7 +51,6 @@ class MachineController extends Controller
 
     public function store(Request $request)
     {
-        Log::info('Creating machine with data: ' . json_encode($request->all()));
         $validated = $this->validateMachine($request);
 
         $machine = $this->machineService->create($validated);
@@ -63,17 +63,17 @@ class MachineController extends Controller
     {
         $machine->load(['building', 'floor']);
 
-        $logStats            = $this->machineService->getLogStats($machine);
-        $recentAlerts        = $this->machineService->getRecentAlerts($machine);
+        $logStats = $this->machineService->getLogStats($machine);
+        $recentAlerts = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
-        $activeAlerts        = $this->alertService->getActiveForMachine($machine);
-        $activityFeed        = $this->machineService->getActivityFeed($machine);
+        $activeAlerts = $this->alertService->getActiveForMachine($machine);
+        $activityFeed = $this->machineService->getActivityFeed($machine);
         // Rendered once here so the page loads with the chart fully drawn — no fetch on
         // first paint, no flash while Alpine boots.
-        $chart               = $this->machineLogService->getReadingSeries($machine);
+        $chart = $this->machineLogService->getReadingSeries($machine);
 
         $canViewDeviceKey = auth()->user()->can('machines.view-device-key');
-        $deviceKeyPlain   = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
+        $deviceKeyPlain = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
             'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'activityFeed', 'chart',
@@ -107,7 +107,7 @@ class MachineController extends Controller
     public function edit(Machine $machine)
     {
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
-        $floors    = $machine->building_id
+        $floors = $machine->building_id
             ? Floor::where('building_id', $machine->building_id)->get()
             : collect();
         $thresholds = $this->alertService->getThresholds($machine);
@@ -117,7 +117,7 @@ class MachineController extends Controller
 
     public function update(Request $request, Machine $machine)
     {
-        $validated = $this->validateMachine($request, $machine->id);
+        $validated = $this->validateMachine($request, $machine);
 
         $this->machineService->update($machine, $validated);
 
@@ -174,41 +174,72 @@ class MachineController extends Controller
             ->with('device_key_plain', $plainKey);
     }
 
-    private function validateMachine(Request $request, ?int $ignoreId = null): array
+    private function validateMachine(Request $request, ?Machine $machine = null): array
     {
         $validated = $request->validate([
-            'name'                      => 'required|string|max:255',
-            'machine_code'              => 'required|string|max:100|unique:machines,machine_code' . ($ignoreId ? ",{$ignoreId}" : ''),
-            'type'                      => 'required|string|max:100',
-            'manufacturer'              => 'nullable|string|max:255',
-            'model_number'              => 'nullable|string|max:255',
-            'serial_number'             => 'nullable|string|max:255',
-            'building_id'               => 'nullable|exists:buildings,id',
-            'floor_id'                  => 'nullable|exists:floors,id',
-            'description'               => 'nullable|string',
-            'status'                    => 'required|in:active,inactive,maintenance,fault',
-            'power_rating'              => 'nullable|numeric|min:0',
-            'ip_address'                => 'nullable|string|max:255',
-            'installation_date'         => 'nullable|date',
-            'last_maintenance_date'     => 'nullable|date',
-            'next_maintenance_date'     => 'nullable|date',
+            'name' => 'required|string|max:255',
+            'machine_code' => [
+                'required', 'string', 'max:100',
+                Rule::unique('machines', 'machine_code')->ignore($machine?->id),
+            ],
+            'type' => ['required', Rule::enum(MachineType::class)],
+            'manufacturer' => 'nullable|string|max:255',
+            'model_number' => 'nullable|string|max:255',
+            'serial_number' => 'nullable|string|max:255',
+            'building_id' => 'nullable|exists:buildings,id',
+            // `Rule::exists('floors', 'id')->where(...)` can't be made conditional on whether
+            // building_id was actually submitted (DatabaseRule::where() with a null value
+            // becomes a whereNull constraint, not "no constraint") — a closure says exactly
+            // what's meant: the floor must exist, and belong to the chosen building when one
+            // was chosen. The existence check itself lives in the service, not here.
+            'floor_id' => ['nullable', function ($attribute, $value, $fail) use ($request) {
+                if (! $value) {
+                    return;
+                }
+
+                $buildingId = $request->filled('building_id') ? (int) $request->input('building_id') : null;
+
+                if (! $this->machineService->floorBelongsToBuilding((int) $value, $buildingId)) {
+                    $fail('The selected floor is invalid.');
+                }
+            }],
+            'description' => 'nullable|string',
+            'status' => ['required', Rule::enum(MachineStatus::class)],
+            'power_rating' => 'nullable|numeric|min:0',
+            'ip_address' => 'nullable|ip',
+            'installation_date' => 'nullable|date',
+            // A plain `after_or_equal:installation_date` string rule misbehaves when the
+            // other field is absent (Laravel falls back to parsing the field *name* itself
+            // as a date), and both dates here are genuinely optional — so the comparison is
+            // a closure that only fires when both sides are actually present.
+            'last_maintenance_date' => ['nullable', 'date', function ($attribute, $value, $fail) use ($request) {
+                if ($value && $request->filled('installation_date') && $value < $request->input('installation_date')) {
+                    $fail('The last maintenance date must be on or after the installation date.');
+                }
+            }],
+            'next_maintenance_date' => ['nullable', 'date', function ($attribute, $value, $fail) use ($request) {
+                if ($value && $request->filled('last_maintenance_date') && $value < $request->input('last_maintenance_date')) {
+                    $fail('The next maintenance date must be on or after the last maintenance date.');
+                }
+            }],
             'maintenance_interval_days' => 'nullable|integer|min:1',
-            'capacity_tons'             => 'nullable|numeric|min:0',
-            'spec_voltage'              => 'nullable|numeric|min:0',
-            'fuel'                      => 'nullable|string|max:255',
-            'autostart'                 => 'boolean',
-            'capacity_persons'          => 'nullable|integer|min:0',
-            'speed_m_s'                 => 'nullable|numeric|min:0',
-            'flow_lpm'                  => 'nullable|integer|min:0',
-            'head_m'                    => 'nullable|numeric|min:0',
-            'cells'                     => 'nullable|integer|min:0',
-            'makeup_valve'              => 'boolean',
-            'is_critical'               => 'boolean',
+            'capacity_tons' => 'nullable|numeric|min:0',
+            'spec_voltage' => 'nullable|numeric|min:0',
+            'fuel' => 'nullable|string|max:255',
+            'autostart' => 'boolean',
+            'capacity_persons' => 'nullable|integer|min:0',
+            'speed_m_s' => 'nullable|numeric|min:0',
+            'flow_lpm' => 'nullable|integer|min:0',
+            'head_m' => 'nullable|numeric|min:0',
+            'cells' => 'nullable|integer|min:0',
+            'makeup_valve' => 'boolean',
+            'is_critical' => 'boolean',
         ]);
 
-        // Checkboxes default to false when unchecked
-        $validated['is_critical']  = $request->boolean('is_critical');
-        $validated['autostart']    = $request->boolean('autostart');
+        // Checkboxes submit nothing at all when unchecked, so this normalises them to
+        // booleans after validation, matching the app's existing convention for this.
+        $validated['is_critical'] = $request->boolean('is_critical');
+        $validated['autostart'] = $request->boolean('autostart');
         $validated['makeup_valve'] = $request->boolean('makeup_valve');
 
         return $validated;

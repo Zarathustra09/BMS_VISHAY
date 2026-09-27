@@ -1,3 +1,12 @@
+@php
+    // Shared by both the create and edit floor forms — options rendered via x-form.select.
+    $floorStatusOptions = [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+        'maintenance' => 'Under Maintenance',
+    ];
+@endphp
+
 <!-- Create Floor Modal -->
 <dialog id="createFloorModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box max-w-2xl bg-base-100 border border-base-300/50">
@@ -17,43 +26,15 @@
             @csrf
             <input type="hidden" name="building_id" value="{{ $building->id }}">
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Floor Name *</span>
-                </label>
-                <input type="text" name="name" placeholder="e.g., Ground Floor, First Floor"
-                       class="input input-bordered w-full focus:input-primary" required>
-            </div>
+            <x-form.input name="name" label="Floor Name" required placeholder="e.g., Ground Floor, First Floor" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Floor Number *</span>
-                </label>
-                <input type="number" name="floor_number" placeholder="0"
-                       class="input input-bordered w-full focus:input-primary" required>
-                <label class="label">
-                    <span class="label-text-alt">Use negative numbers for basement levels</span>
-                </label>
-            </div>
+            <x-form.input type="number" name="floor_number" label="Floor Number" required placeholder="0"
+                          help="Use negative numbers for basement levels" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Status *</span>
-                </label>
-                <select name="status" class="select select-bordered w-full focus:select-primary" required>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="maintenance">Under Maintenance</option>
-                </select>
-            </div>
+            <x-form.select name="status" label="Status" required :options="$floorStatusOptions" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Description</span>
-                </label>
-                <textarea name="description" placeholder="Additional information about this floor..."
-                          class="textarea textarea-bordered h-24 focus:textarea-primary"></textarea>
-            </div>
+            <x-form.textarea name="description" label="Description" :rows="3"
+                              placeholder="Additional information about this floor..." class="h-24" />
 
             <div class="modal-action">
                 <button type="button" onclick="document.getElementById('createFloorModal').close()"
@@ -92,43 +73,15 @@
             @method('PUT')
             <input type="hidden" id="edit_floor_id" name="floor_id">
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Floor Name *</span>
-                </label>
-                <input type="text" id="edit_name" name="name" placeholder="e.g., Ground Floor, First Floor"
-                       class="input input-bordered w-full focus:input-primary" required>
-            </div>
+            <x-form.input name="name" id="edit_name" label="Floor Name" required placeholder="e.g., Ground Floor, First Floor" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Floor Number *</span>
-                </label>
-                <input type="number" id="edit_floor_number" name="floor_number" placeholder="0"
-                       class="input input-bordered w-full focus:input-primary" required>
-                <label class="label">
-                    <span class="label-text-alt">Use negative numbers for basement levels</span>
-                </label>
-            </div>
+            <x-form.input type="number" name="floor_number" id="edit_floor_number" label="Floor Number" required placeholder="0"
+                          help="Use negative numbers for basement levels" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Status *</span>
-                </label>
-                <select id="edit_status" name="status" class="select select-bordered w-full focus:select-primary" required>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="maintenance">Under Maintenance</option>
-                </select>
-            </div>
+            <x-form.select name="status" id="edit_status" label="Status" required :options="$floorStatusOptions" />
 
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Description</span>
-                </label>
-                <textarea id="edit_description" name="description" placeholder="Additional information about this floor..."
-                          class="textarea textarea-bordered h-24 focus:textarea-primary"></textarea>
-            </div>
+            <x-form.textarea name="description" id="edit_description" label="Description" :rows="3"
+                              placeholder="Additional information about this floor..." class="h-24" />
 
             <div class="modal-action">
                 <button type="button" onclick="document.getElementById('editFloorModal').close()"

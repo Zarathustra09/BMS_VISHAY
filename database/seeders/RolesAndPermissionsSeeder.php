@@ -21,7 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $crudModules = ['buildings', 'floors', 'machines', 'users', 'roles', 'work-orders'];
+        $crudModules = ['buildings', 'floors', 'machines', 'machine-types', 'users', 'roles', 'work-orders'];
         $actions = ['view', 'create', 'update', 'delete'];
 
         $permissions = [];
@@ -74,10 +74,10 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission]);
         }
 
-        $admin      = Role::firstOrCreate(['name' => 'admin']);
-        $manager    = Role::firstOrCreate(['name' => 'manager']);
+        $admin = Role::firstOrCreate(['name' => 'admin']);
+        $manager = Role::firstOrCreate(['name' => 'manager']);
         $technician = Role::firstOrCreate(['name' => 'technician']);
-        $viewer     = Role::firstOrCreate(['name' => 'viewer']);
+        $viewer = Role::firstOrCreate(['name' => 'viewer']);
 
         // admin: everything.
         $admin->syncPermissions(Permission::all());
@@ -90,6 +90,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'floors.view', 'floors.create', 'floors.update',
             'machines.view', 'machines.create', 'machines.update',
             'machines.view-device-key',
+            'machine-types.view', 'machine-types.create', 'machine-types.update',
             'users.view',
             'roles.view',
             'permissions.view',
@@ -108,6 +109,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'floors.view',
             'machines.view', 'machines.update',
             'machines.view-device-key',
+            'machine-types.view',
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
             'work-orders.view', 'work-orders.update-status',
             'maintenance.view',
@@ -119,6 +121,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'buildings.view',
             'floors.view',
             'machines.view',
+            'machine-types.view',
             'alerts.view',
             'work-orders.view',
             'maintenance.view',

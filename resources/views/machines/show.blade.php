@@ -31,19 +31,28 @@
                 <div class="flex items-center gap-3 mb-2">
                     <h1 class="text-3xl font-bold">{{ $machine->name }}</h1>
                     @php
-                        $statusConfig = [
-                            'active' => ['color' => 'success', 'text' => 'Active'],
-                            'maintenance' => ['color' => 'warning', 'text' => 'Maintenance'],
-                            'fault' => ['color' => 'error', 'text' => 'Fault'],
-                            'inactive' => ['color' => 'base-300', 'text' => 'Inactive'],
-                        ];
-                        $config = $statusConfig[$machine->status] ?? $statusConfig['inactive'];
+                        $statusEnum = \App\Enums\MachineStatus::tryFrom($machine->status);
+                        // badge-ghost/badge-error read poorly for a large "current status" pill on this
+                        // page, so the colour classes stay a small local map (each written out as a
+                        // literal string below — Tailwind's build only sees classes it can find in the
+                        // source text, so `badge-{{ $x }}` would silently fail to compile); the label
+                        // comes from the enum so the wording itself has one source of truth.
+                        [$badgeClass, $dotClass] = match ($machine->status) {
+                            'active' => ['badge-success', 'bg-success-content'],
+                            'maintenance' => ['badge-warning', 'bg-warning-content'],
+                            'fault' => ['badge-error', 'bg-error-content'],
+                            // 'badge-base-300' isn't a real daisyUI class (only the semantic
+                            // colors below have a badge-* modifier) — it silently rendered
+                            // unstyled even before this page's build was fixed to compile
+                            // Tailwind for real. 'badge-neutral' is the intended grey tone.
+                            default => ['badge-neutral', 'bg-neutral-content'],
+                        };
                     @endphp
-                    <div class="badge badge-{{ $config['color'] }} badge-lg gap-2">
+                    <div class="badge {{ $badgeClass }} badge-lg gap-2">
                         @if($machine->status === 'active')
-                            <span class="w-2 h-2 bg-{{ $config['color'] }}-content rounded-full animate-pulse"></span>
+                            <span class="w-2 h-2 {{ $dotClass }} rounded-full animate-pulse"></span>
                         @endif
-                        {{ $config['text'] }}
+                        {{ $statusEnum?->label() ?? ucfirst($machine->status) }}
                     </div>
                     <div class="tooltip" :data-tip="last_seen_at ? 'Last reading ' + last_seen_human : 'No reading ever received'">
                         <div class="badge badge-lg gap-2"
@@ -306,7 +315,7 @@
                 <div class="join w-full">
                     <input type="text" readonly value="{{ $deviceKeyPlain }}"
                            x-bind:type="visible ? 'text' : 'password'"
-                           class="join-item input input-bordered input-sm font-mono w-full">
+                           class="join-item input input-sm font-mono w-full">
                     <button type="button" class="join-item btn btn-sm btn-ghost" @click="visible = !visible">
                         <span x-text="visible ? 'Hide' : 'Show'"></span>
                     </button>
@@ -373,12 +382,12 @@
                 </h2>
                 <div class="flex items-center gap-2" x-show="availableMetrics.length > 0">
                     <span class="loading loading-spinner loading-xs" x-show="loading"></span>
-                    <select class="select select-bordered select-sm" x-model="metric">
+                    <select class="select select-sm" x-model="metric">
                         <template x-for="m in availableMetrics" :key="m.value">
                             <option :value="m.value" x-text="m.label" :selected="m.value === metric"></option>
                         </template>
                     </select>
-                    <select class="select select-bordered select-sm" x-model="range">
+                    <select class="select select-sm" x-model="range">
                         <option value="1h">Last hour</option>
                         <option value="24h">Last 24 hours</option>
                         <option value="7d">Last 7 days</option>
@@ -605,7 +614,7 @@
             </h2>
 
             <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                <select id="severityFilter" class="select select-bordered select-sm w-full sm:w-40">
+                <select id="severityFilter" class="select select-sm w-full sm:w-40">
                     <option value="">All Severities</option>
                     <option value="info">Info</option>
                     <option value="warning">Warning</option>
@@ -613,7 +622,7 @@
                     <option value="critical">Critical</option>
                 </select>
 
-                <select id="logTypeFilter" class="select select-bordered select-sm w-full sm:w-48">
+                <select id="logTypeFilter" class="select select-sm w-full sm:w-48">
                     <option value="">All Types</option>
                     <option value="status_change">Status Change</option>
                     <option value="maintenance">Maintenance</option>
@@ -623,8 +632,8 @@
                     <option value="error">Error</option>
                 </select>
 
-                <input type="date" id="dateFromFilter" class="input input-bordered input-sm w-full sm:w-40" title="From date">
-                <input type="date" id="dateToFilter" class="input input-bordered input-sm w-full sm:w-40" title="To date">
+                <input type="date" id="dateFromFilter" class="input input-sm w-full sm:w-40" title="From date">
+                <input type="date" id="dateToFilter" class="input input-sm w-full sm:w-40" title="To date">
             </div>
 
             <div class="overflow-x-auto">
@@ -789,7 +798,7 @@
                 <input type="text"
                        x-model="messageInput"
                        placeholder="Ask about machine insights..."
-                       class="input input-bordered flex-1 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                       class="input flex-1 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                        :disabled="isTyping">
                 <button type="submit"
                         class="btn btn-primary btn-circle"

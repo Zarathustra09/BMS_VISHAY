@@ -42,6 +42,15 @@ Route::middleware('auth')->group(function () {
     Route::put('/machines/{machine}/thresholds', [App\Http\Controllers\MachineController::class, 'updateThresholds'])
         ->name('machines.thresholds.update');
 
+    // Machine Type Routes
+    // A distinct /machine-types prefix, not /machines/types — the Machines sidebar item
+    // matches request()->is('machines*'), which would also (wrongly) light up on the latter.
+    Route::resource('machine-types', App\Http\Controllers\MachineTypeController::class)
+        ->except('show')
+        ->parameters(['machine-types' => 'machineType']);
+    Route::get('/machine-types/{machineType}/delete', [App\Http\Controllers\MachineTypeController::class, 'confirmDelete'])
+        ->name('machine-types.confirm-delete');
+
     // Alert Routes
     Route::get('/alerts', [App\Http\Controllers\AlertController::class, 'index'])->name('alerts.index');
     Route::get('/alerts/data', [App\Http\Controllers\AlertController::class, 'data'])->name('alerts.data');
@@ -93,4 +102,3 @@ Route::middleware('auth')->group(function () {
     Route::post('/ai/chat', [App\Http\Controllers\AIController::class, 'chat'])->name('ai.chat');
     Route::post('/ai/check-status', [App\Http\Controllers\AIController::class, 'checkStatus'])->name('ai.check-status');
 });
-

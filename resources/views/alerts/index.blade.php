@@ -81,27 +81,27 @@
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
             <div class="flex flex-col lg:flex-row gap-4 mb-4">
-                <select id="statusFilter" class="select select-bordered w-full lg:w-48">
+                <select id="statusFilter" class="select w-full lg:w-48">
                     <option value="">All Status</option>
                     <option value="open">Open</option>
                     <option value="acknowledged">Acknowledged</option>
                     <option value="resolved">Resolved</option>
                 </select>
 
-                <select id="severityFilter" class="select select-bordered w-full lg:w-48">
+                <select id="severityFilter" class="select w-full lg:w-48">
                     <option value="">All Severities</option>
                     <option value="warning">Warning</option>
                     <option value="critical">Critical</option>
                 </select>
 
-                <select id="machineFilter" class="select select-bordered w-full lg:w-64">
+                <select id="machineFilter" class="select w-full lg:w-64">
                     <option value="">All Machines</option>
                     @foreach($machines as $machine)
                         <option value="{{ $machine->id }}">{{ $machine->name }}</option>
                     @endforeach
                 </select>
 
-                <select id="typeFilter" class="select select-bordered w-full lg:w-48">
+                <select id="typeFilter" class="select w-full lg:w-48">
                     <option value="">All Types</option>
                     <option value="threshold">Threshold breach</option>
                     <option value="offline">Device offline</option>

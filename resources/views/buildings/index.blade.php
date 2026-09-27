@@ -101,7 +101,7 @@
     <div class="card bg-base-100 shadow-lg border border-base-300/50">
         <div class="card-body">
             <div class="flex flex-col lg:flex-row gap-4 mb-4">
-                <select id="statusFilter" class="select select-bordered w-full lg:w-48">
+                <select id="statusFilter" class="select w-full lg:w-48">
                     <option value="">All Status</option>
                     <option value="Operational">Operational</option>
                     <option value="Under Construction">Under Construction</option>
@@ -109,7 +109,7 @@
                     <option value="Inactive">Inactive</option>
                 </select>
 
-                <select id="typeFilter" class="select select-bordered w-full lg:w-48">
+                <select id="typeFilter" class="select w-full lg:w-48">
                     <option value="">All Types</option>
                     <option value="Production Facility">Production Facility</option>
                     <option value="Warehouse">Warehouse</option>

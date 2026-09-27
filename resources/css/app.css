@@ -1,47 +1,36 @@
 /* resources/css/app.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* Removed Tailwind v4 CSS-first config directives (@source/@plugin) to avoid Vite/PostCSS import resolution issues. */
-/* If you need daisyUI, configure it in tailwind.config.js (plugin) instead of using @plugin here. */
-
-
-@plugin "daisyui/theme" {
-    name: "forest";
-    default: false;
-    prefersdark: false;
-    color-scheme: "dark";
-    --color-base-100: oklch(14% 0 0);
-    --color-base-200: oklch(20% 0 0);
-    --color-base-300: oklch(26% 0 0);
-    --color-base-content: oklch(97% 0 0);
-    --color-primary: oklch(71% 0.202 349.761);
-    --color-primary-content: oklch(28% 0.109 3.907);
-    --color-secondary: oklch(74% 0.238 322.16);
-    --color-secondary-content: oklch(29% 0.136 325.661);
-    --color-accent: oklch(84% 0.238 128.85);
-    --color-accent-content: oklch(27% 0.072 132.109);
-    --color-neutral: oklch(37% 0 0);
-    --color-neutral-content: oklch(98% 0 0);
-    --color-info: oklch(54% 0.245 262.881);
-    --color-info-content: oklch(97% 0.014 254.604);
-    --color-success: oklch(62% 0.194 149.214);
-    --color-success-content: oklch(98% 0.018 155.826);
-    --color-warning: oklch(68% 0.162 75.834);
-    --color-warning-content: oklch(98% 0.026 102.212);
-    --color-error: oklch(57% 0.245 27.325);
-    --color-error-content: oklch(97% 0.013 17.38);
-    --radius-selector: 2rem;
-    --radius-field: 0rem;
-    --radius-box: 2rem;
-    --size-selector: 0.25rem;
-    --size-field: 0.25rem;
-    --border: 1px;
-    --depth: 0;
-    --noise: 0;
+/*
+ * DaisyUI 5, compiled via the @tailwindcss/vite plugin (see vite.config.js) instead of the
+ * browser CDN — see docs/08-frontend.md. Every theme below is daisyUI's stock definition —
+ * none are customised. `corporate` is the default (light) theme, matching the `<html
+ * data-theme="corporate">` no-JS fallback in layouts/app.blade.php; `forest` is the app's
+ * dark theme (green primary — see the Forest card in settings/index.blade.php, captioned
+ * "Dark Green Theme"). The rest are offered in the Settings theme picker.
+ *
+ * A previous version of this file had a `@plugin "daisyui/theme" { name: "forest"; ... }`
+ * block overriding forest with a pink/magenta palette (verbatim daisyUI theme-generator
+ * scaffold, never tuned for this app). It sat under Tailwind v3 `@tailwind` directives with
+ * no Vite Tailwind plugin, so it was dead code for months — nothing ever compiled it, and the
+ * app rendered stock green forest from the CDN the whole time. Removed rather than fixed.
+ */
+@plugin "daisyui" {
+    themes: corporate --default, forest, light, dark, cupcake, cyberpunk, synthwave, business;
 }
 
+/*
+ * Several views build a badge/alert colour class from a PHP variable, e.g.
+ * `class="badge badge-{{ $color }}"` where $color comes from a `match()` over a small fixed
+ * set of strings (see e.g. work_orders/_datatable-status-cell.blade.php, machines/show.blade.php).
+ * Tailwind's build scans source text for literal class names — it never executes the PHP —
+ * so a class assembled this way isn't "seen" and would silently fail to generate now that
+ * this app compiles Tailwind for real instead of using the browser CDN's runtime DOM scan
+ * (see docs/08-frontend.md). This safelists exactly the color tokens those views combine.
+ */
+@source inline("badge-{success,warning,error,info,ghost,neutral}");
+@source inline("alert-{success,warning,error,info}");
+@source inline("bg-{success,warning,error,info,neutral}-content");
 
 @layer base {
     body {

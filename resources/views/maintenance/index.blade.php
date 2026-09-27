@@ -104,14 +104,14 @@
             <h2 class="card-title mb-4">Machines Due for Maintenance</h2>
 
             <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                <select id="statusFilter" class="select select-bordered select-sm w-full sm:w-44">
+                <select id="statusFilter" class="select select-sm w-full sm:w-44">
                     <option value="">All</option>
                     <option value="overdue">Overdue</option>
                     <option value="due_soon">Due in 7 Days</option>
                     <option value="due_month">Due in 30 Days</option>
                 </select>
 
-                <select id="buildingFilter" class="select select-bordered select-sm w-full sm:w-56">
+                <select id="buildingFilter" class="select select-sm w-full sm:w-56">
                     <option value="">All Buildings</option>
                     @foreach($buildings as $building)
                         <option value="{{ $building->id }}">{{ $building->name }}</option>

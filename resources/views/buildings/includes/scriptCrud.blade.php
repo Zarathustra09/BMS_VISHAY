@@ -1,7 +1,9 @@
 <script>
     // Make functions globally available
     window.openCreateFloorModal = function() {
-        document.getElementById('createFloorForm').reset();
+        const form = document.getElementById('createFloorForm');
+        form.reset();
+        clearFieldErrors(form);
         createFloorModal.showModal();
     };
 
@@ -18,6 +20,7 @@
                 document.getElementById('edit_status').value = floor.status;
                 document.getElementById('edit_description').value = floor.description || '';
 
+                clearFieldErrors(document.getElementById('editFloorForm'));
                 editFloorModal.showModal();
             }
         } catch (error) {
@@ -153,6 +156,36 @@
         }, 3000);
     }
 
+    // These modals are submitted via fetch/JSON rather than a page POST, so Laravel's
+    // session-flashed $errors/old() never reach them — a 422's `errors` object is rendered
+    // by hand instead, matching the <x-form.field> markup (a block <p class="text-error">
+    // right after the control) so a validation failure looks the same here as everywhere else.
+    function clearFieldErrors(form) {
+        form.querySelectorAll('[data-js-error]').forEach(el => el.remove());
+        form.querySelectorAll('.input-error, .select-error, .textarea-error').forEach(el => {
+            el.classList.remove('input-error', 'select-error', 'textarea-error');
+        });
+    }
+
+    function renderFieldErrors(form, errors) {
+        clearFieldErrors(form);
+        Object.entries(errors || {}).forEach(([field, messages]) => {
+            const control = form.querySelector(`[name="${field}"]`);
+            if (!control) return;
+
+            const errorClass = control.tagName === 'SELECT' ? 'select-error'
+                : control.tagName === 'TEXTAREA' ? 'textarea-error'
+                : 'input-error';
+            control.classList.add(errorClass);
+
+            const message = document.createElement('p');
+            message.className = 'text-error text-xs mt-0.5';
+            message.setAttribute('data-js-error', field);
+            message.textContent = Array.isArray(messages) ? messages[0] : messages;
+            control.parentElement.appendChild(message);
+        });
+    }
+
     // Form submissions
     document.addEventListener('DOMContentLoaded', function() {
         const createForm = document.getElementById('createFloorForm');
@@ -181,6 +214,8 @@
                         showToast('Floor created successfully!', 'success');
                         createFloorModal.close();
                         setTimeout(() => location.reload(), 500);
+                    } else if (response.status === 422) {
+                        renderFieldErrors(this, result.errors);
                     } else {
                         showToast(result.error || 'Failed to create floor', 'error');
                     }
@@ -215,6 +250,8 @@
                         showToast('Floor updated successfully!', 'success');
                         editFloorModal.close();
                         setTimeout(() => location.reload(), 500);
+                    } else if (response.status === 422) {
+                        renderFieldErrors(this, result.errors);
                     } else {
                         showToast(result.error || 'Failed to update floor', 'error');
                     }

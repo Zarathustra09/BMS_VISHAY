@@ -114,7 +114,7 @@
 
         <form id="assignUsersForm" method="POST" class="py-4 space-y-3">
             @csrf
-            <input type="text" id="assignUsersSearch" class="input input-bordered input-sm w-full" placeholder="Search users..." autocomplete="off">
+            <input type="text" id="assignUsersSearch" class="input input-sm w-full" placeholder="Search users..." autocomplete="off">
 
             <div class="max-h-72 overflow-y-auto space-y-1 border border-base-300 rounded-lg p-2">
                 @forelse($users as $user)

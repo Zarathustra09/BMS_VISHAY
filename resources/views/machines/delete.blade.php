@@ -44,20 +44,7 @@
             <!-- Machine Identity -->
             <div class="flex items-start gap-4">
                 <div class="w-14 h-14 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center shrink-0 text-2xl">
-                    @php
-                        $icons = [
-                            'Chiller'       => '🧊',
-                            'Generator'     => '⚡',
-                            'Elevator'      => '🛗',
-                            'Pump'          => '💧',
-                            'Cooling Tower' => '🏗️',
-                            'HVAC'          => '🌡️',
-                            'Compressor'    => '🔧',
-                            'Boiler'        => '🔥',
-                        ];
-                        $icon = $icons[$machine->type] ?? '⚙️';
-                    @endphp
-                    {{ $icon }}
+                    {{ \App\Enums\MachineType::tryFrom($machine->type)?->icon() ?? '⚙️' }}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
@@ -74,16 +61,8 @@
                     <div class="flex items-center gap-2 mt-1 flex-wrap">
                         <code class="text-xs bg-base-200 px-2 py-0.5 rounded font-mono">{{ $machine->machine_code }}</code>
                         <span class="text-sm opacity-60">{{ $machine->type }}</span>
-                        @php
-                            $statusConfig = [
-                                'active'      => ['badge-success', 'Active'],
-                                'inactive'    => ['badge-ghost',   'Inactive'],
-                                'maintenance' => ['badge-warning', 'Maintenance'],
-                                'fault'       => ['badge-error',   'Fault'],
-                            ];
-                            [$statusClass, $statusLabel] = $statusConfig[$machine->status] ?? ['badge-ghost', $machine->status];
-                        @endphp
-                        <span class="badge {{ $statusClass }} badge-sm">{{ $statusLabel }}</span>
+                        @php $statusEnum = \App\Enums\MachineStatus::tryFrom($machine->status); @endphp
+                        <span class="badge {{ $statusEnum?->badgeClass() ?? 'badge-ghost' }} badge-sm">{{ $statusEnum?->label() ?? $machine->status }}</span>
                     </div>
                 </div>
             </div>

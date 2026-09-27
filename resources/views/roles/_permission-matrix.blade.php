@@ -65,7 +65,7 @@
                                            data-action="other"
                                            {{ in_array($perm->name, $checkedNames) ? 'checked' : '' }}
                                            {{ $readonly ? 'disabled' : '' }} />
-                                    <span class="label-text text-xs">{{ $perm->name }}</span>
+                                    <span class="text-xs opacity-80">{{ $perm->name }}</span>
                                 </label>
                             @endforeach
                         </div>
