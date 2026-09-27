@@ -59,6 +59,11 @@ class RolesAndPermissionsSeeder extends Seeder
         // module), so this is a single permission like permissions.view above.
         $permissions[] = 'maintenance.view';
 
+        // Reports are read-only rollups (with CSV export) of data every role can already see
+        // piecemeal via alerts.view/work-orders.view/machines.view/maintenance.view — no
+        // CRUD of its own.
+        $permissions[] = 'reports.view';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);
         }
@@ -85,6 +90,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
             'work-orders.view', 'work-orders.create', 'work-orders.update', 'work-orders.update-status',
             'maintenance.view',
+            'reports.view',
         ]);
 
         // technician: field/hardware role — views everything, can update a machine's
@@ -99,6 +105,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
             'work-orders.view', 'work-orders.update-status',
             'maintenance.view',
+            'reports.view',
         ]);
 
         // viewer: read-only across the board.
@@ -109,6 +116,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'alerts.view',
             'work-orders.view',
             'maintenance.view',
+            'reports.view',
         ]);
     }
 }

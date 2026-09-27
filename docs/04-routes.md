@@ -21,7 +21,7 @@ Generated from `php artisan route:list` against the codebase as of Phase 4. All 
 
 | Method | URI | Name | Controller@Method | Middleware | Purpose |
 |---|---|---|---|---|---|
-| GET | `/home` | `home` | `HomeController@index` | `auth` | Main dashboard (currently hardcoded metrics — Phase 9) |
+| GET | `/home` | `home` | `HomeController@index` | `auth` | Main dashboard — no `permission:` gate beyond `auth`, since every logged-in user lands here right after login and every stat tile it shows is something the viewer role can already see individually (equipment/work-order/alert counts, building health, recent alerts/work orders). Real data as of Phase 9 (`DashboardInterface`) — see [01-overview.md](01-overview.md). |
 
 ## Buildings
 
@@ -178,14 +178,22 @@ New in Phase 8. Read-only — there's no CRUD on this page itself (the underlyin
 | GET | `/maintenance` | `maintenance.index` | `MaintenanceController@index` | `maintenance.view` | Dashboard: overdue/due-soon/due-this-month/completed-this-month stats, a per-building breakdown, and the machines table — the table loads via `maintenance.data` |
 | GET | `/maintenance/data` | `maintenance.data` | `MaintenanceController@data` | `maintenance.view` | **Ajax source for the "Machines Due for Maintenance" DataTable** — status (overdue/due_soon/due_month) and building filters |
 
+## Reports
+
+New in Phase 9. Read-only rollups of data every role can already see piecemeal via `alerts.view`/`work-orders.view`/`machines.view`/`maintenance.view`, so — like `maintenance.view` and `permissions.view` — this is a single permission rather than a CRUD set. Both routes accept the same three query params: `type` (`sensor_summary`\|`alert_history`\|`work_order_summary`\|`maintenance_compliance`, defaults to `sensor_summary`), `date_from`/`date_to` (default: last 30 days; ignored by `maintenance_compliance`, which is a point-in-time snapshot), and `building_id`.
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/reports` | `reports.index` | `ReportController@index` | `reports.view` | Filter form + the selected report's stats and a capped (100-row) preview table |
+| GET | `/reports/export` | `reports.export` | `ReportController@export` | `reports.view` | **Streamed CSV download** for the selected report — unlike the on-page preview, this is not capped; `alert_history`/`work_order_summary`/`maintenance_compliance` stream via `cursor()` so exporting a large date range doesn't load every row into memory at once |
+
 ## Other module pages (currently static views — see [01-overview.md](01-overview.md) for status)
 
 | Method | URI | Name | Controller@Method |
 |---|---|---|---|
-| GET | `/reports` | `reports.index` | `ReportController@index` |
 | GET | `/settings` | `settings.index` | `SettingController@index` |
 
-All require `auth`; no permission middleware yet — these modules don't have real CRUD to gate until their respective phases (9–10) build them out.
+Requires `auth`; no permission middleware yet — Settings doesn't have real CRUD to gate until Phase 10 builds it out.
 
 ## Hardware / sensor ingestion API (`routes/api.php`)
 

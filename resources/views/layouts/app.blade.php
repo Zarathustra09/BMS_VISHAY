@@ -179,6 +179,7 @@
                         </li>
                         @endcan
 
+                        @can('reports.view')
                         <li>
                             <a href="{{ route('reports.index') }}" class="gap-3 {{ request()->is('reports*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,6 +188,7 @@
                                 Reports
                             </a>
                         </li>
+                        @endcan
 
                         <div class="divider text-xs opacity-50 my-2">SYSTEM</div>
 

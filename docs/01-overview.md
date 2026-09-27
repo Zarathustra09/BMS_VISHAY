@@ -38,8 +38,8 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 | Offline device detection | ✅ Done | Scheduled `app:check-offline-devices` (every minute) raises an "offline" alert when a machine goes quiet for 10+ minutes; auto-resolves on the next reading; Online/Offline badge + live sensor chart on the machine page |
 | Work Orders | ✅ Done | Full CRUD (create/edit/show/delete, soft deletes) with a status workflow (pending → in_progress → completed/cancelled); can originate from a machine page or an open alert; completing an alert-linked work order resolves the alert, completing a preventive one advances the machine's maintenance schedule; assignee gets an in-app + email notification; list is a server-side DataTable; a technician may only update the status of a work order assigned to them |
 | Maintenance dashboard | ✅ Done | Overdue/due-in-7-days/due-in-30-days/completed-this-month stats, a per-building breakdown, and a server-side DataTable of machines due for maintenance; a daily `app:generate-preventive-work-orders` command auto-creates a preventive work order for machines approaching their `next_maintenance_date`, deduped so it never double-creates |
-| Reports & exports | 🔴 Planned | View is a static mockup; Phase 9 |
-| Home dashboard | 🟡 Partial | Real layout, but metrics are hardcoded placeholders; Phase 9 |
+| Reports & exports | ✅ Done | Four report types (sensor summary, alert history, work order summary, maintenance compliance) with date-range + building filters, an on-page stats/preview view, and a streamed CSV download per report |
+| Home dashboard | ✅ Done | Every stat, chart, and list is real (`DashboardInterface`): equipment availability, active/pending/open counts, a 7-day alerts trend, per-building machine health, and the 5 most recent alerts/work orders. Fabricated content with no real data source (revenue, "production units", facility occupancy, server/backup status, "Manage Tenants") was removed rather than kept as placeholders. |
 | Settings | 🔴 Planned | View is a static mockup; Phase 10 |
 | Audit log | 🔴 Planned | Phase 10 |
 

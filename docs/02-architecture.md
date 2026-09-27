@@ -244,7 +244,9 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `PermissionInterface` | `PermissionService` | `RoleController`, `PermissionController` |
 | `AlertInterface` | `AlertService` | `MachineLogService` (evaluates every reading), `MachineController` (thresholds + active-alerts card), `AlertController`, `WorkOrderService` (resolves the linked alert on completion) |
 | `WorkOrderInterface` | `WorkOrderService` | `WorkOrderController`, `app:generate-preventive-work-orders` |
-| `MaintenanceInterface` | `MaintenanceService` | `MaintenanceController` |
+| `MaintenanceInterface` | `MaintenanceService` | `MaintenanceController`, `ReportService` (reuses `getStats()`/`getBuildingBreakdown()`/`getQueryForDataTable()` for the maintenance compliance report rather than recomputing its rules) |
+| `DashboardInterface` | `DashboardService` | `HomeController` |
+| `ReportInterface` | `ReportService` | `ReportController` |
 
 `AIInterface`'s binding is a closure, not a plain class-string, because it's the one case in this app where the implementation is chosen at runtime:
 
@@ -337,6 +339,43 @@ Action-button cells (View/Edit/Delete) render through a small Blade partial (e.g
 **Server-side vs. client-side** — not every table needs an ajax endpoint. `roles/show`'s "users with this role" table and `permissions/index` are rendered fully server-side in the initial page load (small, fixed-size data) and DataTables is initialised on them with no `ajax`/`serverSide` option at all — it just adds sort/search/paging on top of the rows already in the DOM. Reach for server-side only when the table's row count scales with real-world usage (buildings, machines, and especially `machine_logs`, which grows with every sensor reading).
 
 **What this replaced**: `BuildingService::getAllBuildings()` was an unbounded `Building::with(['floors','machines'])->get()`, and the controller summed the loaded collection in PHP for stat tiles; `MachineService::getAllPaginated()` and `getLogsForMachine()` used Laravel's paginator. All three were removed (not deprecated — nothing else called them) in favor of `getQueryForDataTable()` methods, and `BuildingService` gained a proper `getStats()` (count queries, mirroring `MachineService::getStats()`) instead of summing a loaded collection.
+
+## Streamed CSV exports (Phase 9)
+
+Reports (`ReportController@export`) is the app's first CSV export, and the first place a controller iterates over a query result to build response rows. This looks like it brushes against the "no loops to compute derived values" anti-pattern below, but it isn't one: the loop does no business logic or domain calculation — it only picks which model attributes go in which CSV column, the same kind of pure structural mapping a DataTables `addColumn()` closure or an API Resource class does, both of which are presentation-layer concerns that live outside the service layer in this app.
+
+The pattern:
+
+```php
+// ReportService — the query, filtered and eager-loaded, but not iterated
+public function getAlertHistoryQuery(array $filters): Builder
+{
+    $query = Alert::with('machine')->orderByDesc('created_at');
+    // ...date range / building filters...
+    return $query;
+}
+
+// ReportController — iterates via cursor() and yields formatted rows into a generator
+private function alertHistoryRows(array $filters): \Generator
+{
+    foreach ($this->reportService->getAlertHistoryQuery($filters)->cursor() as $alert) {
+        yield [$alert->created_at->format('Y-m-d H:i'), $alert->machine->name ?? '—', /* ... */];
+    }
+}
+
+// One shared helper wraps any such generator in a streamed HTTP response
+private function csvResponse(string $filename, array $headers, iterable $rows): StreamedResponse
+{
+    return response()->streamDownload(function () use ($headers, $rows) {
+        $handle = fopen('php://output', 'w');
+        fputcsv($handle, $headers);
+        foreach ($rows as $row) { fputcsv($handle, $row); }
+        fclose($handle);
+    }, $filename, ['Content-Type' => 'text/csv']);
+}
+```
+
+`cursor()`, not `get()`, on every query-backed export (`alert_history`, `work_order_summary`, `maintenance_compliance`) — it hydrates one model at a time instead of loading the whole matching result set into memory first, so exporting a large date range doesn't scale the request's memory with the row count. `sensor_summary` is the one exception: it's already a small, pre-aggregated per-machine `Collection` (bounded by machine count, not reading count), so no cursor is needed. The on-page report view separately caps its **preview** table to 100 rows (`ReportService::PREVIEW_LIMIT`) for the same reason a DataTable paginates — the full data only ever needs to reach the browser via the CSV.
 
 ## Shared view data: View Composers, not `@php` queries
 

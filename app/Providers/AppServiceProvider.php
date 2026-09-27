@@ -5,17 +5,20 @@ namespace App\Providers;
 use App\Interfaces\AIInterface;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\BuildingInterface;
+use App\Interfaces\DashboardInterface;
 use App\Interfaces\FloorInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
 use App\Interfaces\MaintenanceInterface;
 use App\Interfaces\PermissionInterface;
+use App\Interfaces\ReportInterface;
 use App\Interfaces\RoleInterface;
 use App\Interfaces\SuggestedQuestionInterface;
 use App\Interfaces\UserInterface;
 use App\Interfaces\WorkOrderInterface;
 use App\Services\AlertService;
 use App\Services\BuildingService;
+use App\Services\DashboardService;
 use App\Services\FloorService;
 use App\Services\GeminiService;
 use App\Services\MachineLogService;
@@ -23,6 +26,7 @@ use App\Services\MachineService;
 use App\Services\MaintenanceService;
 use App\Services\OpenAIService;
 use App\Services\PermissionService;
+use App\Services\ReportService;
 use App\Services\RoleService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
@@ -56,6 +60,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AlertInterface::class, AlertService::class);
         $this->app->bind(WorkOrderInterface::class, WorkOrderService::class);
         $this->app->bind(MaintenanceInterface::class, MaintenanceService::class);
+        $this->app->bind(DashboardInterface::class, DashboardService::class);
+        $this->app->bind(ReportInterface::class, ReportService::class);
     }
 
     /**

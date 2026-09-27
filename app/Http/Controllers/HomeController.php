@@ -2,27 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Interfaces\DashboardInterface;
 
 class HomeController extends Controller
 {
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
-    public function __construct()
+    public function __construct(protected DashboardInterface $dashboardService)
     {
         $this->middleware('auth');
     }
 
     /**
      * Show the application dashboard.
-     *
-     * @return \Illuminate\Contracts\Support\Renderable
      */
     public function index()
     {
-        return view('home');
+        $summary = $this->dashboardService->getSummary();
+        $alertsTrend = $this->dashboardService->getAlertsTrend();
+        $buildingHealth = $this->dashboardService->getBuildingHealth();
+        $recentAlerts = $this->dashboardService->getRecentAlerts();
+        $recentWorkOrders = $this->dashboardService->getRecentWorkOrders();
+
+        return view('home', compact('summary', 'alertsTrend', 'buildingHealth', 'recentAlerts', 'recentWorkOrders'));
     }
 }

@@ -62,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/work-orders/{workOrder}/status', [App\Http\Controllers\WorkOrderController::class, 'updateStatus'])->name('work-orders.update-status');
 
     Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/export', [App\Http\Controllers\ReportController::class, 'export'])->name('reports.export');
     Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
     Route::get('/maintenance/data', [App\Http\Controllers\MaintenanceController::class, 'data'])->name('maintenance.data');
     Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
