@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AppModule;
 use App\Exceptions\RoleActionException;
 use App\Interfaces\RoleInterface;
 use App\Models\User;
@@ -48,12 +49,20 @@ class RoleService implements RoleInterface
             throw new RoleActionException('The admin role cannot be modified.');
         }
 
-        if ($actingUser->hasRole($role->name) && !in_array('roles.update', $permissionNames, true)) {
+        if ($actingUser->hasRole($role->name) && ! in_array('roles.update', $permissionNames, true)) {
             throw new RoleActionException('You cannot remove your own ability to manage roles.');
         }
 
+        // The role matrix doesn't list a switched-off module's permissions (see
+        // PermissionService), so they're never in $permissionNames — carry over whatever the
+        // role already holds for them, or saving a role in a lite edition would silently strip them.
+        $hiddenPermissionNames = $role->permissions
+            ->pluck('name')
+            ->filter(fn (string $permission) => AppModule::isAbilityDisabled($permission))
+            ->all();
+
         $role->update(['name' => $name]);
-        $role->syncPermissions($permissionNames);
+        $role->syncPermissions(array_merge($permissionNames, $hiddenPermissionNames));
         $this->resetPermissionCache();
 
         return $role->fresh('permissions');

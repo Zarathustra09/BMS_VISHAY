@@ -285,9 +285,14 @@
                                       :value="$settings['offline_timeout_minutes']"
                                       help="How long a machine can go quiet before <code>app:check-offline-devices</code> raises an offline alert" />
 
+                        @module('work-orders')
                         <x-form.input type="number" name="preventive_lead_days" label="Preventive Lead Time (days)" required min="0"
                                       :value="$settings['preventive_lead_days']"
                                       help="How far ahead of a machine's next maintenance date <code>app:generate-preventive-work-orders</code> creates one" />
+                        @else
+                        {{-- SettingController still requires this value, so a lite edition carries it through unchanged rather than hiding a required field. --}}
+                        <input type="hidden" name="preventive_lead_days" value="{{ $settings['preventive_lead_days'] }}" />
+                        @endmodule
 
                         <x-form.toggle name="auto_fault_on_critical" color="error"
                                         label="Auto-Fault on Critical Alert"

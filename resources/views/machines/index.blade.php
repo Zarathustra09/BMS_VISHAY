@@ -97,12 +97,14 @@
                     @endforeach
                 </select>
 
+                @module('buildings')
                 <select id="buildingFilter" class="select w-full lg:w-48">
                     <option value="">All Buildings</option>
                     @foreach($buildings as $building)
                         <option value="{{ $building->id }}">{{ $building->name }}</option>
                     @endforeach
                 </select>
+                @endmodule
             </div>
 
             <div class="overflow-x-auto">
@@ -112,8 +114,10 @@
                             <th>Machine</th>
                             <th>Status</th>
                             <th>Type</th>
+                            @module('buildings')
                             <th>Building</th>
                             <th>Floor</th>
+                            @endmodule
                             <th>Manufacturer</th>
                             <th>Next Maintenance</th>
                             <th></th>
@@ -141,15 +145,19 @@
                 data: function (d) {
                     d.status = $('#statusFilter').val();
                     d.machine_type_id = $('#typeFilter').val();
+                    @module('buildings')
                     d.building_id = $('#buildingFilter').val();
+                    @endmodule
                 }
             },
             columns: [
                 {data: 'machine', name: 'name'},
                 {data: 'status', name: 'status'},
                 {data: 'type', name: 'type', orderable: false, searchable: false},
+                @module('buildings')
                 {data: 'building_name', name: 'building_name', orderable: false, searchable: false},
                 {data: 'floor_name', name: 'floor_name', orderable: false, searchable: false},
+                @endmodule
                 {data: 'manufacturer', name: 'manufacturer'},
                 {data: 'maintenance', name: 'next_maintenance_date', orderable: false, searchable: false},
                 {data: 'action', name: 'action', orderable: false, searchable: false},

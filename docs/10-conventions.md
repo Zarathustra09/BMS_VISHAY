@@ -15,18 +15,20 @@
 ```
 app/
   Console/Commands/     — custom artisan commands (app:process-queue, etc.)
-  Enums/                 — backed enums (MachineStatus, MachineTypeIcon, SpecFieldType)
+  Enums/                 — backed enums (MachineStatus, MachineTypeIcon, SpecFieldType, AppModule)
   Exceptions/            — domain exceptions a service throws and its controller catches (RoleActionException, MachineTypeActionException)
   Http/
     Controllers/         — web controllers
     Controllers/API/     — API-only controllers
-    Middleware/          — custom middleware (AuthenticateDevice)
+    Middleware/          — custom middleware (AuthenticateDevice, EnsureModuleEnabled)
   Interfaces/            — one file per module contract
   Jobs/                  — queued jobs
   Models/                — Eloquent models
   Providers/             — AppServiceProvider (all interface↔service bindings)
   Services/              — one file per module implementation
   Services/Concerns/     — traits shared between services
+config/
+  modules.php            — APP_EDITION / MODULE_* switches for the modules a deployment can turn off (see AppModule)
 database/
   migrations/
   seeders/

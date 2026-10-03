@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\AppModule;
 use App\Interfaces\AIInterface;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\BuildingInterface;
@@ -36,6 +37,8 @@ use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
 use App\Services\WorkOrderService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -68,6 +71,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DashboardInterface::class, DashboardService::class);
         $this->app->bind(ReportInterface::class, ReportService::class);
         $this->app->bind(SettingInterface::class, SettingService::class);
+
+        // Registered here, not in boot(): spatie/laravel-permission adds its own Gate::before
+        // in its provider's boot(), and Gate callbacks run in registration order with the first
+        // non-null result winning — so if this ran in boot() too, an admin (who holds every
+        // permission) would be granted "work-orders.create" by Spatie's callback before this
+        // one ever got to deny it. Every register() runs before any boot(), which is what puts
+        // this first. Returning false (not null) for a disabled module's abilities is what
+        // makes every existing @can/@canany and `permission:` middleware treat that module as
+        // absent, for every role including admin.
+        Gate::before(fn ($user, string $ability) => AppModule::isAbilityDisabled($ability) ? false : null);
     }
 
     /**
@@ -75,6 +88,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // @module('buildings') … @endmodule — for UI that isn't already behind an @can (the
+        // Building/Floor selects on the machine form, the Buildings sidebar link, …). An
+        // unknown module name counts as enabled, so a typo can't silently hide a section.
+        Blade::if('module', fn (string $module) => AppModule::tryFrom($module)?->isEnabled() ?? true);
+
         // Shares the header bell's unread count/list on every authenticated page — a query
         // belongs here, not in a @php block in the layout (see docs/02-architecture.md
         // anti-patterns). Both views are always rendered together (header is @included

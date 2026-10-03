@@ -24,6 +24,8 @@ The system was built for Vishay's manufacturing site. The temperature sensor int
 
 ## Module status
 
+**Editions.** The app ships as one codebase with two intended deployments: the **full** edition (every module below) and a **lite** edition — machines, machine types, alerts, users/roles/permissions and the sensor API only — chosen per deployment with `APP_EDITION` in `.env`. Buildings & Floors, Work Orders, Maintenance and Reports are the switchable modules; everything else is always on. See [09-setup-and-operations.md](09-setup-and-operations.md#editions--module-toggles) and [02-architecture.md](02-architecture.md#editions--module-toggles-two-layer-enforcement).
+
 | Module | Status | Notes |
 |---|---|---|
 | Buildings | ✅ Done | Full CRUD, image upload, cascading delete of floors/machines; list is a server-side DataTable |

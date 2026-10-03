@@ -80,6 +80,7 @@
 
                         <div class="divider text-xs opacity-50 my-2">MANAGEMENT</div>
 
+                        @module('buildings')
                         <li>
                             <a href="{{ route('buildings.index') }}" class="gap-3 {{ request()->is('buildings*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,6 +90,7 @@
                                 <span class="badge badge-primary badge-sm">12</span>
                             </a>
                         </li>
+                        @endmodule
 
                       <li>
                             <a href="{{ route('machines.index') }}" class="gap-3 {{ request()->is('machines*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">

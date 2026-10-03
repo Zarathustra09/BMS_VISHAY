@@ -40,6 +40,7 @@ Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidat
 - `User` uses the `HasRoles` trait ([User.php](../app/Models/User.php)).
 - Middleware aliases `role`, `permission`, `role_or_permission` are registered manually in [bootstrap/app.php](../bootstrap/app.php) — **this is required** on Laravel 11+'s new bootstrap style; Spatie's package does not auto-register them the way it did on older Laravel versions with the `Kernel.php` middleware groups.
 - `@can('permission-name')` works in Blade without any extra setup, because Spatie's `PermissionRegistrar` hooks into Laravel's `Gate::before()`.
+- **A switched-off module's permissions are denied even to admin.** `AppServiceProvider::register()` adds its own `Gate::before` *ahead of* Spatie's that returns `false` for any ability whose prefix belongs to a module disabled by `config/modules.php` (`buildings.*`, `floors.*`, `work-orders.*`, `maintenance.view`, `reports.view` in a lite edition). The permissions still exist in the database and on their roles — this only changes what the Gate answers while the module is off. See [02-architecture.md](02-architecture.md#editions--module-toggles-two-layer-enforcement) for why the registration order matters.
 
 ### Roles (seeded by [RolesAndPermissionsSeeder.php](../database/seeders/RolesAndPermissionsSeeder.php))
 

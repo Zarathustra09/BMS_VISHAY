@@ -64,7 +64,8 @@
             <div class="stat-desc">{{ $summary['machines']['maintenance'] }} under maintenance</div>
         </div>
 
-        <!-- Pending Work Orders -->
+        {{-- Pending Work Orders --}}
+        @module('work-orders')
         <div class="stat bg-base-100 rounded-box shadow-lg border border-base-300/50 hover:shadow-xl transition-all group cursor-pointer">
             <div class="stat-figure text-warning">
                 <div class="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -77,6 +78,7 @@
             <div class="stat-value text-warning">{{ $summary['work_orders']['pending'] }}</div>
             <div class="stat-desc">{{ $summary['work_orders']['urgent'] }} urgent priority</div>
         </div>
+        @endmodule
 
         <!-- Open Alerts -->
         <div class="stat bg-base-100 rounded-box shadow-lg border border-base-300/50 hover:shadow-xl transition-all group cursor-pointer">
@@ -194,9 +196,10 @@
         </div>
     </div>
 
-    <!-- Building Health & Recent Alerts -->
+    {{-- Building Health & Recent Alerts --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Building Health -->
+        {{-- Building Health --}}
+        @module('buildings')
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <h2 class="card-title">Building Health</h2>
@@ -231,9 +234,10 @@
                 </div>
             </div>
         </div>
+        @endmodule
 
-        <!-- Recent Alerts -->
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        {{-- Recent Alerts — takes the whole row when the Building Health card beside it is off --}}
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::Buildings->isEnabled() ? '' : 'lg:col-span-2' }}">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="card-title">Recent Alerts</h2>
@@ -266,9 +270,10 @@
         </div>
     </div>
 
-    <!-- Recent Work Orders & Quick Actions -->
+    {{-- Recent Work Orders & Quick Actions --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Recent Work Orders -->
+        {{-- Recent Work Orders --}}
+        @module('work-orders')
         <div class="lg:col-span-2 card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
@@ -328,9 +333,10 @@
                 </div>
             </div>
         </div>
+        @endmodule
 
-        <!-- Quick Actions -->
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        {{-- Quick Actions — takes the whole row when the Recent Work Orders card beside it is off --}}
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::WorkOrders->isEnabled() ? '' : 'lg:col-span-3' }}">
             <div class="card-body">
                 <h2 class="card-title mb-4">Quick Actions</h2>
 

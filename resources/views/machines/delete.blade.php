@@ -86,6 +86,7 @@
                 </div>
                 @endif
 
+                @module('buildings')
                 @if($machine->building)
                 <div class="flex flex-col gap-0.5">
                     <span class="text-xs font-semibold uppercase tracking-wide opacity-50">Building</span>
@@ -99,6 +100,7 @@
                     <span class="font-medium">{{ $machine->floor->name }}</span>
                 </div>
                 @endif
+                @endmodule
 
                 @if($machine->installation_date)
                 <div class="flex flex-col gap-0.5">

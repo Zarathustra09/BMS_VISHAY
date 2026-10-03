@@ -12,21 +12,26 @@ Auth::routes(['register' => false]);
 Route::middleware('auth')->group(function () {
     Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
-    // Building Routes
-    // /buildings/data must be registered before the resource route below — otherwise
-    // Route::resource's GET /buildings/{building} (show) would swallow "data" as the
-    // {building} parameter, since routes match in registration order.
-    Route::get('/buildings/data', [App\Http\Controllers\BuildingController::class, 'data'])->name('buildings.data');
-    Route::resource('buildings', App\Http\Controllers\BuildingController::class);
-    Route::get('/buildings/{building}/delete', [App\Http\Controllers\BuildingController::class, 'confirmDelete'])->name('buildings.confirm-delete');
+    // Switchable modules (Buildings & Floors, Work Orders, Maintenance, Reports) are wrapped in
+    // `module:{name}` — when a deployment switches one off (config/modules.php) its routes stay
+    // registered, so route() calls in shared views never throw, but answer 404.
+    Route::middleware('module:buildings')->group(function () {
+        // Building Routes
+        // /buildings/data must be registered before the resource route below — otherwise
+        // Route::resource's GET /buildings/{building} (show) would swallow "data" as the
+        // {building} parameter, since routes match in registration order.
+        Route::get('/buildings/data', [App\Http\Controllers\BuildingController::class, 'data'])->name('buildings.data');
+        Route::resource('buildings', App\Http\Controllers\BuildingController::class);
+        Route::get('/buildings/{building}/delete', [App\Http\Controllers\BuildingController::class, 'confirmDelete'])->name('buildings.confirm-delete');
 
-    // Floor Routes
-    Route::prefix('floors')->name('floors.')->group(function () {
-        Route::get('/', [App\Http\Controllers\FloorController::class, 'index'])->name('floors.index');
-        Route::post('/', [App\Http\Controllers\FloorController::class, 'store'])->name('store');
-        Route::get('/{floor}', [App\Http\Controllers\FloorController::class, 'show'])->name('show');
-        Route::put('/{floor}', [App\Http\Controllers\FloorController::class, 'update'])->name('update');
-        Route::delete('/{floor}', [App\Http\Controllers\FloorController::class, 'destroy'])->name('destroy');
+        // Floor Routes
+        Route::prefix('floors')->name('floors.')->group(function () {
+            Route::get('/', [App\Http\Controllers\FloorController::class, 'index'])->name('floors.index');
+            Route::post('/', [App\Http\Controllers\FloorController::class, 'store'])->name('store');
+            Route::get('/{floor}', [App\Http\Controllers\FloorController::class, 'show'])->name('show');
+            Route::put('/{floor}', [App\Http\Controllers\FloorController::class, 'update'])->name('update');
+            Route::delete('/{floor}', [App\Http\Controllers\FloorController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // Machine Routes
@@ -64,16 +69,24 @@ Route::middleware('auth')->group(function () {
 
     // Work Order Routes
     // Same ordering requirement as buildings.data above.
-    Route::get('/work-orders/data', [App\Http\Controllers\WorkOrderController::class, 'data'])->name('work-orders.data');
-    Route::resource('work-orders', App\Http\Controllers\WorkOrderController::class)
-        ->parameters(['work-orders' => 'workOrder']);
-    Route::get('/work-orders/{workOrder}/delete', [App\Http\Controllers\WorkOrderController::class, 'confirmDelete'])->name('work-orders.confirm-delete');
-    Route::patch('/work-orders/{workOrder}/status', [App\Http\Controllers\WorkOrderController::class, 'updateStatus'])->name('work-orders.update-status');
+    Route::middleware('module:work-orders')->group(function () {
+        Route::get('/work-orders/data', [App\Http\Controllers\WorkOrderController::class, 'data'])->name('work-orders.data');
+        Route::resource('work-orders', App\Http\Controllers\WorkOrderController::class)
+            ->parameters(['work-orders' => 'workOrder']);
+        Route::get('/work-orders/{workOrder}/delete', [App\Http\Controllers\WorkOrderController::class, 'confirmDelete'])->name('work-orders.confirm-delete');
+        Route::patch('/work-orders/{workOrder}/status', [App\Http\Controllers\WorkOrderController::class, 'updateStatus'])->name('work-orders.update-status');
+    });
 
-    Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
-    Route::get('/reports/export', [App\Http\Controllers\ReportController::class, 'export'])->name('reports.export');
-    Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
-    Route::get('/maintenance/data', [App\Http\Controllers\MaintenanceController::class, 'data'])->name('maintenance.data');
+    Route::middleware('module:reports')->group(function () {
+        Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [App\Http\Controllers\ReportController::class, 'export'])->name('reports.export');
+    });
+
+    Route::middleware('module:maintenance')->group(function () {
+        Route::get('/maintenance', [App\Http\Controllers\MaintenanceController::class, 'index'])->name('maintenance.index');
+        Route::get('/maintenance/data', [App\Http\Controllers\MaintenanceController::class, 'data'])->name('maintenance.data');
+    });
+
     Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
     Route::put('/settings', [App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
     // Profile Routes

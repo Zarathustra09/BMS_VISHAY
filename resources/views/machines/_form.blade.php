@@ -134,6 +134,7 @@
             </x-form.section>
 
             <x-form.section id="location" title="Location & Power" subtitle="Where the machine sits and its electrical spec">
+                @module('buildings')
                 <x-form.select name="building_id" label="Building" placeholder="— No Building —"
                                 x-model="selectedBuilding" @change="loadFloors()"
                                 :options="$buildings->pluck('name', 'id')->all()" :selected="$buildingValue" />
@@ -147,6 +148,7 @@
                         <option disabled>Loading floors...</option>
                     </template>
                 </x-form.select>
+                @endmodule
 
                 <x-form.input type="date" name="installation_date" label="Installation Date"
                               :value="$machine?->installation_date?->format('Y-m-d') ?? null" />

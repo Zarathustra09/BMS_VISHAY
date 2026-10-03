@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
+use App\Enums\AppModule;
 use App\Enums\MachineStatus;
 use App\Enums\SpecFieldType;
 use App\Interfaces\AlertInterface;
@@ -240,6 +241,13 @@ class MachineController extends Controller
         // Checkboxes submit nothing at all when unchecked, so this normalises them to
         // booleans after validation, matching the app's existing convention for this.
         $validated['is_critical'] = $request->boolean('is_critical');
+
+        // With Buildings switched off (config/modules.php) the form has no Building/Floor
+        // selects, so a posted value can only be hand-crafted — dropping the keys (rather than
+        // nulling them) also leaves a machine's existing location untouched on edit.
+        if (! AppModule::Buildings->isEnabled()) {
+            unset($validated['building_id'], $validated['floor_id']);
+        }
 
         return $validated;
     }

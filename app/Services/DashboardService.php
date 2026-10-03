@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AppModule;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\BuildingInterface;
 use App\Interfaces\DashboardInterface;
@@ -24,15 +25,25 @@ class DashboardService implements DashboardInterface
     {
         $machines = $this->machines->getStats();
 
-        return [
+        $summary = [
             'machines' => $machines,
             'equipment_availability' => $machines['total'] > 0
                 ? round($machines['active'] / $machines['total'] * 100, 1)
                 : 0.0,
-            'work_orders' => $this->workOrders->getStats(),
             'alerts' => $this->alerts->getStats(),
-            'buildings' => $this->buildings->getStats(),
         ];
+
+        // A switched-off module's stats are left out entirely rather than computed and hidden —
+        // home.blade.php wraps every use of these two keys in the matching @module block.
+        if (AppModule::WorkOrders->isEnabled()) {
+            $summary['work_orders'] = $this->workOrders->getStats();
+        }
+
+        if (AppModule::Buildings->isEnabled()) {
+            $summary['buildings'] = $this->buildings->getStats();
+        }
+
+        return $summary;
     }
 
     public function getAlertsTrend(int $days = 7): array
@@ -53,6 +64,10 @@ class DashboardService implements DashboardInterface
 
     public function getBuildingHealth(): Collection
     {
+        if (! AppModule::Buildings->isEnabled()) {
+            return collect();
+        }
+
         return Building::query()
             ->withCount([
                 'machines as machines_count',
@@ -69,6 +84,10 @@ class DashboardService implements DashboardInterface
 
     public function getRecentWorkOrders(int $limit = 5): Collection
     {
+        if (! AppModule::WorkOrders->isEnabled()) {
+            return collect();
+        }
+
         return $this->workOrders->getQueryForDataTable([])->limit($limit)->get();
     }
 }

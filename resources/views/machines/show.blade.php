@@ -130,6 +130,7 @@
                         <span class="font-medium">{{ $machine->serial_number ?? 'N/A' }}</span>
                     </div>
                     <div class="divider my-2"></div>
+                    @module('buildings')
                     <div class="flex justify-between">
                         <span class="opacity-70">Building:</span>
                         <span class="font-medium">{{ $machine->building?->name ?? 'N/A' }}</span>
@@ -138,6 +139,7 @@
                         <span class="opacity-70">Floor:</span>
                         <span class="font-medium">{{ $machine->floor?->name ?? 'N/A' }}</span>
                     </div>
+                    @endmodule
                     @if($machine->ip_address)
                         <div class="flex justify-between">
                             <span class="opacity-70">IP Address:</span>

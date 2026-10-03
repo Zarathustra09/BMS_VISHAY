@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AppModule;
 use App\Models\MachineLog;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -20,7 +21,12 @@ Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 // Preventive work orders only need to be (re)checked once a day — a machine's
 // next_maintenance_date doesn't move minute to minute, and the generator's own dedupe
 // (an existing open preventive work order blocks a new one) makes a missed day harmless.
-Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
+// Skipped entirely when Work Orders is switched off (config/modules.php) — otherwise a lite
+// edition would quietly keep creating work orders nobody can see.
+Schedule::command('app:generate-preventive-work-orders')
+    ->dailyAt('01:00')
+    ->withoutOverlapping()
+    ->when(fn () => AppModule::WorkOrders->isEnabled());
 
 // Deletes machine_logs older than Settings' log_retention_days (MachineLog::prunable()).
 // --model is explicit rather than letting model:prune auto-discover every Prunable model in

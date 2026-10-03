@@ -466,6 +466,22 @@ View::composer('layouts.app', function ($view) {
 });
 ```
 
+## Editions & module toggles: two-layer enforcement
+
+A deployment can switch whole modules off (`APP_EDITION=lite`, or `MODULE_<NAME>=false` — operational detail in [09-setup-and-operations.md](09-setup-and-operations.md#editions--module-toggles)). The switchable modules are the cases of [AppModule](../app/Enums/AppModule.php) (`buildings`, `work-orders`, `maintenance`, `reports`), each owning the permission prefixes it seeds (`buildings` owns `buildings.*` *and* `floors.*`); the values come from [config/modules.php](../config/modules.php). Enforcement has two layers, deliberately, because a module's UI and its endpoints are guarded differently in this app:
+
+1. **A `Gate::before` in `AppServiceProvider::register()`** returns `false` for any ability whose prefix belongs to a disabled module (`AppModule::isAbilityDisabled()`), and `null` otherwise. Because this app already gates everything through `@can`/`@canany` and `permission:` controller middleware, that one hook automatically hides every gated sidebar item, dashboard button and "Create Work Order" link, and turns every `permission:work-orders.*` check into a 403 — for admin too.
+
+   > **It must be registered in `register()`, not `boot()`.** `spatie/laravel-permission` adds its own `Gate::before` in its provider's `boot()`, and Gate callbacks run in registration order with the first non-null result winning. Admin holds every permission, so Spatie's callback would grant `work-orders.create` before ours could deny it. Every `register()` runs before any `boot()`, which is what puts ours first. `EditionModulesTest::test_admin_is_denied_a_switched_off_modules_abilities…` guards this ordering.
+
+2. **`module:{name}` route middleware** ([EnsureModuleEnabled](../app/Http/Middleware/EnsureModuleEnabled.php), aliased in `bootstrap/app.php`) wraps each switchable module's route group in `routes/web.php` and answers **404**. The routes stay *registered* so a `route('buildings.show', …)` call in a shared view never throws `RouteNotFoundException` — the page simply doesn't exist in that edition. A 404 (not 403) is intentional: the feature isn't forbidden, it isn't there.
+
+**For UI that isn't already behind an `@can`** (the Building/Floor selects on the machine form, the Buildings sidebar link, a Building column in a DataTable), use the `@module('buildings') … @endmodule` Blade directive (registered with `Blade::if` in `AppServiceProvider::boot()`; `@else` works too). An unknown module name counts as enabled, so a typo can't silently hide a section. When a *required* form field would be hidden this way (Settings' `preventive_lead_days`), carry its value through as a hidden input rather than weakening the controller's validation.
+
+**Services and controllers stay module-aware only where data is computed for a hidden feature:** `DashboardService` skips the work-order/building stats and returns empty collections for a disabled module rather than querying and hiding; `MachineController::validateMachine()` drops `building_id`/`floor_id` when Buildings is off (so a hand-crafted POST can't set them and an edit leaves the existing location alone); `PermissionService` hides a disabled module's permissions from the matrix and `RoleService::update()` carries over whatever a role already holds for them.
+
+**HTML comments name modules too.** A `<!-- Building Health -->` comment outside an `@module` block is still emitted into the page of an edition that has no Building Health — harmless to users, but it makes "the page doesn't mention X" assertions lie. Use `{{-- … --}}` for section labels around switchable UI.
+
 ## Adding a new module
 
 Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a hypothetical `Widget` module as the example:
@@ -503,7 +519,8 @@ Follow this checklist for any new feature (e.g. Work Orders in Phase 7). Using a
 8. **Routes** — add to `routes/web.php` inside the `auth` group (and a `permission:` middleware if the action should be restricted — see [06-security.md](06-security.md)). If there's a `WidgetController@data` route and also a `Route::resource('widgets', ...)`, register `/widgets/data` **before** the resource call — see the ordering comment in `routes/web.php`.
 9. **Views** — extend `layouts.app`, follow [08-frontend.md](08-frontend.md) conventions. List pages include `partials._datatables-assets` and render a bare `<table>` with no `<tbody>` rows.
 10. **Permission** (if needed) — add to `RolesAndPermissionsSeeder` and assign to the appropriate roles.
-11. **Docs** — update `03-data-model.md` (new table), `04-routes.md` (new routes), `02-architecture.md` registry table (new interface row), `01-overview.md` module status, and add a `CHANGELOG.md` entry.
+11. **Switchable?** — if a deployment could reasonably want this module off (anything beyond the machines/users/alerts/sensor-API core), add a case to `App\Enums\AppModule` (with its permission prefixes) and a `config/modules.php` entry, wrap its routes in `Route::middleware('module:…')`, and wrap any UI that isn't already behind an `@can` in `@module('…')`. See [Editions & module toggles](#editions--module-toggles-two-layer-enforcement).
+12. **Docs** — update `03-data-model.md` (new table), `04-routes.md` (new routes), `02-architecture.md` registry table (new interface row), `01-overview.md` module status, and add a `CHANGELOG.md` entry.
 
 ## Anti-patterns (don't do this)
 

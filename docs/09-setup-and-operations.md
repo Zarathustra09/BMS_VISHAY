@@ -42,8 +42,36 @@ See `.env.example` for the full list. Application-specific ones worth knowing:
 |---|---|---|
 | `AI_PROVIDER` | `openai` or `gemini` | `openai` |
 | `OPENAI_API_KEY` / `GEMINI_API_KEY` | AI provider credentials | placeholder — must be set for AI chat to work |
+| `APP_EDITION` | `full` or `lite` — see [Editions & module toggles](#editions--module-toggles) below | `full` |
+| `MODULE_BUILDINGS` / `MODULE_WORK_ORDERS` / `MODULE_MAINTENANCE` / `MODULE_REPORTS` | Force one module on or off regardless of edition | follows `APP_EDITION` |
 | `QUEUE_CONNECTION` | Queue driver | `database` |
 | `MAIL_MAILER` | Mail driver | `log` (emails write to `storage/logs/laravel.log` instead of sending — fine for local dev, must be changed before Phase 5's email alerts are useful in production) |
+
+## Editions & module toggles
+
+One codebase, two (or more) deployments. Rather than keeping a "lite" copy of the app in a separate repo or a long-lived branch — both of which drift from `master` the moment a machine, user or API fix lands in only one of them — a deployment chooses which modules it exposes through its own `.env`:
+
+```
+APP_EDITION=lite
+```
+
+| Edition | What's on |
+|---|---|
+| `full` (default) | Everything. Behaves exactly as the app did before editions existed — no `.env` change needed. |
+| `lite` | The always-on core: **Machines, Machine Types, Alerts, Users/Roles/Permissions, Settings, Profile, AI chat, and the sensor API** (`POST /api/machine-logs`). **Buildings & Floors, Work Orders, Maintenance and Reports are switched off.** |
+
+Any single module can still be forced independently of the edition — e.g. a lite install that also wants Buildings is `APP_EDITION=lite` plus `MODULE_BUILDINGS=true`. The switchable modules are the cases of `App\Enums\AppModule` (`buildings`, `work-orders`, `maintenance`, `reports`); the core isn't listed there because it can't be switched off. `config/modules.php` is where the env values are read; run `php artisan config:clear` after changing them if config is cached.
+
+**Nothing is deleted.** Every migration still runs and every table still exists in a lite database — `machines.building_id`/`floor_id` are simply left null, and switching a module back on later restores it with its data intact. Disabling a module changes what the app *shows and accepts*, not what it stores.
+
+**What "off" means for a module** (see [02-architecture.md](02-architecture.md#editions--module-toggles-two-layer-enforcement) for how it's enforced):
+- Its pages and endpoints answer **404**, for every role including admin.
+- Its sidebar entries, dashboard cards, quick actions and "Create Work Order" buttons disappear.
+- The machine form drops its Building/Floor selects, and the machines list its Building filter/columns; a Building/Floor value posted anyway is ignored, and a machine's existing location is left untouched on edit.
+- Its permissions (`buildings.*`, `floors.*`, `work-orders.*`, `maintenance.view`, `reports.view`) are denied at the Gate and hidden from the role matrix and Permissions page — but kept in the database, and kept on any role that holds them when that role is saved from the (now shorter) matrix.
+- `app:generate-preventive-work-orders` is skipped by the scheduler when Work Orders is off. Settings → Preventive Lead Time is hidden (its value is still carried through unchanged, since the Settings form requires it).
+
+**Deploying two editions** is the same `master` checked out twice (or built into two images) with a different `.env` each — typically a separate database per deployment too, since the two have different users and data. Fixes to machines, users or the API land in both on the next deploy of each.
 
 ## Queue worker
 
@@ -68,9 +96,12 @@ AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the 
 ```php
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
-Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping();
+Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping()
+    ->when(fn () => AppModule::WorkOrders->isEnabled());
 Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
 ```
+
+(The `->when(...)` on the preventive-work-order entry is what skips it in a deployment with Work Orders switched off — see [Editions & module toggles](#editions--module-toggles). The entry still shows up in `schedule:list` either way.)
 
 The offline check is listed **first** among the per-minute entries deliberately — `schedule:run` runs due commands in registration order, and `app:process-queue` can hold the process for up to ~50s, which would otherwise delay the offline check by that long on every run. The preventive-work-order generator only needs to run once a day since `next_maintenance_date` doesn't move minute to minute, and its own dedupe (an existing open preventive work order blocks a new one) makes a missed day harmless — it just catches up the next run. `model:prune` is passed `--model` explicitly (rather than relying on auto-discovery of every `Prunable` model) so it only ever touches `MachineLog`. `withoutOverlapping()` uses a cache-backed lock, which works out of the box here since `CACHE_STORE=database` and the cache table is already migrated. None of the four entries use `runInBackground()` — it shells out with POSIX-style command construction that doesn't work correctly under Windows Task Scheduler, a supported production target for this app.
 
