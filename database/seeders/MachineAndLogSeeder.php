@@ -595,8 +595,11 @@ class MachineAndLogSeeder extends Seeder
                 continue;
             }
 
+            // autostart/makeup_valve are Boolean fields (see
+            // convert_yes_no_spec_fields_to_boolean.php) — stored as a real boolean, not the
+            // "Yes"/"No" string those fields used to hold back when only Text/Number existed.
             $specifications[$key] = in_array($key, ['autostart', 'makeup_valve'], true)
-                ? ($value ? 'Yes' : 'No')
+                ? (bool) $value
                 : $value;
         }
 

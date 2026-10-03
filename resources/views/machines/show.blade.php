@@ -180,9 +180,13 @@
                         <div class="divider my-2"></div>
                     @endif
                     @foreach($specRows as $row)
-                        <div class="flex justify-between">
+                        <div class="flex justify-between gap-3">
                             <span class="opacity-70">{{ $row['label'] }}:</span>
-                            <span class="font-medium">{{ $row['value'] }}@if($row['unit']) {{ $row['unit'] }}@endif</span>
+                            @if($row['type'] === 'url')
+                                <a href="{{ $row['value'] }}" target="_blank" rel="noopener" class="font-medium link link-primary truncate">{{ $row['value'] }}</a>
+                            @else
+                                <span class="font-medium">{{ $row['value'] }}@if($row['unit']) {{ $row['unit'] }}@endif</span>
+                            @endif
                         </div>
                     @endforeach
                     @if(! $machine->power_rating && ! $machine->spec_voltage && count($specRows) === 0)

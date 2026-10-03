@@ -96,12 +96,13 @@ class MachineTypeCrudTest extends TestCase
     }
 
     #[DataProvider('invalidFieldKinds')]
-    public function test_a_spec_field_kind_outside_text_or_number_is_rejected(string $kind): void
+    public function test_a_spec_field_kind_outside_the_supported_set_is_rejected(string $kind): void
     {
         $this->actingAsManager();
 
         $response = $this->post(route('machine-types.store'), [
             'name' => 'Test Type',
+            'icon' => 'cog',
             'spec_fields' => [
                 ['label' => 'Something', 'type' => $kind],
             ],
@@ -116,10 +117,103 @@ class MachineTypeCrudTest extends TestCase
     public static function invalidFieldKinds(): array
     {
         return [
-            'boolean kind' => ['boolean'],
-            'select kind' => ['select'],
+            'checkbox kind' => ['checkbox'],
+            'file kind' => ['file'],
             'empty kind' => [''],
         ];
+    }
+
+    #[DataProvider('choiceFieldKinds')]
+    public function test_a_choice_field_with_no_options_is_rejected(string $kind): void
+    {
+        $this->actingAsManager();
+
+        $response = $this->post(route('machine-types.store'), [
+            'name' => 'Test Type',
+            'icon' => 'cog',
+            'spec_fields' => [
+                ['label' => 'Fuel', 'type' => $kind],
+            ],
+        ]);
+
+        $response->assertInvalid(['spec_fields.0.options']);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function choiceFieldKinds(): array
+    {
+        return [
+            'select' => ['select'],
+            'multiselect' => ['multiselect'],
+        ];
+    }
+
+    /**
+     * Posted through the HTTP route, an exact duplicate option is already rejected by the
+     * `distinct` validation rule (after the TrimStrings middleware trims it) before it ever
+     * reaches the service — so this exercises MachineTypeService::normalizeFields() directly,
+     * the way it's the actual enforcement for any caller that isn't the HTTP form (a future
+     * API, a console command, etc.), per the same "service is the real enforcement" principle
+     * documented for Machine's specifications.
+     */
+    public function test_options_are_trimmed_deduplicated_and_stripped_from_non_choice_kinds(): void
+    {
+        $machineType = app(MachineTypeInterface::class)->create([
+            'name' => 'Dropdown Type',
+            'spec_fields' => [
+                ['label' => 'Fuel', 'type' => 'select', 'options' => [' Diesel ', 'Diesel', 'Natural Gas']],
+                ['label' => 'Notes', 'type' => 'text', 'options' => ['should', 'be', 'stripped']],
+            ],
+        ]);
+
+        $fields = $machineType->specFields();
+
+        $this->assertSame(['Diesel', 'Natural Gas'], $fields[0]['options']);
+        $this->assertArrayNotHasKey('options', $fields[1]);
+    }
+
+    public function test_number_max_below_min_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $response = $this->post(route('machine-types.store'), [
+            'name' => 'Bad Range Type',
+            'icon' => 'cog',
+            'spec_fields' => [
+                ['label' => 'Capacity', 'type' => 'number', 'min' => '100', 'max' => '10'],
+            ],
+        ]);
+
+        $response->assertInvalid(['spec_fields.0.max']);
+    }
+
+    public function test_a_boolean_fields_required_setting_is_always_stored_as_false(): void
+    {
+        $this->actingAsManager();
+
+        $response = $this->post(route('machine-types.store'), [
+            'name' => 'Boolean Type',
+            'icon' => 'cog',
+            'spec_fields' => [
+                ['label' => 'Autostart', 'type' => 'boolean', 'required' => '1'],
+            ],
+        ]);
+
+        $response->assertRedirect(route('machine-types.index'));
+
+        $machineType = MachineType::where('name', 'Boolean Type')->firstOrFail();
+        $this->assertFalse($machineType->specFields()[0]['required']);
+    }
+
+    public function test_seeded_generators_autostart_field_is_boolean_after_the_conversion_migration(): void
+    {
+        $generator = MachineType::where('name', 'Generator')->firstOrFail();
+        $autostart = collect($generator->specFields())->firstWhere('key', 'autostart');
+
+        $this->assertNotNull($autostart);
+        $this->assertSame('boolean', $autostart['type']);
     }
 
     public function test_two_fields_generating_the_same_key_are_rejected(): void

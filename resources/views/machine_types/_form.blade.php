@@ -11,15 +11,27 @@
 
     $seedFields = old('spec_fields', $machineType?->specFields() ?? []);
 
-    // Per-row validation errors ("spec_fields.2.label" => message) collapsed into a flat
-    // "index.attribute" => message map the Alpine repeater can look up by array index —
-    // purely a presentation reshape of the framework's own $errors bag, not a business rule.
+    // Per-row validation errors ("spec_fields.2.label" => message, or "spec_fields.0.options.1"
+    // for one bad option) collapsed into a flat "index.attribute[.n]" => message map the Alpine
+    // repeater can look up — purely a presentation reshape of the framework's own $errors bag,
+    // not a business rule.
     $fieldErrors = [];
     foreach ($errors->keys() as $errorKey) {
-        if (preg_match('/^spec_fields\.(\d+)\.(\w+)$/', $errorKey, $m)) {
+        if (preg_match('/^spec_fields\.(\d+)\.(.+)$/', $errorKey, $m)) {
             $fieldErrors["{$m[1]}.{$m[2]}"] = $errors->first($errorKey);
         }
     }
+
+    // Which of the builder's kind-specific settings apply to each kind, and whether
+    // "Required" is meaningful for it — drives the repeater's x-if blocks below, and doubles
+    // as the source list for the Kind <select>'s options.
+    $kindSettings = collect(\App\Enums\SpecFieldType::cases())->mapWithKeys(fn ($kind) => [
+        $kind->value => [
+            'label' => $kind->label(),
+            'settings' => $kind->settings(),
+            'supportsRequired' => $kind->supportsRequired(),
+        ],
+    ]);
 @endphp
 
 <div class="space-y-6 max-w-4xl mx-auto">
@@ -75,7 +87,7 @@
             </div>
         </x-form.section>
 
-        <div class="card bg-base-100 shadow-lg border border-base-300/50" x-data="specFieldBuilder(@js($seedFields), @js($fieldErrors))">
+        <div class="card bg-base-100 shadow-lg border border-base-300/50" x-data="specFieldBuilder(@js($seedFields), @js($fieldErrors), @js($kindSettings), @js($inUse ?? false))">
             <div class="card-body">
                 <div class="flex items-start gap-3">
                     <div class="flex-1 min-w-0">
@@ -115,12 +127,21 @@
                                     <div class="flex flex-col gap-1.5">
                                         <label class="label py-0"><span class="text-sm font-medium">Kind <span class="text-error">*</span></span></label>
                                         <select x-bind:name="`spec_fields[${i}][type]`" x-model="field.type" class="select w-full">
-                                            <option value="text">Text</option>
-                                            <option value="number">Number</option>
+                                            <template x-for="kind in kindOptions" :key="kind.value">
+                                                <option :value="kind.value" x-text="kind.label"></option>
+                                            </template>
                                         </select>
                                     </div>
 
-                                    <template x-if="field.type === 'number'">
+                                    <template x-if="supports(field, 'placeholder')">
+                                        <div class="flex flex-col gap-1.5">
+                                            <label class="label py-0"><span class="text-sm font-medium">Placeholder</span></label>
+                                            <input type="text" x-bind:name="`spec_fields[${i}][placeholder]`" x-model="field.placeholder"
+                                                   class="input w-full" placeholder="e.g., Enter a value" maxlength="100" />
+                                        </div>
+                                    </template>
+
+                                    <template x-if="supports(field, 'unit')">
                                         <div class="flex flex-col gap-1.5">
                                             <label class="label py-0"><span class="text-sm font-medium">Unit</span></label>
                                             <input type="text" x-bind:name="`spec_fields[${i}][unit]`" x-model="field.unit"
@@ -128,8 +149,8 @@
                                         </div>
                                     </template>
 
-                                    <template x-if="field.type === 'number'">
-                                        <div class="grid grid-cols-2 gap-3">
+                                    <template x-if="supports(field, 'step') || supports(field, 'min') || supports(field, 'max')">
+                                        <div class="grid grid-cols-3 gap-3">
                                             <div class="flex flex-col gap-1.5">
                                                 <label class="label py-0"><span class="text-sm font-medium">Step</span></label>
                                                 <input type="text" x-bind:name="`spec_fields[${i}][step]`" x-model="field.step"
@@ -140,21 +161,66 @@
                                                 <input type="text" x-bind:name="`spec_fields[${i}][min]`" x-model="field.min"
                                                        class="input w-full" placeholder="e.g., 0" />
                                             </div>
+                                            <div class="flex flex-col gap-1.5">
+                                                <label class="label py-0"><span class="text-sm font-medium">Max</span></label>
+                                                <input type="text" x-bind:name="`spec_fields[${i}][max]`" x-model="field.max"
+                                                       class="input w-full" x-bind:class="fieldError(i, 'max') ? 'input-error' : ''"
+                                                       placeholder="e.g., 100" />
+                                                <p class="text-error text-xs mt-0.5" x-show="fieldError(i, 'max')" x-text="fieldError(i, 'max')"></p>
+                                            </div>
                                         </div>
                                     </template>
 
-                                    <div class="flex items-center gap-2">
-                                        <input type="hidden" x-bind:name="`spec_fields[${i}][required]`" value="0" />
-                                        <input type="checkbox" x-bind:name="`spec_fields[${i}][required]`" value="1"
-                                               x-model="field.required" class="checkbox checkbox-sm" />
-                                        <span class="text-sm">Required on the machine form</span>
+                                    <template x-if="supports(field, 'options')">
+                                        <div class="flex flex-col gap-1.5 md:col-span-2">
+                                            <label class="label py-0"><span class="text-sm font-medium">Options <span class="text-error">*</span></span></label>
+                                            <div class="flex flex-wrap gap-2" x-show="field.options.length">
+                                                <template x-for="(option, j) in field.options" :key="j">
+                                                    <span class="badge badge-lg gap-1.5">
+                                                        <input type="hidden" x-bind:name="`spec_fields[${i}][options][${j}]`" :value="option" />
+                                                        <span x-text="option"></span>
+                                                        <button type="button" class="opacity-60 hover:opacity-100" @click="removeOption(field, j)" title="Remove option">✕</button>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                            <div class="join">
+                                                <input type="text" class="input input-sm join-item w-full" placeholder="Add an option and press Enter"
+                                                       x-model="field.optionDraft" @keydown.enter.prevent="addOption(field)" />
+                                                <button type="button" class="btn btn-sm join-item" @click="addOption(field)">Add</button>
+                                            </div>
+                                            <p class="text-error text-xs mt-0.5" x-show="fieldError(i, 'options')" x-text="fieldError(i, 'options')"></p>
+                                        </div>
+                                    </template>
+
+                                    <div class="flex flex-col gap-1.5 md:col-span-2">
+                                        <label class="label py-0"><span class="text-sm font-medium">Help text</span></label>
+                                        <input type="text" x-bind:name="`spec_fields[${i}][help]`" x-model="field.help"
+                                               class="input w-full" placeholder="Shown under the field on the machine form" maxlength="200" />
                                     </div>
+
+                                    <template x-if="supportsRequired(field)">
+                                        <div class="flex items-center gap-2">
+                                            <input type="hidden" x-bind:name="`spec_fields[${i}][required]`" value="0" />
+                                            <input type="checkbox" x-bind:name="`spec_fields[${i}][required]`" value="1"
+                                                   x-model="field.required" class="checkbox checkbox-sm" />
+                                            <span class="text-sm">Required on the machine form</span>
+                                        </div>
+                                    </template>
 
                                     <template x-if="field.key">
                                         <div class="flex items-center gap-2">
                                             <span class="text-xs opacity-50">Key</span>
                                             <span class="badge badge-ghost font-mono" x-text="field.key"></span>
                                             <input type="hidden" x-bind:name="`spec_fields[${i}][key]`" x-bind:value="field.key" />
+                                        </div>
+                                    </template>
+
+                                    <template x-if="kindChanged(field)">
+                                        <div class="md:col-span-2 alert alert-warning alert-soft py-2">
+                                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                            </svg>
+                                            <span class="text-sm">Changing an existing field's kind doesn't delete values already stored under it — a machine with a value that no longer fits will be asked for a new one next time it's edited.</span>
                                         </div>
                                     </template>
                                 </div>
@@ -190,25 +256,35 @@
 
 @push('scripts')
 <script>
-function specFieldBuilder(seedFields, seedErrors) {
+function specFieldBuilder(seedFields, seedErrors, kindSettings, inUse) {
     return {
         fields: (seedFields || []).map((f, i) => ({
             uid: i + 1,
             key: f.key || null,
             label: f.label || '',
-            type: f.type === 'number' ? 'number' : 'text',
+            type: kindSettings[f.type] ? f.type : 'text',
+            originalType: kindSettings[f.type] ? f.type : 'text',
             unit: f.unit || '',
             step: f.step || '',
             min: f.min ?? '',
+            max: f.max ?? '',
+            placeholder: f.placeholder || '',
+            help: f.help || '',
+            options: Array.isArray(f.options) ? [...f.options] : [],
+            optionDraft: '',
             required: !!f.required,
         })),
         nextUid: (seedFields || []).length + 1,
         errors: seedErrors || {},
+        kindSettings: kindSettings || {},
+        kindOptions: Object.keys(kindSettings || {}).map(value => ({ value, label: kindSettings[value].label })),
+        inUse: !!inUse,
 
         addField() {
             this.fields.push({
-                uid: this.nextUid++, key: null, label: '', type: 'text',
-                unit: '', step: '', min: '', required: false,
+                uid: this.nextUid++, key: null, label: '', type: 'text', originalType: 'text',
+                unit: '', step: '', min: '', max: '', placeholder: '', help: '',
+                options: [], optionDraft: '', required: false,
             });
         },
 
@@ -230,6 +306,29 @@ function specFieldBuilder(seedFields, seedErrors) {
 
         fieldError(index, attribute) {
             return this.errors[index + '.' + attribute] || null;
+        },
+
+        supports(field, setting) {
+            return (this.kindSettings[field.type]?.settings || []).includes(setting);
+        },
+
+        supportsRequired(field) {
+            return this.kindSettings[field.type]?.supportsRequired ?? true;
+        },
+
+        kindChanged(field) {
+            return this.inUse && !!field.key && field.type !== field.originalType;
+        },
+
+        addOption(field) {
+            const value = (field.optionDraft || '').trim();
+            if (!value || field.options.includes(value)) { field.optionDraft = ''; return; }
+            field.options.push(value);
+            field.optionDraft = '';
+        },
+
+        removeOption(field, index) {
+            field.options.splice(index, 1);
         },
     };
 }

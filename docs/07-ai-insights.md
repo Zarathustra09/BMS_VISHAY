@@ -42,7 +42,7 @@ Both providers share identical context-building logic via the `App\Services\Conc
 
 `buildMachineContext(Machine $machine): string` assembles a plain-text context block containing:
 
-- Machine info: name, code, type (`machineType->name`), status, location (`building->name` / `floor->name`), manufacturer, model, criticality, power rating, installation age, maintenance dates/status, and each of the machine's stored `specifications` values, labelled from its type's `spec_fields` (e.g. "Capacity: 200 tons").
+- Machine info: name, code, type (`machineType->name`), status, location (`building->name` / `floor->name`), manufacturer, model, criticality, power rating, installation age, maintenance dates/status, and each of the machine's stored `specifications` values, labelled from its type's `spec_fields` and formatted per field kind via `App\Enums\SpecFieldType::display()` (e.g. "Capacity: 200 tons", "Autostart: Yes", "Certifications: ISO 9001, OSHA" — see [03-data-model.md](03-data-model.md)).
 - Log statistics: total/today/this-week counts, critical/error/warning counts.
 - Sensor averages over the last 50 logs (temperature, power, vibration, pressure, humidity, voltage).
 - The last 10 error/critical alerts.

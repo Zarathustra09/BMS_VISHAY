@@ -194,16 +194,33 @@ Replaces the hard-coded `App\Enums\MachineType` (now removed) with a database-ba
 | spec_fields | json | ✓ | An ordered list of field definitions — see below. Nullable because MySQL can't default a JSON column; application code always writes an array and reads it back with `?? []` (`MachineType::specFields()`). |
 | timestamps | | | |
 
-**`spec_fields` shape** — a JSON array of objects:
+**`spec_fields` shape** — a JSON array of objects, one per field, each with a `key`, `label`, `type`, `required`, and whichever kind-specific settings apply to that `type`:
 
 ```json
 [
   { "key": "capacity_tons", "label": "Capacity", "type": "number", "unit": "tons", "step": "0.01", "min": 0, "required": false },
-  { "key": "fuel", "label": "Fuel", "type": "text", "required": false }
+  { "key": "fuel", "label": "Fuel", "type": "select", "options": ["Diesel", "Natural Gas"], "required": false },
+  { "key": "autostart", "label": "Autostart", "type": "boolean", "required": false }
 ]
 ```
 
-`type` is `text` or `number` only; `unit`/`step`/`min` only apply to (and are only stored for) a `number` field. **`key` is generated once, from the label, when a field is first created, and never changes again** — it is what a machine's `specifications` JSON (see `machines` below) is indexed by, so renaming a field's label later can't orphan data already stored under its key. `MachineTypeService` enforces this: a submitted `spec_fields.*.key` must already belong to the type being updated, or it's rejected.
+`type` is one of `App\Enums\SpecFieldType`'s cases — the single source of truth for which kinds exist and which settings each one takes:
+
+| `type` | Kind-specific settings | `specifications` value |
+|---|---|---|
+| `text` | `placeholder` | string |
+| `textarea` | `placeholder` | string |
+| `number` | `unit`, `step`, `min`, `max` | float |
+| `select` | `options` (required, ≥1) | string, one of `options` |
+| `multiselect` | `options` (required, ≥1) | array of strings, each one of `options` |
+| `boolean` | — | bool (always present once a machine of this type is saved — unlike every other kind, `false` is a real answer, not an absent one) |
+| `date` | — | `Y-m-d` string |
+| `url` | `placeholder` | string (`http`/`https` only) |
+| `email` | `placeholder` | string |
+
+Every kind also takes an optional `help` string, shown under the control on the machine form. `required` is meaningless for `boolean` (`SpecFieldType::supportsRequired()` is `false` for it) — the builder hides that checkbox for it, and `MachineTypeService` forces it to `false` regardless of what's posted. **`key` is generated once, from the label, when a field is first created, and never changes again** — it is what a machine's `specifications` JSON (see `machines` above) is indexed by, so renaming a field's label later can't orphan data already stored under its key, and *changing a field's `type` later* doesn't delete a machine's already-stored value either (it just won't display or validate correctly against the new kind until that machine is saved again). `MachineTypeService` enforces the key rule: a submitted `spec_fields.*.key` must already belong to the type being updated, or it's rejected.
+
+A data migration, `convert_yes_no_spec_fields_to_boolean`, converted the seeded Generator's `autostart` and Cooling Tower's `makeup_valve` — both originally Text fields holding the string `"Yes"`/`"No"`, from before `boolean` existed as a kind — to real Boolean fields, and every machine of those types' stored value to a real `bool`.
 
 **Relationships** ([MachineType.php](../app/Models/MachineType.php)): `hasMany(Machine)` (as `machines()`).
 

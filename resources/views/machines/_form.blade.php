@@ -31,6 +31,23 @@
         ->filter(fn ($key) => str_starts_with($key, 'specifications.'))
         ->mapWithKeys(fn ($key) => [substr($key, strlen('specifications.')) => $errors->first($key)]);
 
+    // old('specifications') reflects the raw POST — a boolean field's checkbox posts the
+    // string "1"/"0", not a real boolean — so a validation-failure redisplay is coerced back
+    // through the field's own kind before being handed to Alpine. Without this, Alpine's
+    // checkbox binding treats a truthy non-empty string like "0" as checked (JS's `!!"0"` is
+    // true). Only the currently-selected type's fields matter here, since that's the only
+    // type whose controls are actually rendered from this seed.
+    $specValues = old('specifications', $machine?->specifications ?? []);
+    foreach ($specFieldsByTypeId->get((string) $machineTypeIdValue, []) as $field) {
+        $fieldKind = \App\Enums\SpecFieldType::tryFrom($field['type'] ?? '') ?? \App\Enums\SpecFieldType::Text;
+
+        if ($fieldKind === \App\Enums\SpecFieldType::Boolean && array_key_exists($field['key'], $specValues)) {
+            $specValues[$field['key']] = $fieldKind->cast($specValues[$field['key']]);
+        } elseif ($fieldKind === \App\Enums\SpecFieldType::Multiselect) {
+            $specValues[$field['key']] = $fieldKind->cast($specValues[$field['key']] ?? []);
+        }
+    }
+
     $seed = [
         'machineTypeId' => (string) $machineTypeIdValue,
         'selectedBuilding' => (string) $buildingValue,
@@ -42,7 +59,7 @@
         'maintenanceInterval' => $maintenanceIntervalValue,
         'nextMaintenance' => $nextMaintenanceValue,
         'specFieldsByTypeId' => $specFieldsByTypeId,
-        'specValues' => old('specifications', $machine?->specifications ?? []),
+        'specValues' => $specValues,
         'specErrors' => $specErrors,
     ];
 @endphp
@@ -105,7 +122,7 @@
                               placeholder="e.g., MCH-001" :value="$machine?->machine_code ?? null" />
 
                 <x-form.select name="machine_type_id" label="Type" required placeholder="Select a type"
-                                x-model="machineTypeId"
+                                x-model="machineTypeId" @change="ensureDefaults()"
                                 :options="$machineTypes->pluck('name', 'id')->all()" :selected="$machineTypeIdValue" />
 
                 <x-form.select name="status" label="Status" required
@@ -160,7 +177,7 @@
                 </div>
 
                 <template x-for="field in currentFields()" :key="field.key">
-                    <div class="flex flex-col gap-1.5">
+                    <div class="flex flex-col gap-1.5" x-bind:class="field.type === 'multiselect' || field.type === 'textarea' ? 'md:col-span-2' : ''">
                         <label class="label py-0" x-bind:for="'spec_' + field.key">
                             <span class="text-sm font-medium">
                                 <span x-text="field.label"></span>
@@ -168,17 +185,81 @@
                                 <template x-if="field.required"><span class="text-error">*</span></template>
                             </span>
                         </label>
-                        <input
-                            x-bind:type="field.type === 'number' ? 'number' : 'text'"
-                            x-bind:id="'spec_' + field.key"
-                            x-bind:name="'specifications[' + field.key + ']'"
-                            x-model="specValues[field.key]"
-                            x-bind:step="field.type === 'number' ? (field.step || 'any') : null"
-                            x-bind:min="field.type === 'number' ? field.min : null"
-                            x-bind:required="field.required"
-                            x-bind:class="{ 'input-error': specErrors[field.key] }"
-                            class="input w-full"
-                        />
+
+                        {{-- text / number / date / url / email — a single-line input --}}
+                        <template x-if="['text', 'number', 'date', 'url', 'email'].includes(field.type)">
+                            <input
+                                x-bind:type="field.type"
+                                x-bind:id="'spec_' + field.key"
+                                x-bind:name="'specifications[' + field.key + ']'"
+                                x-model="specValues[field.key]"
+                                x-bind:step="field.type === 'number' ? (field.step || 'any') : null"
+                                x-bind:min="field.type === 'number' ? field.min : null"
+                                x-bind:max="field.type === 'number' ? field.max : null"
+                                x-bind:placeholder="field.placeholder"
+                                x-bind:required="field.required"
+                                x-bind:class="{ 'input-error': specErrors[field.key] }"
+                                class="input w-full"
+                            />
+                        </template>
+
+                        <template x-if="field.type === 'textarea'">
+                            <textarea
+                                x-bind:id="'spec_' + field.key"
+                                x-bind:name="'specifications[' + field.key + ']'"
+                                x-model="specValues[field.key]"
+                                x-bind:placeholder="field.placeholder"
+                                x-bind:required="field.required"
+                                x-bind:class="{ 'textarea-error': specErrors[field.key] }"
+                                class="textarea w-full" rows="3"
+                            ></textarea>
+                        </template>
+
+                        <template x-if="field.type === 'select'">
+                            <select
+                                x-bind:id="'spec_' + field.key"
+                                x-bind:name="'specifications[' + field.key + ']'"
+                                x-model="specValues[field.key]"
+                                x-bind:required="field.required"
+                                x-bind:class="{ 'select-error': specErrors[field.key] }"
+                                class="select w-full"
+                            >
+                                <option value="">— Select —</option>
+                                <template x-for="option in field.options" :key="option">
+                                    <option :value="option" x-text="option"></option>
+                                </template>
+                            </select>
+                        </template>
+
+                        <template x-if="field.type === 'multiselect'">
+                            <div class="flex flex-wrap gap-x-4 gap-y-2 p-3 rounded-lg border border-base-300">
+                                <template x-for="option in field.options" :key="option">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="checkbox checkbox-sm"
+                                               x-bind:name="'specifications[' + field.key + '][]'"
+                                               :value="option"
+                                               x-model="specValues[field.key]" />
+                                        <span class="text-sm" x-text="option"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="field.type === 'boolean'">
+                            <div class="flex items-center gap-3">
+                                <input type="hidden" x-bind:name="'specifications[' + field.key + ']'" value="0" />
+                                <input type="checkbox"
+                                       x-bind:id="'spec_' + field.key"
+                                       x-bind:name="'specifications[' + field.key + ']'"
+                                       value="1"
+                                       x-model="specValues[field.key]"
+                                       class="toggle toggle-primary" />
+                            </div>
+                        </template>
+
+                        <template x-if="field.help">
+                            <p class="text-xs opacity-60 mt-0.5" x-text="field.help"></p>
+                        </template>
                         <template x-if="specErrors[field.key]">
                             <p class="text-error text-xs mt-0.5" x-text="specErrors[field.key]"></p>
                         </template>
@@ -319,6 +400,21 @@ function machineForm(seed) {
             return this.specFieldsByTypeId[this.machineTypeId] || [];
         },
 
+        // A multiselect/boolean field's control relies on Alpine's checkbox binding picking
+        // the right mode from the *current* value's JS type (an array binds as a checkbox
+        // group, anything else as a single on/off) — a field with no value yet (freshly
+        // switched to, or never given one) needs that starting value set explicitly, or the
+        // first click would set it to the wrong type instead of building up an array/toggle.
+        ensureDefaults() {
+            this.currentFields().forEach((field) => {
+                if (field.type === 'multiselect' && ! Array.isArray(this.specValues[field.key])) {
+                    this.specValues[field.key] = [];
+                } else if (field.type === 'boolean' && typeof this.specValues[field.key] !== 'boolean') {
+                    this.specValues[field.key] = false;
+                }
+            });
+        },
+
         async loadFloors() {
             this.currentFloorId = null;
             if (!this.selectedBuilding) { this.floors = []; return; }
@@ -352,6 +448,7 @@ function machineForm(seed) {
             // Edit seeds `floors` from the server, so only create (which starts empty) needs
             // to fetch on load.
             if (this.selectedBuilding && this.floors.length === 0) this.loadFloors();
+            this.ensureDefaults();
         },
     };
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SpecFieldType;
 use App\Exceptions\MachineTypeActionException;
 use App\Interfaces\MachineTypeInterface;
 use App\Models\Machine;
@@ -89,8 +90,8 @@ class MachineTypeService implements MachineTypeInterface
 
     /**
      * Generates a key for any new field (one with none posted back), keeps every existing
-     * field's key exactly as it was, strips number-only attributes (unit/step/min) from text
-     * fields, and re-indexes the result as a plain list.
+     * field's key exactly as it was, keeps only the settings that apply to each field's kind
+     * (see SpecFieldType::settings()), and re-indexes the result as a plain list.
      *
      * @param  array<int, array<string, mixed>>  $fields
      * @param  array<int, string>  $existingKeys
@@ -111,25 +112,63 @@ class MachineTypeService implements MachineTypeInterface
 
             $usedKeys[] = $key;
 
-            $type = $field['type'] === 'number' ? 'number' : 'text';
+            $type = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
 
             $row = [
                 'key' => $key,
                 'label' => $field['label'],
-                'type' => $type,
-                'required' => (bool) ($field['required'] ?? false),
+                'type' => $type->value,
+                'required' => $type->supportsRequired() && (bool) ($field['required'] ?? false),
             ];
 
-            if ($type === 'number') {
+            if ($type->supports('unit')) {
                 $row['unit'] = $field['unit'] ?? null;
+            }
+
+            if ($type->supports('step')) {
                 $row['step'] = $field['step'] ?? null;
+            }
+
+            if ($type->supports('min')) {
                 $row['min'] = isset($field['min']) && $field['min'] !== '' ? (float) $field['min'] : null;
+            }
+
+            if ($type->supports('max')) {
+                $row['max'] = isset($field['max']) && $field['max'] !== '' ? (float) $field['max'] : null;
+            }
+
+            if ($type->supports('placeholder')) {
+                $row['placeholder'] = $field['placeholder'] ?? null;
+            }
+
+            if ($type->supports('options')) {
+                $row['options'] = $this->normalizeOptions($field['options'] ?? []);
+            }
+
+            if (! empty($field['help'])) {
+                $row['help'] = $field['help'];
             }
 
             $normalized[] = $row;
         }
 
         return $normalized;
+    }
+
+    /**
+     * Trims, drops empties, and de-duplicates a select/multiselect field's option list.
+     *
+     * @param  array<int, mixed>  $options
+     * @return list<string>
+     */
+    private function normalizeOptions(array $options): array
+    {
+        return collect($options)
+            ->map(fn ($option) => trim((string) $option))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

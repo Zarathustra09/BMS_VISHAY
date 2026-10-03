@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SpecFieldType;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\SettingInterface;
 use App\Models\Alert;
@@ -92,10 +93,11 @@ class MachineService implements MachineInterface
         $workOrderIds = $machine->workOrders()->pluck('id');
         $alertIds = $machine->alerts()->pluck('id');
 
-        // Labelled from the machine's *current* type — if a change was made under a since-
-        // replaced type, its keys just fall back to a de-slugged raw key instead of a proper
-        // label, which is an acceptable simplification for a display-only feed.
-        $specLabels = collect($machine->machineType?->specFields() ?? [])->pluck('label', 'key');
+        // Keyed by the machine's *current* type — if a change was made under a since-replaced
+        // type, its keys just fall back to a de-slugged raw key and plain text formatting
+        // instead of the field's real label/kind, which is an acceptable simplification for a
+        // display-only feed.
+        $specFieldsByKey = collect($machine->machineType?->specFields() ?? [])->keyBy('key');
 
         return Activity::query()
             ->where(function (Builder $query) use ($machine, $workOrderIds, $alertIds) {
@@ -107,7 +109,7 @@ class MachineService implements MachineInterface
             ->latest()
             ->limit($limit)
             ->get()
-            ->map(fn (Activity $activity) => $this->expandSpecificationChanges($activity, $specLabels));
+            ->map(fn (Activity $activity) => $this->expandSpecificationChanges($activity, $specFieldsByKey));
     }
 
     public function create(array $data): Machine
@@ -131,11 +133,13 @@ class MachineService implements MachineInterface
     }
 
     /**
-     * The specs a machine's show page renders for its current type — [label, value, unit]
-     * per field, skipping any field with no stored value. `power_rating`/`spec_voltage` are
-     * real columns on Machine and aren't part of this; the view renders them separately.
+     * The specs a machine's show page renders for its current type — [label, value, unit,
+     * type] per field with a stored value, formatted via SpecFieldType::display() (a boolean
+     * renders as Yes/No, a multiselect as a comma-joined list, a date as "M d, Y", etc.).
+     * `power_rating`/`spec_voltage` are real columns on Machine and aren't part of this; the
+     * view renders them separately. `type` lets the view render a `url` value as a link.
      *
-     * @return list<array{label: string, value: mixed, unit: ?string}>
+     * @return list<array{label: string, value: string, unit: ?string, type: string}>
      */
     public function specificationRows(Machine $machine): array
     {
@@ -143,16 +147,18 @@ class MachineService implements MachineInterface
         $rows = [];
 
         foreach ($machine->machineType?->specFields() ?? [] as $field) {
+            $kind = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
             $value = $specs[$field['key']] ?? null;
 
-            if ($value === null || $value === '') {
+            if ($kind->isEmpty($value)) {
                 continue;
             }
 
             $rows[] = [
                 'label' => $field['label'],
-                'value' => $value,
+                'value' => $kind->display($value),
                 'unit' => $field['unit'] ?? null,
+                'type' => $kind->value,
             ];
         }
 
@@ -212,9 +218,11 @@ class MachineService implements MachineInterface
     }
 
     /**
-     * Keeps only $type's own field keys, drops an empty value, and casts a number field to a
-     * float — everything else in $input (another type's keys, or junk from a hand-crafted
-     * request) is silently discarded.
+     * Keeps only $type's own field keys, drops an empty value, and casts each value per its
+     * field's kind (SpecFieldType::cast()) — a number to a float, a multiselect to a plain
+     * list, etc. Everything else in $input (another type's keys, or junk from a hand-crafted
+     * request) is silently discarded. A boolean is always stored, even when false — unlike
+     * every other kind, false is a real answer, not an absent one.
      *
      * @param  array<string, mixed>  $input
      * @return array<string, mixed>
@@ -224,13 +232,30 @@ class MachineService implements MachineInterface
         $result = [];
 
         foreach ($type->specFields() as $field) {
+            $kind = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
             $value = $input[$field['key']] ?? null;
+
+            if ($kind === SpecFieldType::Boolean) {
+                $result[$field['key']] = $kind->cast($value);
+
+                continue;
+            }
+
+            if ($kind === SpecFieldType::Multiselect) {
+                $cast = $kind->cast($value);
+
+                if (! empty($cast)) {
+                    $result[$field['key']] = $cast;
+                }
+
+                continue;
+            }
 
             if ($value === null || $value === '') {
                 continue;
             }
 
-            $result[$field['key']] = $field['type'] === 'number' ? (float) $value : (string) $value;
+            $result[$field['key']] = $kind->cast($value);
         }
 
         return $result;
@@ -238,11 +263,12 @@ class MachineService implements MachineInterface
 
     /**
      * If this activity's diff touched `specifications` (a single old/new pair of JSON
-     * objects), expands it into one old/new pair per changed spec key, labelled from the
-     * machine's type — the Activity tab's generic "field: old → new" rendering
-     * (machines/show.blade.php) otherwise has to `{{ }}`-echo a raw array, which throws.
+     * objects/arrays), expands it into one old/new pair per changed spec key, labelled and
+     * formatted per the field's kind (SpecFieldType::display()) — the Activity tab's generic
+     * "field: old → new" rendering (machines/show.blade.php) otherwise has to `{{ }}`-echo a
+     * raw array or boolean, which throws.
      */
-    private function expandSpecificationChanges(Activity $activity, Collection $specLabels): Activity
+    private function expandSpecificationChanges(Activity $activity, Collection $specFieldsByKey): Activity
     {
         $attributes = $activity->properties->get('attributes');
 
@@ -264,9 +290,12 @@ class MachineService implements MachineInterface
                 continue;
             }
 
-            $label = $specLabels->get($key, str_replace('_', ' ', $key));
-            $attributes[$label] = $newValue ?? '—';
-            $old[$label] = $oldValue ?? '—';
+            $field = $specFieldsByKey->get($key);
+            $kind = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
+            $label = $field['label'] ?? str_replace('_', ' ', $key);
+
+            $attributes[$label] = $newValue === null ? '—' : $kind->display($newValue);
+            $old[$label] = $oldValue === null ? '—' : $kind->display($oldValue);
         }
 
         $activity->properties = collect(['attributes' => $attributes, 'old' => $old]);

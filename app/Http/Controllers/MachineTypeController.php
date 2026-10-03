@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\MachineTypeIcon;
+use App\Enums\SpecFieldType;
 use App\Exceptions\MachineTypeActionException;
 use App\Interfaces\MachineTypeInterface;
 use App\Models\MachineType;
@@ -99,19 +100,26 @@ class MachineTypeController extends Controller
             'spec_fields' => 'nullable|array',
             'spec_fields.*.label' => 'required|string|max:100',
             'spec_fields.*.key' => 'nullable|string|max:60|regex:/^[a-z][a-z0-9_]*$/',
-            'spec_fields.*.type' => 'required|in:text,number',
+            'spec_fields.*.type' => ['required', Rule::enum(SpecFieldType::class)],
+            'spec_fields.*.help' => 'nullable|string|max:200',
+            'spec_fields.*.placeholder' => 'nullable|string|max:100',
             'spec_fields.*.unit' => 'nullable|string|max:20',
             'spec_fields.*.step' => 'nullable|numeric|gt:0',
             'spec_fields.*.min' => 'nullable|numeric',
+            'spec_fields.*.max' => 'nullable|numeric',
             'spec_fields.*.required' => 'boolean',
+            'spec_fields.*.options' => 'required_if:spec_fields.*.type,select,multiselect|array|max:50',
+            'spec_fields.*.options.*' => 'required|string|max:100|distinct',
         ], [], [
             'spec_fields.*.label' => 'field label',
             'spec_fields.*.type' => 'field kind',
+            'spec_fields.*.options' => 'options',
         ]);
 
         // Two labels that would generate the same key (e.g. two fields both labelled
         // "Capacity") would silently collide once MachineTypeService derives a key from
         // each — caught here as a shape problem, before the request ever reaches the service.
+        // A Number field's max below its own min is caught the same way.
         $validator->after(function ($validator) use ($request) {
             $labels = collect($request->input('spec_fields', []))
                 ->pluck('label')
@@ -125,6 +133,15 @@ class MachineTypeController extends Controller
                     "spec_fields.{$index}.label",
                     'Two fields generate the same key — give each field a distinct label.'
                 );
+            }
+
+            foreach ($request->input('spec_fields', []) as $index => $field) {
+                $min = $field['min'] ?? null;
+                $max = $field['max'] ?? null;
+
+                if ($min !== null && $min !== '' && $max !== null && $max !== '' && (float) $max < (float) $min) {
+                    $validator->errors()->add("spec_fields.{$index}.max", 'The max must be greater than or equal to the min.');
+                }
             }
         });
 

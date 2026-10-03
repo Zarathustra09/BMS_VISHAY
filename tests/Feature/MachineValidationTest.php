@@ -193,6 +193,143 @@ class MachineValidationTest extends TestCase
         $this->assertSame(['capacity_tons' => 200], $machine->specifications);
     }
 
+    public function test_a_select_value_outside_its_options_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'fuel', 'label' => 'Fuel', 'type' => 'select', 'options' => ['Diesel', 'Natural Gas'], 'required' => false],
+        ])->create();
+
+        $response = $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['fuel' => 'Nuclear'],
+        ]));
+
+        $response->assertSessionHasErrors('specifications.fuel');
+        $this->assertDatabaseCount('machines', 0);
+    }
+
+    public function test_a_multiselect_value_is_stored_as_an_array(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'certifications', 'label' => 'Certifications', 'type' => 'multiselect', 'options' => ['ISO 9001', 'ISO 14001', 'OSHA'], 'required' => false],
+        ])->create();
+
+        $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['certifications' => ['ISO 9001', 'OSHA']],
+        ]));
+
+        $machine = Machine::sole();
+        $this->assertSame(['ISO 9001', 'OSHA'], $machine->specifications['certifications']);
+    }
+
+    public function test_an_invalid_multiselect_option_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'certifications', 'label' => 'Certifications', 'type' => 'multiselect', 'options' => ['ISO 9001', 'ISO 14001'], 'required' => false],
+        ])->create();
+
+        $response = $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['certifications' => ['Not A Real Cert']],
+        ]));
+
+        $response->assertSessionHasErrors('specifications.certifications.0');
+        $this->assertDatabaseCount('machines', 0);
+    }
+
+    public function test_an_unchecked_boolean_spec_is_stored_as_false_and_shown_as_no(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'autostart', 'label' => 'Autostart', 'type' => 'boolean', 'required' => false],
+        ])->create();
+
+        // The toggle's hidden-0 input is what actually submits "0" when unchecked — real
+        // unchecked-checkbox behaviour on the live form, reproduced directly here.
+        $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['autostart' => '0'],
+        ]));
+
+        $machine = Machine::sole();
+        $this->assertFalse($machine->specifications['autostart']);
+
+        $response = $this->get(route('machines.show', $machine));
+        $response->assertOk();
+        $response->assertSee('Autostart');
+        $response->assertSee('No');
+    }
+
+    public function test_an_invalid_date_spec_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'last_calibrated', 'label' => 'Last Calibrated', 'type' => 'date', 'required' => false],
+        ])->create();
+
+        $response = $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['last_calibrated' => 'not-a-date'],
+        ]));
+
+        $response->assertSessionHasErrors('specifications.last_calibrated');
+        $this->assertDatabaseCount('machines', 0);
+    }
+
+    public function test_a_javascript_url_spec_is_rejected(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'manual_url', 'label' => 'Manual URL', 'type' => 'url', 'required' => false],
+        ])->create();
+
+        $response = $this->post(route('machines.store'), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['manual_url' => 'javascript:alert(1)'],
+        ]));
+
+        $response->assertSessionHasErrors('specifications.manual_url');
+        $this->assertDatabaseCount('machines', 0);
+    }
+
+    public function test_activity_feed_renders_after_a_multiselect_and_boolean_change(): void
+    {
+        $this->actingAsManager();
+
+        $type = MachineType::factory()->withFields([
+            ['key' => 'certifications', 'label' => 'Certifications', 'type' => 'multiselect', 'options' => ['ISO 9001', 'OSHA'], 'required' => false],
+            ['key' => 'autostart', 'label' => 'Autostart', 'type' => 'boolean', 'required' => false],
+        ])->create();
+
+        $machine = Machine::factory()->create([
+            'machine_type_id' => $type->id,
+            'specifications' => ['certifications' => ['ISO 9001'], 'autostart' => false],
+        ]);
+
+        $this->put(route('machines.update', $machine), $this->validPayload([
+            'machine_type_id' => $type->id,
+            'specifications' => ['certifications' => ['ISO 9001', 'OSHA'], 'autostart' => '1'],
+        ]));
+
+        // Both a multiselect (array) and a boolean diff must be flattened to scalars by
+        // MachineService::expandSpecificationChanges() before the view echoes them.
+        $response = $this->get(route('machines.show', $machine));
+
+        $response->assertOk();
+        $response->assertSee('Certifications');
+        $response->assertSee('Autostart');
+    }
+
     public function test_create_page_lists_database_machine_types(): void
     {
         $this->actingAsManager();

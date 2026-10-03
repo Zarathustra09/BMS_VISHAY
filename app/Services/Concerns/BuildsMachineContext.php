@@ -2,6 +2,7 @@
 
 namespace App\Services\Concerns;
 
+use App\Enums\SpecFieldType;
 use App\Models\Machine;
 
 /**
@@ -60,14 +61,15 @@ trait BuildsMachineContext
         $context .= 'Is Critical: '.($machine->is_critical ? 'Yes' : 'No')."\n";
 
         foreach ($machine->machineType?->specFields() ?? [] as $field) {
+            $kind = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
             $value = $machine->specifications[$field['key']] ?? null;
 
-            if ($value === null || $value === '') {
+            if ($kind->isEmpty($value)) {
                 continue;
             }
 
             $unit = $field['unit'] ?? null;
-            $context .= "{$field['label']}: {$value}".($unit ? " {$unit}" : '')."\n";
+            $context .= "{$field['label']}: ".$kind->display($value).($unit ? " {$unit}" : '')."\n";
         }
 
         if ($machine->power_rating) {

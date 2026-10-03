@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
 use App\Enums\MachineStatus;
+use App\Enums\SpecFieldType;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
@@ -269,21 +270,14 @@ class MachineController extends Controller
 
         foreach ($type->specFields() as $field) {
             $key = $field['key'];
-            $fieldRules = [$field['required'] ?? false ? 'required' : 'nullable'];
+            $kind = SpecFieldType::tryFrom($field['type'] ?? '') ?? SpecFieldType::Text;
+            $required = $kind->supportsRequired() && ($field['required'] ?? false);
 
-            if (($field['type'] ?? 'text') === 'number') {
-                $fieldRules[] = 'numeric';
-
-                if (isset($field['min'])) {
-                    $fieldRules[] = "min:{$field['min']}";
-                }
-            } else {
-                $fieldRules[] = 'string';
-                $fieldRules[] = 'max:255';
+            foreach ($kind->valueRules($field, $required) as $suffix => $kindRules) {
+                $path = $suffix === '' ? "specifications.{$key}" : "specifications.{$key}.{$suffix}";
+                $rules[$path] = $kindRules;
+                $attributes[$path] = $field['label'];
             }
-
-            $rules["specifications.{$key}"] = $fieldRules;
-            $attributes["specifications.{$key}"] = $field['label'];
         }
 
         return [$rules, $attributes];
