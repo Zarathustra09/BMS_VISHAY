@@ -65,7 +65,7 @@ Then `$user->assignRole('admin')` (or `manager`/`technician`/`viewer`) works as 
 
 ### Factories
 
-`database/factories/` currently has `UserFactory`, `BuildingFactory`, `MachineFactory`, `MachineLogFactory`, and `MachineTypeFactory` (a `withFields(array $fields)` state seeds its `spec_fields`). `Machine::factory()` creates its own `Building` **and** its own `MachineType` by default (`'building_id' => Building::factory()`, `'machine_type_id' => MachineType::factory()`) unless you pass one explicitly — the seeded default types (Chiller, etc. — see `03-data-model.md`) are usually a better fit than a factory-generated type when a test cares about specific spec fields, since a plain `MachineType::factory()` has none. There's no `WorkOrderFactory` or `AlertFactory` — both are created through their **service**, not the model directly, in existing tests (`app(WorkOrderInterface::class)->create(...)`, or by calling `Alert::create()` with every required column, or by storing a `MachineLog` that breaches a `SensorThreshold` and letting `AlertService::evaluate()` raise it). Creating through the service is preferred where one exists: it exercises the same code path production traffic does (code generation, notifications, etc.) instead of just the schema — `MachineTypeCrudTest` follows this, creating test types via `app(MachineTypeInterface::class)->create(...)` rather than `MachineType::create()` directly.
+`database/factories/` currently has `UserFactory`, `BuildingFactory`, `MachineFactory`, `MachineLogFactory`, `MachineParameterFactory` (`key()`, `boolean()`, `text()`, `required()`, `range()`, `withThresholds()` states — a machine can only receive readings for parameters it has) and `MachineTypeFactory` (a `withFields(array $fields)` state seeds its `spec_fields`). `Machine::factory()` creates its own `Building` **and** its own `MachineType` by default (`'building_id' => Building::factory()`, `'machine_type_id' => MachineType::factory()`) unless you pass one explicitly — the seeded default types (Chiller, etc. — see `03-data-model.md`) are usually a better fit than a factory-generated type when a test cares about specific spec fields, since a plain `MachineType::factory()` has none. There's no `WorkOrderFactory` or `AlertFactory` — both are created through their **service**, not the model directly, in existing tests (`app(WorkOrderInterface::class)->create(...)`, or by calling `Alert::create()` with every required column, or by storing a `MachineLog` that breaches a `SensorThreshold` and letting `AlertService::evaluate()` raise it). Creating through the service is preferred where one exists: it exercises the same code path production traffic does (code generation, notifications, etc.) instead of just the schema — `MachineTypeCrudTest` follows this, creating test types via `app(MachineTypeInterface::class)->create(...)` rather than `MachineType::create()` directly.
 
 If a model you need a factory for doesn't have `HasFactory` yet, add the trait to the model (see `Building`, `Machine`, `MachineLog` for the pattern) before writing `database/factories/{Model}Factory.php`.
 
@@ -102,11 +102,12 @@ The sensor ingestion endpoint (`POST /api/machine-logs`) isn't session-authentic
 
 ```php
 $machine = Machine::factory()->create();
+MachineParameter::factory()->for($machine)->key('temperature')->create();
 $plainKey = $machine->generateDeviceKey();
 
 $this->postJson('/api/machine-logs', [
     'log_type' => 'sensor_reading',
-    'temperature' => 45,
+    'readings' => ['temperature' => 45],
 ], ['X-Device-Key' => $plainKey])->assertStatus(201);
 ```
 
@@ -118,6 +119,8 @@ Laravel Boost's Database Query / Database Schema MCP tools (see [09-setup-and-op
 
 | Test file | Covers |
 |---|---|
+| `tests/Feature/MachineParameterReadingTest.php` | The sensor API against a machine's own parameters: typed storage, unknown key / wrong type / out-of-range / missing required → 422, required not enforced on non-sensor logs, a top-level legacy field → 422, alerts raised/resolved on a dynamic parameter, the chart series |
+| `tests/Feature/MachineParameterBuilderTest.php` | The machine form's parameter builder: create/update/reorder/delete, key and data type immutable once saved, another machine's parameter id rejected, duplicate keys, validation, the copy-parameters JSON endpoint, the edit form seed, the API Integration card (never embeds the real key) |
 | `tests/Feature/DeviceAuthTest.php` | Valid key accepted (201), missing/invalid key rejected (401), a device can only write logs for its own machine |
 | `tests/Feature/DeviceKeyPermissionTest.php` | `machines.view-device-key` gates generating/viewing a device key; the machine page hides the key card without it |
 | `tests/Feature/ThresholdAlertNotificationTest.php` | A breaching reading raises an alert and notifies admins; a second breaching reading does **not** raise a duplicate; a reading back within bounds auto-resolves the alert |

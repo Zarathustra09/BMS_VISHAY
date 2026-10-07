@@ -6,7 +6,8 @@
     shown/hidden via Alpine rather than gated behind a "Next" button.
 
     Expects: $machine (Machine|null — null on create), $buildings, $machineTypes, $floors (only
-    meaningful on edit — see MachineController@edit), and, on edit only, $thresholds.
+    meaningful on edit — see MachineController@edit), and, on create only, $copySources (machines
+    whose parameters can be copied). On edit, $machine->parameters is already loaded.
 --}}
 @php
     $isEdit = (bool) ($machine ?? null);
@@ -48,6 +49,46 @@
         }
     }
 
+    // The Sensor Parameters builder's rows: the posted ones after a validation failure,
+    // otherwise the machine's saved parameters (none on create). Numbers are cast so a saved
+    // 40.0000 doesn't redisplay as the string "40.0000".
+    $toParameterRow = fn (array $row) => [
+        'id' => ($row['id'] ?? '') !== '' ? (int) $row['id'] : null,
+        'key' => $row['key'] ?? '',
+        'label' => $row['label'] ?? '',
+        'unit' => $row['unit'] ?? '',
+        'data_type' => $row['data_type'] ?? 'number',
+        'required' => filter_var($row['required'] ?? false, FILTER_VALIDATE_BOOLEAN),
+        'min' => $row['min'] ?? '',
+        'max' => $row['max'] ?? '',
+        'warning_min' => $row['warning_min'] ?? '',
+        'warning_max' => $row['warning_max'] ?? '',
+        'critical_min' => $row['critical_min'] ?? '',
+        'critical_max' => $row['critical_max'] ?? '',
+    ];
+
+    $postedParameters = old('parameters');
+    $parameterRows = is_array($postedParameters)
+        ? collect($postedParameters)->map($toParameterRow)->values()->all()
+        : ($isEdit
+            ? $machine->parameters->map(fn ($parameter) => $toParameterRow([
+                'id' => $parameter->id,
+                'key' => $parameter->key,
+                'label' => $parameter->label,
+                'unit' => $parameter->unit,
+                'data_type' => $parameter->data_type->value,
+                'required' => $parameter->required,
+                ...collect(['min', 'max', 'warning_min', 'warning_max', 'critical_min', 'critical_max'])
+                    ->mapWithKeys(fn ($column) => [$column => $parameter->{$column} !== null ? (float) $parameter->{$column} : ''])
+                    ->all(),
+            ]))->values()->all()
+            : []);
+
+    // "parameters.2.label" => message, collapsed to "2.label" for the Alpine repeater.
+    $parameterErrors = collect($errors->keys())
+        ->filter(fn ($key) => preg_match('/^parameters\.\d+\./', $key))
+        ->mapWithKeys(fn ($key) => [substr($key, strlen('parameters.')) => $errors->first($key)]);
+
     $seed = [
         'machineTypeId' => (string) $machineTypeIdValue,
         'selectedBuilding' => (string) $buildingValue,
@@ -61,6 +102,9 @@
         'specFieldsByTypeId' => $specFieldsByTypeId,
         'specValues' => $specValues,
         'specErrors' => $specErrors,
+        'parameters' => $parameterRows,
+        'parameterErrors' => $parameterErrors,
+        'parametersUrl' => route('machines.parameters', ['machine' => '__ID__']),
     ];
 @endphp
 
@@ -103,6 +147,7 @@
             <a href="#identification" class="block px-3 py-2 rounded-lg hover:bg-base-200">Identification</a>
             <a href="#location" class="block px-3 py-2 rounded-lg hover:bg-base-200">Location &amp; Power</a>
             <a href="#specifications" class="block px-3 py-2 rounded-lg hover:bg-base-200">Specifications</a>
+            <a href="#parameters" class="block px-3 py-2 rounded-lg hover:bg-base-200">Sensor Parameters</a>
             <a href="#maintenance" class="block px-3 py-2 rounded-lg hover:bg-base-200">Maintenance</a>
             <a href="#notes" class="block px-3 py-2 rounded-lg hover:bg-base-200">Notes &amp; Criticality</a>
         </nav>
@@ -269,6 +314,8 @@
                 </template>
             </x-form.section>
 
+            @include('machines._parameters-builder')
+
             <x-form.section id="maintenance" title="Maintenance Schedule">
                 <x-form.input type="date" name="last_maintenance_date" label="Last Maintenance Date"
                               x-model="lastMaintenance" @change="calcNextMaintenance()"
@@ -307,79 +354,36 @@
     </div>
 </div>
 
-@if($isEdit)
-    {{-- Alert Thresholds — a separate form/route (AlertService), independent of the machine
-         form above; saving one never touches the other. --}}
-    <div class="card bg-base-100 shadow-xl border border-base-300/50 mt-6">
-        <div class="card-body space-y-6">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-error/15 flex items-center justify-center shrink-0">
-                    <svg class="w-5 h-5 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                </div>
-                <div>
-                    <h2 class="text-xl font-bold">Alert Thresholds</h2>
-                    <p class="text-sm opacity-60">Leave a field blank to skip that bound. A metric with no bounds set at all isn't monitored.</p>
-                </div>
-            </div>
-
-            <div class="divider my-0"></div>
-
-            <form action="{{ route('machines.thresholds.update', $machine) }}" method="POST" class="space-y-4">
-                @csrf
-                @method('PUT')
-
-                <div class="overflow-x-auto">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Warning Min</th>
-                                <th>Warning Max</th>
-                                <th>Critical Min</th>
-                                <th>Critical Max</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach(\App\Interfaces\AlertInterface::METRIC_LABELS as $metric => $label)
-                                @php $threshold = $thresholds->get($metric); @endphp
-                                <tr>
-                                    <td class="font-medium whitespace-nowrap">{{ $label }}</td>
-                                    @foreach(['warning_min', 'warning_max', 'critical_min', 'critical_max'] as $bound)
-                                        <td>
-                                            <input type="number" step="any"
-                                                   name="thresholds[{{ $metric }}][{{ $bound }}]"
-                                                   value="{{ old("thresholds.$metric.$bound", $threshold?->$bound) }}"
-                                                   aria-label="{{ $label }} {{ str_replace('_', ' ', $bound) }}"
-                                                   class="input input-sm w-28" />
-                                        </td>
-                                    @endforeach
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @error('thresholds')
-                    <p class="text-error text-sm">{{ $message }}</p>
-                @enderror
-
-                <div class="flex justify-end pt-4 border-t border-base-300">
-                    <button type="submit" class="btn btn-primary gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Save Thresholds
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-@endif
-
 @push('scripts')
 <script>
+// A parameter row as the builder holds it. `keyTouched` stops a label edit from rewriting a key
+// that was copied/saved or typed by hand.
+function newParameterRow(uid, data, keyTouched) {
+    return {
+        uid,
+        id: data.id ?? null,
+        key: data.key ?? '',
+        label: data.label ?? '',
+        unit: data.unit ?? '',
+        data_type: data.data_type ?? 'number',
+        required: !!data.required,
+        min: data.min ?? '',
+        max: data.max ?? '',
+        warning_min: data.warning_min ?? '',
+        warning_max: data.warning_max ?? '',
+        critical_min: data.critical_min ?? '',
+        critical_max: data.critical_max ?? '',
+        keyTouched: keyTouched,
+    };
+}
+
+function slugifyParameterKey(label) {
+    let key = (label || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if (key && !/^[a-z]/.test(key)) key = 'p_' + key;
+    return key.slice(0, 50);
+}
+
 function machineForm(seed) {
     return {
         machineTypeId: seed.machineTypeId || '',
@@ -393,8 +397,61 @@ function machineForm(seed) {
         specFieldsByTypeId: seed.specFieldsByTypeId || {},
         specValues: seed.specValues || {},
         specErrors: seed.specErrors || {},
+        parameters: (seed.parameters || []).map((row, i) => newParameterRow(i + 1, row, true)),
+        nextParameterUid: (seed.parameters || []).length + 1,
+        parameterErrors: seed.parameterErrors || {},
+        parametersUrl: seed.parametersUrl || '',
+        copyFrom: '',
+        copying: false,
         submitting: false,
 
+        parameterError(index, attribute) {
+            return this.parameterErrors[index + '.' + attribute] || null;
+        },
+
+        addParameter() {
+            this.parameters.push(newParameterRow(this.nextParameterUid++, {}, false));
+        },
+
+        removeParameter(index) {
+            this.parameters.splice(index, 1);
+        },
+
+        moveParameterUp(index) {
+            if (index === 0) return;
+            const rows = this.parameters;
+            [rows[index - 1], rows[index]] = [rows[index], rows[index - 1]];
+        },
+
+        moveParameterDown(index) {
+            if (index === this.parameters.length - 1) return;
+            const rows = this.parameters;
+            [rows[index + 1], rows[index]] = [rows[index], rows[index + 1]];
+        },
+
+        // A new row's key follows its label until the user edits the key by hand; a saved row's
+        // key never changes (and is read-only in the form).
+        syncKeyFromLabel(row) {
+            if (!row.id && !row.keyTouched) row.key = slugifyParameterKey(row.label);
+        },
+
+        async copyParameters() {
+            if (!this.copyFrom) return;
+            if (this.parameters.length && !confirm('Replace the parameters currently in the list?')) return;
+
+            this.copying = true;
+            try {
+                const res = await fetch(this.parametersUrl.replace('__ID__', this.copyFrom), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (res.ok) {
+                    const rows = await res.json();
+                    this.parameters = rows.map((row) => newParameterRow(this.nextParameterUid++, row, true));
+                }
+            } finally {
+                this.copying = false;
+            }
+        },
         // The <select>'s value is always a string, and JSON object keys are always strings —
         // comparing machineTypeId as anything else is exactly the kind of "it just won't
         // switch" bug this app has already shipped once (see docs/08-frontend.md).

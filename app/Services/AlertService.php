@@ -7,7 +7,7 @@ use App\Interfaces\SettingInterface;
 use App\Models\Alert;
 use App\Models\Machine;
 use App\Models\MachineLog;
-use App\Models\SensorThreshold;
+use App\Models\MachineParameter;
 use App\Models\User;
 use App\Notifications\MachineAlertNotification;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,28 +27,26 @@ class AlertService implements AlertInterface
             $this->resolveOfflineAlerts($log->machine);
         }
 
-        $thresholds = SensorThreshold::where('machine_id', $log->machine_id)->get()->keyBy('metric');
+        $parameters = MachineParameter::where('machine_id', $log->machine_id)
+            ->where('data_type', 'number')
+            ->get()
+            ->filter(fn (MachineParameter $parameter) => $parameter->hasThresholds());
 
-        if ($thresholds->isEmpty()) {
+        if ($parameters->isEmpty() || empty($log->readings)) {
             return;
         }
 
         $machine = $log->machine;
 
-        foreach (self::METRICS as $metric) {
-            $value = $log->{$metric};
+        foreach ($parameters as $parameter) {
+            $metric = $parameter->key;
+            $value = $log->readings[$metric] ?? null;
 
-            if ($value === null) {
+            if ($value === null || ! is_numeric($value)) {
                 continue;
             }
 
-            $threshold = $thresholds->get($metric);
-
-            if (!$threshold) {
-                continue;
-            }
-
-            $severity = $this->determineSeverity($threshold, (float) $value);
+            $severity = $this->determineSeverity($parameter, (float) $value);
 
             $openAlert = Alert::open()
                 ->where('machine_id', $log->machine_id)
@@ -77,7 +75,7 @@ class AlertService implements AlertInterface
                 ]);
 
                 if ($openAlert->severity === 'critical' && $severity === 'critical' && $openAlert->wasChanged('severity')) {
-                    $openAlert->update(['message' => $this->buildMessage($machine, $metric, $value, $severity)]);
+                    $openAlert->update(['message' => $this->buildMessage($machine, $parameter, $value, $severity)]);
                     $this->notify($openAlert);
                     $this->maybeAutoFault($machine, $severity);
                 }
@@ -93,7 +91,7 @@ class AlertService implements AlertInterface
                 'value' => $value,
                 'severity' => $severity,
                 'status' => 'open',
-                'message' => $this->buildMessage($machine, $metric, $value, $severity),
+                'message' => $this->buildMessage($machine, $parameter, $value, $severity),
             ]);
 
             $this->notify($alert);
@@ -147,11 +145,6 @@ class AlertService implements AlertInterface
         return $alerts->count();
     }
 
-    public function getThresholds(Machine $machine): Collection
-    {
-        return $machine->thresholds()->get()->keyBy('metric');
-    }
-
     public function getActiveForMachine(Machine $machine, int $limit = 10): Collection
     {
         return $machine->alerts()
@@ -161,48 +154,23 @@ class AlertService implements AlertInterface
             ->get();
     }
 
-    public function saveThresholds(Machine $machine, array $thresholds): void
-    {
-        foreach (self::METRICS as $metric) {
-            $row = $thresholds[$metric] ?? [];
-
-            $bounds = [
-                'warning_min' => $this->nullableDecimal($row['warning_min'] ?? null),
-                'warning_max' => $this->nullableDecimal($row['warning_max'] ?? null),
-                'critical_min' => $this->nullableDecimal($row['critical_min'] ?? null),
-                'critical_max' => $this->nullableDecimal($row['critical_max'] ?? null),
-            ];
-
-            if (collect($bounds)->every(fn ($v) => $v === null)) {
-                SensorThreshold::where('machine_id', $machine->id)->where('metric', $metric)->delete();
-
-                continue;
-            }
-
-            SensorThreshold::updateOrCreate(
-                ['machine_id' => $machine->id, 'metric' => $metric],
-                $bounds
-            );
-        }
-    }
-
     public function getQueryForDataTable(array $filters): Builder
     {
         $query = Alert::with('machine');
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['severity']) && $filters['severity'] !== 'all') {
+        if (! empty($filters['severity']) && $filters['severity'] !== 'all') {
             $query->where('severity', $filters['severity']);
         }
 
-        if (!empty($filters['machine_id']) && $filters['machine_id'] !== 'all') {
+        if (! empty($filters['machine_id']) && $filters['machine_id'] !== 'all') {
             $query->where('machine_id', $filters['machine_id']);
         }
 
-        if (!empty($filters['type']) && $filters['type'] !== 'all') {
+        if (! empty($filters['type']) && $filters['type'] !== 'all') {
             $query->where('type', $filters['type']);
         }
 
@@ -240,32 +208,32 @@ class AlertService implements AlertInterface
         return $alert->fresh();
     }
 
-    private function determineSeverity(SensorThreshold $threshold, float $value): ?string
+    private function determineSeverity(MachineParameter $parameter, float $value): ?string
     {
-        if ($threshold->critical_min !== null && $value < (float) $threshold->critical_min) {
+        if ($parameter->critical_min !== null && $value < (float) $parameter->critical_min) {
             return 'critical';
         }
 
-        if ($threshold->critical_max !== null && $value > (float) $threshold->critical_max) {
+        if ($parameter->critical_max !== null && $value > (float) $parameter->critical_max) {
             return 'critical';
         }
 
-        if ($threshold->warning_min !== null && $value < (float) $threshold->warning_min) {
+        if ($parameter->warning_min !== null && $value < (float) $parameter->warning_min) {
             return 'warning';
         }
 
-        if ($threshold->warning_max !== null && $value > (float) $threshold->warning_max) {
+        if ($parameter->warning_max !== null && $value > (float) $parameter->warning_max) {
             return 'warning';
         }
 
         return null;
     }
 
-    private function buildMessage(Machine $machine, string $metric, mixed $value, string $severity): string
+    private function buildMessage(Machine $machine, MachineParameter $parameter, mixed $value, string $severity): string
     {
-        $label = ucfirst(str_replace('_', ' ', $metric));
+        $reading = $parameter->unit ? "{$value} {$parameter->unit}" : $value;
 
-        return "{$label} on {$machine->name} reached {$value} ({$severity} level).";
+        return "{$parameter->label} on {$machine->name} reached {$reading} ({$severity} level).";
     }
 
     /**
@@ -274,8 +242,8 @@ class AlertService implements AlertInterface
     private function buildOfflineMessage(Machine $machine, int $minutes): string
     {
         return "{$machine->name} has not sent a sensor reading since "
-            . $machine->last_seen_at->format('M d, Y H:i')
-            . " (offline for more than {$minutes} minutes).";
+            .$machine->last_seen_at->format('M d, Y H:i')
+            ." (offline for more than {$minutes} minutes).";
     }
 
     /**
@@ -304,17 +272,12 @@ class AlertService implements AlertInterface
      */
     private function maybeAutoFault(Machine $machine, string $severity): void
     {
-        if ($severity !== 'critical' || !$this->settings->get('auto_fault_on_critical', false)) {
+        if ($severity !== 'critical' || ! $this->settings->get('auto_fault_on_critical', false)) {
             return;
         }
 
         if ($machine->status === 'active') {
             $machine->update(['status' => 'fault']);
         }
-    }
-
-    private function nullableDecimal(mixed $value): ?float
-    {
-        return ($value === null || $value === '') ? null : (float) $value;
     }
 }

@@ -128,13 +128,13 @@ Runs synchronously as the last step of `MachineLogService::store()` — every re
 sequenceDiagram
     participant Svc as MachineLogService
     participant Alert as AlertInterface / AlertService
-    participant DB as sensor_thresholds / alerts tables
+    participant DB as machine_parameters / alerts tables
     participant Notif as Notification::send()
     participant Queue
 
     Svc->>Alert: evaluate($log)
-    Alert->>DB: load thresholds for $log->machine_id
-    loop each metric present on $log
+    Alert->>DB: load the machine's number parameters that have bounds
+    loop each such parameter with a value in $log->readings
         Alert->>Alert: determineSeverity(threshold, value)
         alt within bounds
             Alert->>DB: resolve() any open alert for this metric
@@ -199,7 +199,7 @@ sequenceDiagram
     Note over Alert: ...then the normal threshold evaluation<br/>from (d) continues
 ```
 
-**The early-return gotcha.** `evaluate()` loads the machine's `sensor_thresholds` and returns immediately if there are none (see (d)). `resolveOfflineAlerts()` is called *before* that check specifically so a machine with no configured thresholds can still clear its offline alert — placing it after would mean such a machine's offline alert could never resolve. This ordering has its own explicit comment in `AlertService::evaluate()`; don't reorder it.
+**The early-return gotcha.** `evaluate()` loads the machine's number parameters that have at least one alert bound (`machine_parameters`) and returns immediately if there are none (see (d)). `resolveOfflineAlerts()` is called *before* that check specifically so a machine with no configured thresholds can still clear its offline alert — placing it after would mean such a machine's offline alert could never resolve. This ordering has its own explicit comment in `AlertService::evaluate()`; don't reorder it.
 
 **Idempotency** is enforced with `whereDoesntHave('alerts', type=offline, status in [open, acknowledged])` in the query itself, not a separate check — running the command every minute never re-raises or re-notifies for a machine already flagged. `last_seen_at IS NULL` (never commissioned) and `status = 'inactive'` (deliberately out of service) are both excluded from the query — see [03-data-model.md](03-data-model.md) for the reasoning.
 

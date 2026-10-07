@@ -4,20 +4,24 @@ namespace App\Services;
 
 use App\Enums\SpecFieldType;
 use App\Interfaces\MachineInterface;
+use App\Interfaces\MachineParameterInterface;
 use App\Interfaces\SettingInterface;
 use App\Models\Alert;
 use App\Models\Floor;
 use App\Models\Machine;
 use App\Models\MachineType;
-use App\Models\SensorThreshold;
 use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
 
 class MachineService implements MachineInterface
 {
-    public function __construct(protected SettingInterface $settings) {}
+    public function __construct(
+        protected SettingInterface $settings,
+        protected MachineParameterInterface $parameters,
+    ) {}
 
     public function getQueryForDataTable(array $filters): Builder
     {
@@ -112,22 +116,42 @@ class MachineService implements MachineInterface
             ->map(fn (Activity $activity) => $this->expandSpecificationChanges($activity, $specFieldsByKey));
     }
 
+    public function getParameterCopySources(): Collection
+    {
+        return Machine::has('parameters')
+            ->withCount('parameters')
+            ->orderBy('name')
+            ->get(['id', 'name', 'machine_code']);
+    }
+
     public function create(array $data): Machine
     {
         $data = $this->withNormalizedSpecifications($data);
+        $parameterRows = $this->pullParameterRows($data);
 
-        $machine = Machine::create($data);
+        return DB::transaction(function () use ($data, $parameterRows) {
+            $machine = Machine::create($data);
 
-        $this->applyDefaultThresholds($machine);
+            if ($parameterRows !== null) {
+                $this->parameters->sync($machine, $parameterRows);
+            }
 
-        return $machine;
+            return $machine;
+        });
     }
 
     public function update(Machine $machine, array $data): Machine
     {
         $data = $this->withNormalizedSpecifications($data);
+        $parameterRows = $this->pullParameterRows($data);
 
-        $machine->update($data);
+        DB::transaction(function () use ($machine, $data, $parameterRows) {
+            $machine->update($data);
+
+            if ($parameterRows !== null) {
+                $this->parameters->sync($machine, $parameterRows);
+            }
+        });
 
         return $machine->fresh();
     }
@@ -178,19 +202,22 @@ class MachineService implements MachineInterface
     }
 
     /**
-     * Applies Settings' default_thresholds (configured on the Settings page) to a
-     * newly-created machine — existing machines are never touched by this, only new ones.
+     * Splits the machine form's `parameters` rows off $data (they aren't Machine columns) —
+     * null when the caller didn't submit any, which leaves the machine's parameters untouched.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, array<string, mixed>>|null
      */
-    private function applyDefaultThresholds(Machine $machine): void
+    private function pullParameterRows(array &$data): ?array
     {
-        $defaults = $this->settings->get('default_thresholds', []);
-
-        foreach ($defaults as $metric => $bounds) {
-            SensorThreshold::create(array_merge(
-                ['machine_id' => $machine->id, 'metric' => $metric],
-                $bounds
-            ));
+        if (! array_key_exists('parameters', $data)) {
+            return null;
         }
+
+        $rows = $data['parameters'];
+        unset($data['parameters']);
+
+        return $rows;
     }
 
     /**

@@ -16,7 +16,7 @@ class MachineLogFactory extends Factory
             'machine_id' => Machine::factory(),
             'log_type' => 'sensor_reading',
             'severity' => 'info',
-            'temperature' => fake()->randomFloat(2, 15, 35),
+            'readings' => ['temperature' => fake()->randomFloat(2, 15, 35)],
             'logged_at' => now(),
         ];
     }

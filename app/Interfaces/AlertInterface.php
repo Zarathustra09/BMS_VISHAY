@@ -18,40 +18,7 @@ interface AlertInterface
     public const OFFLINE_AFTER_MINUTES = 10;
 
     /**
-     * The machine_logs columns that can have a threshold configured against them.
-     */
-    public const METRICS = [
-        'temperature',
-        'humidity',
-        'pressure',
-        'power_consumption',
-        'voltage',
-        'current',
-        'frequency',
-        'vibration_rms',
-        'bearing_temp',
-        'oil_level',
-    ];
-
-    /**
-     * Display label (with unit) per metric — single source for the thresholds table on the
-     * machine edit page and the sensor chart's metric dropdown.
-     */
-    public const METRIC_LABELS = [
-        'temperature' => 'Temperature (°C)',
-        'humidity' => 'Humidity (%)',
-        'pressure' => 'Pressure',
-        'power_consumption' => 'Power Consumption (kW)',
-        'voltage' => 'Voltage (V)',
-        'current' => 'Current (A)',
-        'frequency' => 'Frequency (Hz)',
-        'vibration_rms' => 'Vibration RMS',
-        'bearing_temp' => 'Bearing Temp (°C)',
-        'oil_level' => 'Oil Level',
-    ];
-
-    /**
-     * Check a newly stored sensor reading against the machine's configured thresholds,
+     * Check a newly stored sensor reading against the alert bounds on the machine's number parameters,
      * raising, escalating, or auto-resolving alerts as needed. Also clears any open/
      * acknowledged offline alert for this machine, since a reading is proof of life.
      * Called from MachineLogService::store() so it runs for every reading regardless of caller.
@@ -78,22 +45,11 @@ interface AlertInterface
     public function resolveOfflineAlerts(Machine $machine): int;
 
     /**
-     * This machine's configured thresholds, keyed by metric.
-     */
-    public function getThresholds(Machine $machine): Collection;
-
-    /**
      * This machine's open/acknowledged alerts, most recent first — for the "Active Alerts"
      * card on machines/show. Small, fixed-size per machine, so a plain collection (not a
      * DataTable) is fine here.
      */
     public function getActiveForMachine(Machine $machine, int $limit = 10): Collection;
-
-    /**
-     * Replace this machine's thresholds from the edit-page form. A metric with no
-     * non-empty bound in $thresholds has its threshold row removed (no longer monitored).
-     */
-    public function saveThresholds(Machine $machine, array $thresholds): void;
 
     /**
      * Query for the alerts DataTable — every alert, optionally filtered by status/severity/machine.

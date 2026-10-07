@@ -36,30 +36,37 @@ Rate limit: **120 requests per minute** per client (Laravel's default throttle k
 
 ## 4. Payload fields
 
-All fields except `log_type` are optional — send only what your device actually measures.
+Only `log_type` is required. **Sensor values do not go at the top level** — they go in a `readings` object, keyed by the parameter keys defined for *this machine* (see below).
 
-| Field | Type | Constraints | Units / Notes |
+| Field | Type | Constraints | Notes |
 |---|---|---|---|
-| `log_type` | string | **required.** One of: `status_change`, `maintenance`, `alarm`, `sensor_reading`, `operation`, `error` | Use `sensor_reading` for routine telemetry like temperature |
+| `log_type` | string | **required.** One of: `status_change`, `maintenance`, `alarm`, `sensor_reading`, `operation`, `error` | Use `sensor_reading` for routine telemetry |
+| `readings` | object | keys must be this machine's parameter keys | `{"temperature": 42.7, "door_open": false}` — see [Readings](#readings-and-machine-parameters) |
 | `event` | string | max 255 chars | short human-readable description |
 | `severity` | string | one of `info`, `warning`, `error`, `critical` | defaults to `info` if omitted |
 | `previous_status` / `current_status` | string | max 255 chars | for `status_change` logs |
-| `temperature` | number | -999999.99 to 999999.99 | °C, can be negative |
-| `humidity` | number | 0 to 100 | % |
-| `pressure` | number | -99999999.99 to 99999999.99 | bar |
-| `power_consumption` | number | ≥ 0, max 99999999.99 | kW |
-| `voltage` | number | ≥ 0, max 999999.99 | V |
-| `current` | number | ≥ 0, max 999999.99 | A |
-| `frequency` | number | ≥ 0, max 999999.99 | Hz |
-| `runtime_hours` | integer | ≥ 0 | |
-| `vibration_rms` | number | ≥ 0, max 99999.999 | RMS |
-| `bearing_temp` | number | -999999.99 to 999999.99 | °C |
-| `oil_level` | number | 0 to 9999.99 | % or litres depending on the machine |
 | `notes` | string | max 65535 chars | |
 | `performed_by` | string | max 255 chars | e.g. device identifier, if useful for debugging |
 | `logged_at` | ISO 8601 date/time string | | defaults to the server's current time if omitted |
 
-Any field not listed here is rejected by validation (`422`).
+Any other top-level field is ignored. The old fixed sensor fields (`temperature`, `humidity`, `pressure`, `power_consumption`, `voltage`, `current`, `frequency`, `runtime_hours`, `vibration_rms`, `bearing_temp`, `oil_level`) are **no longer accepted at the top level** — posting one returns `422` pointing you at `readings`, rather than storing nothing and answering `201`.
+
+### Readings and machine parameters
+
+What a machine can report is defined per machine, not by the API: on the machine's **edit page → Sensor Parameters**, a user adds one parameter per reading (e.g. "Coolant temperature", unit °C). A new machine can copy another machine's parameters instead of starting from scratch. The machine's **show page → API Integration** card then lists the exact keys, an example body, a copy-ready `curl` command and example responses for that machine — start there when wiring up a device.
+
+| Parameter setting | Effect on the API |
+|---|---|
+| `key` | The name to use inside `readings`. Lowercase letters, digits and underscores; generated from the label, never changes after the parameter is saved |
+| `data_type` = `number` | Value must be numeric (`42.7` or `"42.7"`); stored as a number |
+| `data_type` = `boolean` | Value must be `true`/`false`/`1`/`0`; stored as a real boolean |
+| `data_type` = `text` | Value must be a string, max 255 chars |
+| `min` / `max` (number only) | A value outside the range is rejected (`422`) |
+| `required` | Must be present in every `sensor_reading` log (not enforced for other log types, so an `alarm` log isn't rejected for lacking telemetry) |
+
+- An **unknown key** in `readings` is rejected with `422`, and the message lists the keys this machine accepts — a typo can't silently store nothing.
+- A `null` value is dropped rather than stored.
+- A machine with no parameters accepts no readings at all (any `readings` key is "unknown").
 
 ## 5. Example: curl
 
@@ -69,11 +76,15 @@ curl -X POST https://your-bms-host/api/machine-logs \
   -H "X-Device-Key: 7f3c9e2a1b8d4f6e0a5c3b9d7e1f2a4c6b8d0e2f" \
   -d '{
     "log_type": "sensor_reading",
-    "temperature": 42.7,
-    "humidity": 55.2,
+    "readings": {
+      "temperature": 42.7,
+      "humidity": 55.2
+    },
     "logged_at": "2026-09-26T14:30:00+08:00"
   }'
 ```
+
+(`temperature` and `humidity` only work if the machine has parameters with those keys.)
 
 ## 6. Example: ESP32 / Arduino (HTTPClient)
 
@@ -90,8 +101,8 @@ void sendReading(float temperatureC, float humidityPct) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", deviceKey);
 
-  String body = String("{\"log_type\":\"sensor_reading\",\"temperature\":") + temperatureC
-              + ",\"humidity\":" + humidityPct + "}";
+  String body = String("{\"log_type\":\"sensor_reading\",\"readings\":{\"temperature\":") + temperatureC
+              + ",\"humidity\":" + humidityPct + "}}";
 
   int status = http.POST(body);
   if (status == 201) {
@@ -101,28 +112,27 @@ void sendReading(float temperatureC, float humidityPct) {
   } else if (status == 429) {
     // rate limited — back off and retry later
   } else {
-    // 422 = payload rejected, check the response body for which field failed
+    // 422 = payload rejected, check the response body for which reading failed
   }
   http.end();
 }
 ```
-
 ## 7. Responses
 
 | Status | Meaning | Body |
 |---|---|---|
 | `201 Created` | Reading stored | `{"success": true, "message": "...", "data": { ...the created log... }}` |
 | `401 Unauthorized` | Missing or invalid `X-Device-Key` | `{"success": false, "message": "Missing X-Device-Key header."}` or `"Invalid device key."` |
-| `422 Unprocessable Entity` | A field failed validation | Standard Laravel validation error body: `{"message": "...", "errors": {"field": ["reason"]}}` |
+| `422 Unprocessable Entity` | A field or reading failed validation (unknown parameter key, wrong type, outside min/max, missing required parameter, or a sensor value sent at the top level) | Standard Laravel validation error body: `{"message": "...", "errors": {"readings.temperature": ["reason"]}}` — an unknown key is reported under `readings` |
 | `429 Too Many Requests` | Rate limit exceeded (120/min) | Standard Laravel throttle response |
 
 ## 8. Threshold alerts (Phase 5)
 
-Every stored reading is checked against that machine's configured [sensor thresholds](03-data-model.md#sensor_thresholds) (set on the machine's edit page in the web UI — there's no API for this) before the response is returned. This happens synchronously in `MachineLogService::store()`, so it doesn't add a separate request, but it does mean a reading that breaches a critical bound will queue an admin/manager notification (database + email) before your `201` comes back.
+Every stored reading is checked against the alert thresholds on that machine's number [parameters](03-data-model.md#machine_parameters) (set on the machine's edit page in the web UI — there's no API for this) before the response is returned. This happens synchronously in `MachineLogService::store()`, so it doesn't add a separate request, but it does mean a reading that breaches a critical bound will queue an admin/manager notification (database + email) before your `201` comes back.
 
-- The `severity` field you send is independent of this — it's your own event classification (e.g. a device might send `severity: "info"` for a routine reading that still happens to breach a threshold). Alerts are driven entirely by the numeric metric values against the configured bounds, not by whatever `severity` you pass.
-- Sending the same out-of-range value repeatedly does **not** create a new alert each time — there's at most one open alert per machine per metric, and it just gets its `value`/timestamp updated. You'll only trigger a fresh notification if the reading escalates the alert from `warning` to `critical`.
-- A reading back within both the warning and critical bounds automatically resolves whatever alert was open for that metric — no separate "all clear" call needed.
+- The `severity` field you send is independent of this — it's your own event classification (e.g. a device might send `severity: "info"` for a routine reading that still happens to breach a threshold). Alerts are driven entirely by the numeric parameter values against the configured bounds, not by whatever `severity` you pass.
+- Sending the same out-of-range value repeatedly does **not** create a new alert each time — there's at most one open alert per machine per parameter, and it just gets its `value`/timestamp updated. You'll only trigger a fresh notification if the reading escalates the alert from `warning` to `critical`.
+- A reading back within both the warning and critical bounds automatically resolves whatever alert was open for that parameter — no separate "all clear" call needed.
 - See [02-architecture.md](02-architecture.md) for the full evaluate/escalate/resolve sequence, and [06-security.md](06-security.md) for who receives the notification.
 
 ## 9. Offline detection (Phase 6)

@@ -88,63 +88,33 @@ class SuggestedQuestionService implements SuggestedQuestionInterface
         // Add sensor-related questions based on available data
         $recentLog = $machine->logs()->latest('logged_at')->first();
 
-        if ($recentLog) {
-            if ($recentLog->temperature !== null) {
-                $questions[] = [
-                    'icon' => '🌡️',
-                    'question' => 'Are there any temperature anomalies or trends?',
-                    'category' => 'sensors',
-                ];
+        if ($recentLog && ! empty($recentLog->readings)) {
+            // Questions follow what this machine actually reports - up to its first three
+            // parameters present in the latest reading - instead of a fixed set of metrics.
+            $reported = $machine->parameters()->get()
+                ->filter(fn ($parameter) => array_key_exists($parameter->key, $recentLog->readings))
+                ->take(3);
 
-                $questions[] = [
-                    'icon' => '🔥',
-                    'question' => 'Analyze temperature patterns over the last week',
-                    'category' => 'sensors',
-                ];
-            }
+            foreach ($reported as $parameter) {
+                if ($parameter->data_type === \App\Enums\ParameterDataType::Number) {
+                    $questions[] = [
+                        'icon' => '📈',
+                        'question' => "Are there any {$parameter->label} anomalies or trends?",
+                        'category' => 'sensors',
+                    ];
 
-            if ($recentLog->power_consumption !== null) {
-                $questions[] = [
-                    'icon' => '⚡',
-                    'question' => 'Analyze power consumption patterns and efficiency',
-                    'category' => 'performance',
-                ];
-
-                $questions[] = [
-                    'icon' => '💰',
-                    'question' => 'How can we reduce energy costs for this machine?',
-                    'category' => 'performance',
-                ];
-            }
-
-            if ($recentLog->vibration_rms !== null) {
-                $questions[] = [
-                    'icon' => '📊',
-                    'question' => 'Are vibration levels within normal range?',
-                    'category' => 'sensors',
-                ];
-
-                $questions[] = [
-                    'icon' => '🔊',
-                    'question' => 'Compare current vibration with historical data',
-                    'category' => 'sensors',
-                ];
-            }
-
-            if ($recentLog->pressure !== null) {
-                $questions[] = [
-                    'icon' => '💨',
-                    'question' => 'Is the pressure operating within specifications?',
-                    'category' => 'sensors',
-                ];
-            }
-
-            if ($recentLog->voltage !== null || $recentLog->current !== null) {
-                $questions[] = [
-                    'icon' => '🔌',
-                    'question' => 'Check electrical parameters for abnormalities',
-                    'category' => 'sensors',
-                ];
+                    $questions[] = [
+                        'icon' => '📊',
+                        'question' => "Analyze {$parameter->label} patterns over the last week",
+                        'category' => 'sensors',
+                    ];
+                } else {
+                    $questions[] = [
+                        'icon' => '🔎',
+                        'question' => "Has {$parameter->label} changed recently, and does it matter?",
+                        'category' => 'sensors',
+                    ];
+                }
             }
         }
 
@@ -261,8 +231,8 @@ class SuggestedQuestionService implements SuggestedQuestionInterface
 
         // Prioritize by category relevance
         $priorityCategories = ['alerts', 'maintenance', 'risk', 'status'];
-        $priorityQuestions = array_filter($questions, fn($q) => in_array($q['category'] ?? '', $priorityCategories));
-        $otherQuestions = array_filter($questions, fn($q) => !in_array($q['category'] ?? '', $priorityCategories));
+        $priorityQuestions = array_filter($questions, fn ($q) => in_array($q['category'] ?? '', $priorityCategories));
+        $otherQuestions = array_filter($questions, fn ($q) => ! in_array($q['category'] ?? '', $priorityCategories));
 
         // Take up to 8 priority questions and up to 4 other questions
         $selectedQuestions = array_merge(
@@ -271,8 +241,9 @@ class SuggestedQuestionService implements SuggestedQuestionInterface
         );
 
         // Remove category key before returning
-        return array_values(array_map(function($q) {
+        return array_values(array_map(function ($q) {
             unset($q['category']);
+
             return $q;
         }, array_slice($selectedQuestions, 0, 12)));
     }

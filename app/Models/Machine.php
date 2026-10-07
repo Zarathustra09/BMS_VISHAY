@@ -93,11 +93,12 @@ class Machine extends Model
     }
 
     /**
-     * Per-metric warning/critical bounds used by AlertService::evaluate().
+     * The readings this machine reports through the sensor API (and their alert bounds),
+     * in display order — see MachineParameter.
      */
-    public function thresholds(): HasMany
+    public function parameters(): HasMany
     {
-        return $this->hasMany(SensorThreshold::class);
+        return $this->hasMany(MachineParameter::class)->orderBy('sort_order')->orderBy('id');
     }
 
     /**

@@ -1,14 +1,14 @@
+{{-- Expects: $log, $parameters (this machine's MachineParameters keyed by key). A reading whose
+     parameter has since been deleted still renders, under a de-slugged version of its key. --}}
 <div class="text-xs space-y-1">
-    @if($log->temperature)
-        <div>🌡️ {{ $log->temperature }}°C</div>
-    @endif
-    @if($log->power_consumption)
-        <div>⚡ {{ $log->power_consumption }} kW</div>
-    @endif
-    @if($log->vibration_rms)
-        <div>📊 {{ $log->vibration_rms }} RMS</div>
-    @endif
-    @if($log->pressure)
-        <div>💨 {{ $log->pressure }} bar</div>
-    @endif
+    @foreach($log->readings ?? [] as $key => $value)
+        @php
+            $parameter = $parameters->get($key);
+            $display = is_bool($value) ? ($value ? 'Yes' : 'No') : $value;
+        @endphp
+        <div>
+            <span class="opacity-70">{{ $parameter?->label ?? ucfirst(str_replace('_', ' ', $key)) }}:</span>
+            {{ $display }}@if($parameter?->unit) {{ $parameter->unit }}@endif
+        </div>
+    @endforeach
 </div>

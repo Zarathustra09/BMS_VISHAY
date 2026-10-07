@@ -6,10 +6,13 @@ use App\DataTables\MachineLogsDataTable;
 use App\DataTables\MachinesDataTable;
 use App\Enums\AppModule;
 use App\Enums\MachineStatus;
+use App\Enums\ParameterDataType;
 use App\Enums\SpecFieldType;
+use App\Exceptions\MachineParameterException;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
+use App\Interfaces\MachineParameterInterface;
 use App\Interfaces\MachineTypeInterface;
 use App\Models\Building;
 use App\Models\Floor;
@@ -25,10 +28,11 @@ class MachineController extends Controller
         protected AlertInterface $alertService,
         protected MachineLogInterface $machineLogService,
         protected MachineTypeInterface $machineTypeService,
+        protected MachineParameterInterface $parameterService,
     ) {
-        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings']);
+        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings', 'parameters']);
         $this->middleware('permission:machines.create')->only(['create', 'store']);
-        $this->middleware('permission:machines.update')->only(['edit', 'update', 'updateThresholds']);
+        $this->middleware('permission:machines.update')->only(['edit', 'update']);
         $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
     }
 
@@ -50,15 +54,20 @@ class MachineController extends Controller
     {
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
         $machineTypes = $this->machineTypeService->getForSelect();
+        $copySources = $this->machineService->getParameterCopySources();
 
-        return view('machines.create', compact('buildings', 'machineTypes'));
+        return view('machines.create', compact('buildings', 'machineTypes', 'copySources'));
     }
 
     public function store(Request $request)
     {
         $validated = $this->validateMachine($request);
 
-        $machine = $this->machineService->create($validated);
+        try {
+            $machine = $this->machineService->create($validated);
+        } catch (MachineParameterException $e) {
+            return back()->withInput()->withErrors(['parameters' => $e->getMessage()]);
+        }
 
         return redirect()->route('machines.show', $machine)
             ->with('success', 'Machine created successfully.');
@@ -77,13 +86,14 @@ class MachineController extends Controller
         // Rendered once here so the page loads with the chart fully drawn — no fetch on
         // first paint, no flash while Alpine boots.
         $chart = $this->machineLogService->getReadingSeries($machine);
+        $apiExample = $this->parameterService->apiExample($machine);
 
         $canViewDeviceKey = auth()->user()->can('machines.view-device-key');
         $deviceKeyPlain = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
             'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'activityFeed', 'chart',
-            'specRows', 'canViewDeviceKey', 'deviceKeyPlain'
+            'specRows', 'canViewDeviceKey', 'deviceKeyPlain', 'apiExample'
         ));
     }
 
@@ -101,7 +111,9 @@ class MachineController extends Controller
     public function readings(Request $request, Machine $machine)
     {
         $validated = $request->validate([
-            'metric' => ['nullable', Rule::in(AlertInterface::METRICS)],
+            // Any string is accepted - an unknown key falls back to the machine's first number
+            // parameter (MachineLogService::getReadingSeries()), exactly as a missing one does.
+            'metric' => ['nullable', 'string', 'max:50'],
             'range' => ['nullable', Rule::in(['1h', '24h', '7d'])],
         ]);
 
@@ -110,49 +122,39 @@ class MachineController extends Controller
         );
     }
 
+    /**
+     * JSON source for the machine form's "Copy parameters from..." picker - another machine's
+     * parameters as id-less builder rows.
+     */
+    public function parameters(Machine $machine)
+    {
+        return response()->json($this->parameterService->copyableRows($machine));
+    }
+
     public function edit(Machine $machine)
     {
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
         $floors = $machine->building_id
             ? Floor::where('building_id', $machine->building_id)->get()
             : collect();
-        $thresholds = $this->alertService->getThresholds($machine);
         $machineTypes = $this->machineTypeService->getForSelect();
+        $machine->load('parameters');
 
-        return view('machines.edit', compact('machine', 'buildings', 'floors', 'thresholds', 'machineTypes'));
+        return view('machines.edit', compact('machine', 'buildings', 'floors', 'machineTypes'));
     }
 
     public function update(Request $request, Machine $machine)
     {
         $validated = $this->validateMachine($request, $machine);
 
-        $this->machineService->update($machine, $validated);
+        try {
+            $this->machineService->update($machine, $validated);
+        } catch (MachineParameterException $e) {
+            return back()->withInput()->withErrors(['parameters' => $e->getMessage()]);
+        }
 
         return redirect()->route('machines.show', $machine)
             ->with('success', 'Machine updated successfully.');
-    }
-
-    /**
-     * Saves the machine's alert thresholds — a separate form/route from the main wizard
-     * above so this module's persistence (AlertService) stays independent of the
-     * machine-attribute validation in validateMachine().
-     */
-    public function updateThresholds(Request $request, Machine $machine)
-    {
-        $bounds = 'nullable|numeric';
-
-        $validated = $request->validate([
-            'thresholds' => 'array',
-            'thresholds.*.warning_min' => $bounds,
-            'thresholds.*.warning_max' => $bounds,
-            'thresholds.*.critical_min' => $bounds,
-            'thresholds.*.critical_max' => $bounds,
-        ]);
-
-        $this->alertService->saveThresholds($machine, $validated['thresholds'] ?? []);
-
-        return redirect()->route('machines.edit', $machine)
-            ->with('success', 'Alert thresholds updated.');
     }
 
     public function confirmDelete(Machine $machine)
@@ -236,11 +238,18 @@ class MachineController extends Controller
             'is_critical' => 'boolean',
             'specifications' => ['nullable', 'array'],
             ...$specRules,
-        ], [], $specAttributes);
+            ...$this->parameterRules($request),
+        ], [], $specAttributes + $this->parameterAttributes());
 
         // Checkboxes submit nothing at all when unchecked, so this normalises them to
         // booleans after validation, matching the app's existing convention for this.
         $validated['is_critical'] = $request->boolean('is_critical');
+
+        // The form is the source of truth for a machine's parameters: no rows posted means the
+        // machine has none, so the list is always handed to the service (an empty one deletes).
+        // Sorted by posted index first: validated() rebuilds the array in rule order, which puts
+        // a row with an `id` ahead of one without and would scramble the user's ordering.
+        $validated['parameters'] = collect($validated['parameters'] ?? [])->sortKeys()->values()->all();
 
         // With Buildings switched off (config/modules.php) the form has no Building/Floor
         // selects, so a posted value can only be hand-crafted — dropping the keys (rather than
@@ -250,6 +259,61 @@ class MachineController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * Rules for the machine form's Sensor Parameters builder. `key` is only honoured on a new
+     * row (the service never changes an existing parameter's key or data type); threshold bounds
+     * are numeric and ignored by the service for a non-number parameter.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function parameterRules(Request $request): array
+    {
+        $number = ['nullable', 'numeric', 'between:-9999999999999,9999999999999'];
+
+        return [
+            'parameters' => ['nullable', 'array', 'max:50'],
+            'parameters.*' => ['array'],
+            'parameters.*.id' => ['nullable', 'integer'],
+            'parameters.*.key' => ['nullable', 'string', 'max:50', 'regex:/^[a-z][a-z0-9_]*$/'],
+            'parameters.*.label' => ['required', 'string', 'max:255'],
+            'parameters.*.unit' => ['nullable', 'string', 'max:30'],
+            'parameters.*.data_type' => ['required', Rule::enum(ParameterDataType::class)],
+            'parameters.*.required' => ['nullable', 'boolean'],
+            'parameters.*.min' => [...$number, function ($attribute, $value, $fail) use ($request) {
+                $index = explode('.', $attribute)[1];
+                $max = $request->input("parameters.{$index}.max");
+
+                if (is_numeric($value) && is_numeric($max) && (float) $value > (float) $max) {
+                    $fail('The minimum accepted value must not be greater than the maximum.');
+                }
+            }],
+            'parameters.*.max' => $number,
+            'parameters.*.warning_min' => $number,
+            'parameters.*.warning_max' => $number,
+            'parameters.*.critical_min' => $number,
+            'parameters.*.critical_max' => $number,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parameterAttributes(): array
+    {
+        return [
+            'parameters.*.key' => 'parameter key',
+            'parameters.*.label' => 'parameter label',
+            'parameters.*.unit' => 'parameter unit',
+            'parameters.*.data_type' => 'parameter data type',
+            'parameters.*.min' => 'parameter minimum',
+            'parameters.*.max' => 'parameter maximum',
+            'parameters.*.warning_min' => 'parameter warning minimum',
+            'parameters.*.warning_max' => 'parameter warning maximum',
+            'parameters.*.critical_min' => 'parameter critical minimum',
+            'parameters.*.critical_max' => 'parameter critical maximum',
+        ];
     }
 
     /**

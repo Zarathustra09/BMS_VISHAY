@@ -15,6 +15,5 @@
         'machine' => $machine,
         'buildings' => $buildings,
         'floors' => $floors,
-        'thresholds' => $thresholds,
     ])
 @endsection

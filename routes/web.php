@@ -41,11 +41,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/machines/{machine}/delete', [App\Http\Controllers\MachineController::class, 'confirmDelete'])->name('machines.confirm-delete');
     Route::get('/machines/{machine}/logs/data', [App\Http\Controllers\MachineController::class, 'logsData'])->name('machines.logs.data');
     Route::get('/machines/{machine}/readings', [App\Http\Controllers\MachineController::class, 'readings'])->name('machines.readings');
+    Route::get('/machines/{machine}/parameters', [App\Http\Controllers\MachineController::class, 'parameters'])->name('machines.parameters');
     Route::post('/machines/{machine}/device-key', [App\Http\Controllers\MachineController::class, 'generateDeviceKey'])
         ->middleware('permission:machines.view-device-key')
         ->name('machines.device-key.generate');
-    Route::put('/machines/{machine}/thresholds', [App\Http\Controllers\MachineController::class, 'updateThresholds'])
-        ->name('machines.thresholds.update');
 
     // Machine Type Routes
     // A distinct /machine-types prefix, not /machines/types — the Machines sidebar item

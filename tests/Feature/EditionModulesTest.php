@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Interfaces\RoleInterface;
 use App\Models\Building;
 use App\Models\Machine;
+use App\Models\MachineParameter;
 use App\Models\MachineType;
-use App\Models\SensorThreshold;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Console\Scheduling\Schedule;
@@ -260,15 +260,15 @@ class EditionModulesTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('admin');
         $machine = Machine::factory()->create();
-        SensorThreshold::create(['machine_id' => $machine->id, 'metric' => 'temperature', 'critical_max' => 40]);
+        MachineParameter::factory()->for($machine)->key('temperature')->withThresholds(['critical_max' => 40])->create();
         $plainKey = $machine->generateDeviceKey();
 
         $this->postJson('/api/machine-logs', [
             'log_type' => 'sensor_reading',
-            'temperature' => 45,
+            'readings' => ['temperature' => 45],
         ], ['X-Device-Key' => $plainKey])->assertStatus(201);
 
-        $this->assertDatabaseHas('machine_logs', ['machine_id' => $machine->id, 'temperature' => 45]);
+        $this->assertEquals(['temperature' => 45], $machine->logs()->first()->readings);
         $this->assertDatabaseHas('alerts', ['machine_id' => $machine->id, 'metric' => 'temperature', 'status' => 'open']);
     }
 

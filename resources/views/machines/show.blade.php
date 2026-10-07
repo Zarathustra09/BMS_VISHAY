@@ -313,6 +313,9 @@
     </div>
     @endcan
 
+    <!-- API Integration: endpoint, header and example requests built from this machine's own parameters -->
+    @include('machines._api-integration')
+
     <!-- Log Statistics -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div class="stat bg-base-100 rounded-box shadow-lg border border-base-300/50">
@@ -373,7 +376,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-sm" x-text="availableMetrics.length === 0
-                    ? 'This machine has not sent any sensor readings in the last 7 days.'
+                    ? 'This machine has no numeric parameters to chart yet — add one on its edit page.'
                     : 'No ' + (label || 'sensor') + ' readings in this range.'"></p>
             </div>
 

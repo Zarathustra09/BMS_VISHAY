@@ -14,7 +14,6 @@ interface SettingInterface
         'offline_timeout_minutes',
         'preventive_lead_days',
         'auto_fault_on_critical',
-        'default_thresholds',
         'log_retention_days',
     ];
 
@@ -28,7 +27,6 @@ interface SettingInterface
         'offline_timeout_minutes' => 10,
         'preventive_lead_days' => 7,
         'auto_fault_on_critical' => false,
-        'default_thresholds' => [],
         'log_retention_days' => 365,
     ];
 

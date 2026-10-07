@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Interfaces\AlertInterface;
 use App\Interfaces\SettingInterface;
 use Illuminate\Http\Request;
 
@@ -30,11 +29,6 @@ class SettingController extends Controller
             'preventive_lead_days' => 'required|integer|min:0',
             'auto_fault_on_critical' => 'boolean',
             'log_retention_days' => 'required|integer|min:1',
-            'thresholds' => 'array',
-            'thresholds.*.warning_min' => 'nullable|numeric',
-            'thresholds.*.warning_max' => 'nullable|numeric',
-            'thresholds.*.critical_min' => 'nullable|numeric',
-            'thresholds.*.critical_max' => 'nullable|numeric',
         ]);
 
         $this->settingService->update([
@@ -44,7 +38,6 @@ class SettingController extends Controller
             'preventive_lead_days' => $validated['preventive_lead_days'],
             'auto_fault_on_critical' => $request->boolean('auto_fault_on_critical'),
             'log_retention_days' => $validated['log_retention_days'],
-            'default_thresholds' => $this->parseDefaultThresholds($validated['thresholds'] ?? []),
         ]);
 
         return redirect()->route('settings.index')->with('success', 'Settings saved.');
@@ -63,38 +56,5 @@ class SettingController extends Controller
             ->unique()
             ->values()
             ->all();
-    }
-
-    /**
-     * Drops a metric entirely when all four bounds are empty — mirrors
-     * AlertService::saveThresholds()'s per-machine version of the same rule.
-     */
-    private function parseDefaultThresholds(array $thresholds): array
-    {
-        $result = [];
-
-        foreach (AlertInterface::METRICS as $metric) {
-            $row = $thresholds[$metric] ?? [];
-
-            $bounds = [
-                'warning_min' => $this->nullableNumber($row['warning_min'] ?? null),
-                'warning_max' => $this->nullableNumber($row['warning_max'] ?? null),
-                'critical_min' => $this->nullableNumber($row['critical_min'] ?? null),
-                'critical_max' => $this->nullableNumber($row['critical_max'] ?? null),
-            ];
-
-            if (collect($bounds)->every(fn ($value) => $value === null)) {
-                continue;
-            }
-
-            $result[$metric] = $bounds;
-        }
-
-        return $result;
-    }
-
-    private function nullableNumber(mixed $value): ?float
-    {
-        return ($value === null || $value === '') ? null : (float) $value;
     }
 }

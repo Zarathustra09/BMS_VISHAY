@@ -17,9 +17,9 @@ class MachineLogService implements MachineLogInterface
      * a hover crosshair to feel precise.
      */
     private const RANGES = [
-        '1h'  => ['seconds' => 3600,   'bucket' => 60,   'format' => 'H:i'],
+        '1h' => ['seconds' => 3600,   'bucket' => 60,   'format' => 'H:i'],
         '24h' => ['seconds' => 86400,  'bucket' => 900,  'format' => 'H:i'],
-        '7d'  => ['seconds' => 604800, 'bucket' => 7200, 'format' => 'M j H:i'],
+        '7d' => ['seconds' => 604800, 'bucket' => 7200, 'format' => 'M j H:i'],
     ];
 
     /**
@@ -56,19 +56,19 @@ class MachineLogService implements MachineLogInterface
     {
         $query = MachineLog::query()->where('machine_id', $machine->id);
 
-        if (!empty($filters['severity'])) {
+        if (! empty($filters['severity'])) {
             $query->where('severity', $filters['severity']);
         }
 
-        if (!empty($filters['log_type'])) {
+        if (! empty($filters['log_type'])) {
             $query->where('log_type', $filters['log_type']);
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $query->whereDate('logged_at', '>=', $filters['date_from']);
         }
 
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $query->whereDate('logged_at', '<=', $filters['date_to']);
         }
 
@@ -80,26 +80,30 @@ class MachineLogService implements MachineLogInterface
         $range = isset(self::RANGES[$range]) ? $range : '24h';
         $cfg = self::RANGES[$range];
 
-        $available = $this->availableMetrics($machine);
+        // Only a number parameter can be charted. Offered in the machine's own display order,
+        // so the first one is the chart's default.
+        $available = $machine->parameters()->where('data_type', 'number')->get()->keyBy('key');
 
-        if ($metric === null || !isset($available[$metric])) {
-            $metric = array_key_first($available);
-        }
+        $parameter = ($metric !== null ? $available->get($metric) : null) ?? $available->first();
 
         $points = [];
         $bucketSeconds = $cfg['bucket'];
 
-        if ($metric !== null) {
-            // ->toBase() skips Eloquent hydration and the decimal:N cast (which would turn
-            // every value into a string) — we only need logged_at + one numeric column.
+        if ($parameter) {
+            // The key comes from the machine's own parameter row (never from the request), and
+            // can only contain [a-z0-9_] — see MachineController's `parameters.*.key` rule.
+            $column = "readings->{$parameter->key}";
+
+            // ->toBase() skips Eloquent hydration and the JSON cast — we only need logged_at
+            // plus one value, which MySQL returns as a string and SQLite as a number.
             $rows = MachineLog::query()
                 ->toBase()
                 ->where('machine_id', $machine->id)
                 ->where('logged_at', '>=', now()->subSeconds($cfg['seconds']))
-                ->whereNotNull($metric)
+                ->whereNotNull($column)
                 ->orderByDesc('logged_at')
                 ->limit(self::MAX_RAW_ROWS)
-                ->get(['logged_at', $metric]);
+                ->get(['logged_at', "{$column} as reading"]);
 
             $buckets = [];
 
@@ -108,9 +112,9 @@ class MachineLogService implements MachineLogInterface
                 // bucketing, and avoiding a Carbon instantiation per row matters at this volume.
                 $ts = strtotime($row->logged_at);
                 $key = intdiv($ts, $bucketSeconds) * $bucketSeconds;
-                $value = (float) $row->{$metric};
+                $value = (float) $row->reading;
 
-                if (!isset($buckets[$key])) {
+                if (! isset($buckets[$key])) {
                     $buckets[$key] = ['sum' => 0.0, 'n' => 0, 'min' => $value, 'max' => $value];
                 }
 
@@ -136,23 +140,20 @@ class MachineLogService implements MachineLogInterface
             }
         }
 
-        $threshold = $metric ? $this->alerts->getThresholds($machine)->get($metric) : null;
+        $bound = fn (?string $column) => $parameter && $parameter->{$column} !== null ? (float) $parameter->{$column} : null;
 
         return [
-            'metric' => $metric,
-            'label' => $metric ? (AlertInterface::METRIC_LABELS[$metric] ?? $metric) : null,
+            'metric' => $parameter?->key,
+            'label' => $parameter?->labelWithUnit(),
             'range' => $range,
             'bucket_seconds' => $bucketSeconds,
-            'available_metrics' => array_map(
-                fn ($m) => ['value' => $m, 'label' => AlertInterface::METRIC_LABELS[$m] ?? $m],
-                array_keys($available)
-            ),
+            'available_metrics' => $available->map(fn ($p) => ['value' => $p->key, 'label' => $p->labelWithUnit()])->values()->all(),
             'points' => $points,
             'thresholds' => [
-                'warning_min' => $threshold?->warning_min !== null ? (float) $threshold->warning_min : null,
-                'warning_max' => $threshold?->warning_max !== null ? (float) $threshold->warning_max : null,
-                'critical_min' => $threshold?->critical_min !== null ? (float) $threshold->critical_min : null,
-                'critical_max' => $threshold?->critical_max !== null ? (float) $threshold->critical_max : null,
+                'warning_min' => $bound('warning_min'),
+                'warning_max' => $bound('warning_max'),
+                'critical_min' => $bound('critical_min'),
+                'critical_max' => $bound('critical_max'),
             ],
             'latest' => $points ? end($points)['avg'] : null,
             'online' => $machine->isOnline(AlertInterface::OFFLINE_AFTER_MINUTES),
@@ -160,29 +161,5 @@ class MachineLogService implements MachineLogInterface
             'last_seen_human' => $machine->last_seen_at?->diffForHumans(),
             'offline_after' => AlertInterface::OFFLINE_AFTER_MINUTES,
         ];
-    }
-
-    /**
-     * Which of the monitorable metrics this machine actually has data for, ordered by count
-     * desc so array_key_first() is the sensible chart default. Scoped to the widest range the
-     * chart offers (7d) so the dropdown never offers a metric that would draw nothing, and so
-     * this stays inside the (machine_id, logged_at) index rather than scanning the machine's
-     * whole log history. COUNT(col) counts non-nulls identically on MySQL and SQLite.
-     */
-    private function availableMetrics(Machine $machine): array
-    {
-        $selects = array_map(fn ($m) => "COUNT({$m}) as {$m}", AlertInterface::METRICS);
-
-        $row = MachineLog::query()
-            ->toBase()
-            ->where('machine_id', $machine->id)
-            ->where('logged_at', '>=', now()->subSeconds(self::RANGES['7d']['seconds']))
-            ->selectRaw(implode(', ', $selects))
-            ->first();
-
-        $counts = array_filter((array) $row, fn ($count) => $count > 0);
-        arsort($counts);
-
-        return $counts;
     }
 }

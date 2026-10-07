@@ -308,54 +308,6 @@
             </div>
         </div>
 
-        <!-- Default Alert Thresholds for New Machines -->
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
-            <div class="card-body">
-                <h2 class="card-title flex items-center gap-2">
-                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    Default Alert Thresholds for New Machines
-                </h2>
-                <p class="text-sm opacity-70">Applied automatically to every machine created from now on. Existing machines are unaffected — edit their thresholds individually on the machine's edit page.</p>
-
-                <div class="overflow-x-auto mt-4">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Warning Min</th>
-                                <th>Warning Max</th>
-                                <th>Critical Min</th>
-                                <th>Critical Max</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach(\App\Interfaces\AlertInterface::METRIC_LABELS as $metric => $label)
-                                @php $bounds = $settings['default_thresholds'][$metric] ?? []; @endphp
-                                <tr>
-                                    <td class="font-medium whitespace-nowrap">{{ $label }}</td>
-                                    @foreach(['warning_min', 'warning_max', 'critical_min', 'critical_max'] as $bound)
-                                        @php $errorKey = "thresholds.$metric.$bound"; @endphp
-                                        <td>
-                                            <input type="number" step="any"
-                                                   name="thresholds[{{ $metric }}][{{ $bound }}]"
-                                                   value="{{ old($errorKey, $bounds[$bound] ?? '') }}"
-                                                   aria-label="{{ $label }} {{ str_replace('_', ' ', $bound) }}"
-                                                   class="input input-sm w-28 @error($errorKey) input-error @enderror" />
-                                            @error($errorKey)
-                                                <p class="text-error text-xs mt-0.5">{{ $message }}</p>
-                                            @enderror
-                                        </td>
-                                    @endforeach
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
         <div class="flex justify-end">
             <button type="submit" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

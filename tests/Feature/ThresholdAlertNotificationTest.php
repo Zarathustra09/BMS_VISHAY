@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Interfaces\MachineLogInterface;
 use App\Models\Machine;
-use App\Models\SensorThreshold;
+use App\Models\MachineParameter;
 use App\Models\User;
 use App\Notifications\MachineAlertNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -31,16 +31,12 @@ class ThresholdAlertNotificationTest extends TestCase
         $admin->assignRole('admin');
 
         $machine = Machine::factory()->create();
-        SensorThreshold::create([
-            'machine_id' => $machine->id,
-            'metric' => 'temperature',
-            'critical_max' => 40,
-        ]);
+        MachineParameter::factory()->for($machine)->key('temperature')->withThresholds(['critical_max' => 40])->create();
 
         app(MachineLogInterface::class)->store([
             'machine_id' => $machine->id,
             'log_type' => 'sensor_reading',
-            'temperature' => 45,
+            'readings' => ['temperature' => 45],
         ]);
 
         $this->assertDatabaseHas('alerts', [
@@ -61,15 +57,11 @@ class ThresholdAlertNotificationTest extends TestCase
         $admin->assignRole('admin');
 
         $machine = Machine::factory()->create();
-        SensorThreshold::create([
-            'machine_id' => $machine->id,
-            'metric' => 'temperature',
-            'critical_max' => 40,
-        ]);
+        MachineParameter::factory()->for($machine)->key('temperature')->withThresholds(['critical_max' => 40])->create();
 
         $logService = app(MachineLogInterface::class);
-        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'temperature' => 45]);
-        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'temperature' => 46]);
+        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 45]]);
+        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 46]]);
 
         $this->assertSame(
             1,
@@ -85,15 +77,11 @@ class ThresholdAlertNotificationTest extends TestCase
         $admin->assignRole('admin');
 
         $machine = Machine::factory()->create();
-        SensorThreshold::create([
-            'machine_id' => $machine->id,
-            'metric' => 'temperature',
-            'critical_max' => 40,
-        ]);
+        MachineParameter::factory()->for($machine)->key('temperature')->withThresholds(['critical_max' => 40])->create();
 
         $logService = app(MachineLogInterface::class);
-        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'temperature' => 45]);
-        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'temperature' => 30]);
+        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 45]]);
+        $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 30]]);
 
         $this->assertDatabaseHas('alerts', [
             'machine_id' => $machine->id,

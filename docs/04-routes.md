@@ -70,7 +70,7 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 | GET | `/machines/{machine}/delete` | `machines.confirm-delete` | `MachineController@confirmDelete` | `machines.delete` | Confirmation page |
 | GET | `/machines/{machine}/logs/data` | `machines.logs.data` | `MachineController@logsData` | `machines.view` | **Ajax source for the machine-logs DataTable** on `machines/show` — severity/log_type/date-range filters. The highest-volume table in the app (see [02-architecture.md](02-architecture.md)). |
 | POST | `/machines/{machine}/device-key` | `machines.device-key.generate` | `MachineController@generateDeviceKey` | `machines.view-device-key` | Generate/regenerate this machine's sensor device API key |
-| PUT | `/machines/{machine}/thresholds` | `machines.thresholds.update` | `MachineController@updateThresholds` | `machines.update` | Save this machine's alert warning/critical bounds (Phase 5) — a separate form/route from the edit wizard, since it persists through `AlertService` rather than `MachineService` |
+| GET | `/machines/{machine}/parameters` | `machines.parameters` | `MachineController@parameters` | `machines.view` | JSON — another machine's parameters as id-less builder rows, for the create form's "Copy parameters from…" picker (Phase 10). Parameters themselves are saved as part of the machine form (`machines.store` / `machines.update`, `parameters[i][...]`) |
 | GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` and `?range=` (`1h`\|`24h`\|`7d`) query params, both validated against a fixed list; polled every 30s by the chart's Alpine component |
 
 ## Machine Types
