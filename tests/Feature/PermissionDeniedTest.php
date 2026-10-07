@@ -40,6 +40,18 @@ class PermissionDeniedTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_a_technician_sees_the_services_divider_but_not_the_system_divider(): void
+    {
+        $technician = User::factory()->create();
+        $technician->assignRole('technician');
+
+        $response = $this->actingAs($technician)->get(route('home'));
+
+        $response->assertOk();
+        $response->assertSee('<div class="divider text-xs opacity-50 my-2">SERVICES</div>', false);
+        $response->assertDontSee('<div class="divider text-xs opacity-50 my-2">SYSTEM</div>', false);
+    }
+
     public function test_a_technician_cannot_open_the_settings_page(): void
     {
         $technician = User::factory()->create();

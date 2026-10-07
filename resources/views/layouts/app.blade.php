@@ -175,6 +175,7 @@
                         @endcan
                         @endcanany
 
+                        @canany(['maintenance.view', 'reports.view'])
                         <div class="divider text-xs opacity-50 my-2">SERVICES</div>
 
                         @can('maintenance.view')
@@ -199,10 +200,10 @@
                             </a>
                         </li>
                         @endcan
-
-                        <div class="divider text-xs opacity-50 my-2">SYSTEM</div>
+                        @endcanany
 
                         @can('settings.view')
+                        <div class="divider text-xs opacity-50 my-2">SYSTEM</div>
                         <li>
                             <a href="{{ route('settings.index') }}" class="gap-3 {{ request()->is('settings*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -113,14 +113,11 @@
                                 </a>
                             @endif
                         </div>
-                        <label class="input flex items-center gap-2.5 @error('password') input-error @enderror">
-                            <svg class="w-4 h-4 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                            </svg>
-                            <input id="password" type="password" name="password"
-                                   required autocomplete="current-password" class="grow text-sm"
-                                   placeholder="••••••••" />
-                        </label>
+                        <x-auth.password-input
+                            name="password"
+                            label="Password"
+                            autocomplete="current-password"
+                            class="gap-2.5 {{ $errors->has('password') ? 'input-error' : '' }}" />
                         @error('password')
                             <p class="text-error text-xs mt-0.5">{{ $message }}</p>
                         @enderror

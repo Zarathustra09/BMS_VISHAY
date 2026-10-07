@@ -136,6 +136,17 @@ class EditionModulesTest extends TestCase
         }
     }
 
+    public function test_the_sidebar_drops_the_services_divider_when_every_services_module_is_switched_off(): void
+    {
+        $this->useLiteEdition();
+        $this->actingAsAdmin();
+
+        $response = $this->get(route('home'));
+
+        $response->assertDontSee('<div class="divider text-xs opacity-50 my-2">SERVICES</div>', false);
+        $response->assertSee('<div class="divider text-xs opacity-50 my-2">SYSTEM</div>', false);
+    }
+
     public function test_the_dashboard_renders_without_building_or_work_order_sections(): void
     {
         $this->useLiteEdition();
