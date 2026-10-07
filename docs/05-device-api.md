@@ -149,3 +149,7 @@ If a device stops POSTing entirely, the platform notices on its own — there's 
 - On `429`: back off (e.g. exponential backoff starting at a few seconds) and retry.
 - On `5xx` or a network error: retry with backoff; consider buffering readings locally if the device may be offline for extended periods, and replaying them with their original `logged_at` timestamp once connectivity returns.
 - There is currently no idempotency key — sending the same reading twice creates two rows. This is acceptable for telemetry but worth knowing if you build retry logic.
+
+## 10. Live updates (nothing to do on the device)
+
+Every accepted reading is also pushed to any browser currently watching that machine, over the plant PC's own Reverb WebSocket server, so the chart updates as the reading arrives. The device does not connect to it, change its payload or wait for it: it only ever talks to `POST /api/machine-logs`. If Reverb is stopped the POST still returns `201` (see [02-architecture.md](02-architecture.md)).

@@ -222,5 +222,6 @@ Both `settings.view` and `settings.update` are admin-only — see [06-security.m
 | Method | URI | Purpose |
 |---|---|---|
 | GET | `/up` | Laravel health check |
+| POST | `/broadcasting/auth` | Laravel Echo's private-channel authorization (session + `web` middleware; registered by `channels:` in `bootstrap/app.php`, rules in `routes/channels.php`) — returns a signed subscription for `machines.{id}` only to a user with `machines.view` (Phase 12). Not CSRF-checked: Laravel exempts this route itself |
 | GET | `/storage/{path}` | Public storage symlink (building images, etc.) |
 | GET | `/sanctum/csrf-cookie` | Sanctum SPA CSRF cookie endpoint (unused by this app currently) |

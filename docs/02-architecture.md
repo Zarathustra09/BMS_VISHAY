@@ -63,6 +63,7 @@ sequenceDiagram
     participant Iface as MachineLogInterface
     participant Svc as MachineLogService
     participant DB as machine_logs table
+    participant Reverb as Reverb (live push)
 
     Device->>Route: POST /api/machine-logs (X-Device-Key header)
     Route->>Mid: AuthenticateDevice
@@ -79,10 +80,13 @@ sequenceDiagram
         DB-->>Svc: MachineLog model
         Svc->>DB: stamp machines.last_seen_at = now()
         Svc->>Svc: AlertInterface::evaluate($log) — see (d)/(e) below
+        Svc-)Reverb: MachineReadingRecorded (rescued; skipped for 30s after a failure)
         Svc-->>Ctrl: MachineLog model
         Ctrl-->>Device: 201 JSON
     end
 ```
+
+**Live push.** After the reading is stored and evaluated, `MachineLogService::broadcastReading()` fires `App\Events\MachineReadingRecorded` — a `ShouldBroadcastNow` event (not queued: the queue only runs once a minute from the scheduler, which would be slower than the polling it replaces) on the private channel `machines.{id}`. [Laravel Reverb](09-setup-and-operations.md#live-updates-laravel-reverb-and-hosting-on-the-plant-pc), a free self-hosted WebSocket server on the same PC, relays it to every browser on that machine's page. **Reverb is strictly an add-on**: the dispatch is `rescue()`d, so a stopped or unreachable Reverb can never fail the device's POST; the first failure opens a 30-second circuit breaker (`live-broadcast-down` cache key) so the following readings skip the attempt instead of each waiting out the connect timeout, and one warning line is logged rather than a stack trace per reading. The machine page falls back to polling the moment its socket drops.
 
 Note there is no user session involved in this flow at all — the device authenticates itself with its own key, independent of any logged-in user. See [05-device-api.md](05-device-api.md) and [06-security.md](06-security.md).
 

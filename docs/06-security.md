@@ -152,6 +152,13 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 
 As of Phase 10, `notify()` **also** routes the same notification to every address in the `alert_emails` setting (`Notification::route('mail', $email)->notify(...)`) — for recipients who need alert emails without holding `admin`/`manager` (an external contractor, a shared ops inbox). Configured on the Settings page, admin-only.
 
+## Live updates (Reverb, Phase 12)
+
+- **Private channels.** A machine's readings are broadcast on `private-machines.{id}`. Subscribing needs a signature from `POST /broadcasting/auth`, which only a logged-in user holding `machines.view` — the same permission that opens the page — can get (`routes/channels.php`). A guest gets `403`, as does a user without that permission.
+- **What's public by design.** `REVERB_APP_KEY` is sent to every browser (it identifies the app to the WebSocket server, like a Pusher key). `REVERB_APP_SECRET` signs subscriptions and the server-to-Reverb publish API and **never leaves the PC** — it is not a `VITE_` variable. Generate your own values per install (`.env.example` ships placeholders).
+- **Network exposure.** Reverb listens on `0.0.0.0:8080` so browsers elsewhere on the LAN can connect; the installer's firewall rule opens that port on the **Private** network profile only. Don't port-forward it to the internet from the router — this deployment is LAN-only by design. `allowed_origins` in `config/reverb.php` is `*` because the page's origin is the PC's own (changing) IP; the channel authorization above is what actually protects the data.
+- **No new device attack surface.** Devices still only call the HTTP API; they never touch the WebSocket.
+
 ## Secrets in `.env`
 
 | Variable | Purpose |
@@ -160,6 +167,7 @@ As of Phase 10, `notify()` **also** routes the same notification to every addres
 | `DB_*` | Database credentials |
 | `OPENAI_API_KEY`, `GEMINI_API_KEY` | AI provider credentials — see [07-ai-insights.md](07-ai-insights.md) |
 | `AI_PROVIDER` | `openai` or `gemini` — which `AIInterface` implementation is bound |
+| `REVERB_APP_SECRET` | Signs private-channel subscriptions and the app→Reverb publish API — see [Live updates](#live-updates-reverb-phase-12). Keep it server-side; the `REVERB_APP_KEY` next to it is the public half |
 
 `.env` is git-ignored; `.env.example` documents every key with placeholder values and should be kept in sync whenever a new config value is added.
 

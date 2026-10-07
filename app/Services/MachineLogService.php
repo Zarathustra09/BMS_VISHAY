@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
+use App\Events\MachineReadingRecorded;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\MachineLogInterface;
 use App\Models\Machine;
 use App\Models\MachineLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MachineLogService implements MachineLogInterface
 {
@@ -52,6 +56,14 @@ class MachineLogService implements MachineLogInterface
     private const DEFAULT_POLL_SECONDS = 30;
 
     /**
+     * Set for BROADCAST_PAUSE_SECONDS after a failed live broadcast, so a stopped Reverb costs
+     * a device's POST one failed attempt per half minute instead of one on every reading.
+     */
+    private const BROADCAST_DOWN_KEY = 'live-broadcast-down';
+
+    private const BROADCAST_PAUSE_SECONDS = 30;
+
+    /**
      * A firehose machine (many readings/second) could return hundreds of thousands of rows
      * for a 7-day window — cap it and lose the oldest part of the window rather than the
      * request ballooning memory. Rows are fetched newest-first so the cap keeps the most
@@ -78,7 +90,31 @@ class MachineLogService implements MachineLogInterface
 
         $this->alerts->evaluate($log);
 
+        if (! empty($log->readings)) {
+            $this->broadcastReading($log);
+        }
+
         return $log;
+    }
+
+    /**
+     * Live push to anyone watching this machine (Laravel Reverb). Reverb is strictly an add-on:
+     * a stopped or unreachable server can never turn a device's already-stored reading into a
+     * 500 — the chart just falls back to polling. A failure also opens a short circuit breaker
+     * (BROADCAST_DOWN_KEY) so the next readings skip the attempt rather than each waiting out
+     * the connect timeout, and logs one line rather than a stack trace per reading.
+     */
+    private function broadcastReading(MachineLog $log): void
+    {
+        if (Cache::has(self::BROADCAST_DOWN_KEY)) {
+            return;
+        }
+
+        rescue(fn () => event(new MachineReadingRecorded($log)), function (Throwable $e) {
+            Cache::put(self::BROADCAST_DOWN_KEY, true, self::BROADCAST_PAUSE_SECONDS);
+
+            Log::warning('Live broadcast failed (is Reverb running?); readings are still stored and the chart falls back to polling. '.$e->getMessage());
+        }, report: false);
     }
 
     public function getQueryForDataTable(Machine $machine, array $filters = []): Builder

@@ -683,6 +683,9 @@
             ],
         });
 
+        // The sensor chart reloads this when a live reading is pushed (see sensorChart).
+        window.machineLogsTable = logsTable;
+
         $('#severityFilter, #logTypeFilter, #dateFromFilter, #dateToFilter').on('change', function () {
             logsTable.draw();
         });
@@ -1021,6 +1024,13 @@ document.addEventListener('alpine:init', () => {
         lastUpdated: 'just now',
         timer: null,
         controller: null,
+        // Live push (Laravel Reverb). socketLive is whether the WebSocket is connected right now;
+        // while it is, polling drops to a slow safety net and a pushed reading is drawn instantly.
+        socketLive: false,
+        channelBound: false,
+        reloadTimer: null,
+        logsTimer: null,
+        windowSeconds: { '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 },
         rangeLabels: { '5m': '5 min', '15m': '15 min', '1h': '1 hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days', custom: 'custom' },
 
         init() {
@@ -1031,6 +1041,7 @@ document.addEventListener('alpine:init', () => {
                 if (choice !== 'custom') this.load();
             });
             this.schedule();
+            this.connectLive();
         },
 
         // The server decides how often a window is worth re-polling (poll_seconds): every few
@@ -1039,9 +1050,12 @@ document.addEventListener('alpine:init', () => {
         schedule() {
             clearTimeout(this.timer);
             if (!this.live || !this.poll_seconds) return;
+            // With the socket connected, pushed readings do the real work; this slower poll only
+            // slides the window, refreshes thresholds/auto range and covers a missed message.
+            const seconds = this.socketLive ? Math.max(this.poll_seconds, 60) : this.poll_seconds;
             this.timer = setTimeout(() => {
                 if (document.visibilityState === 'visible') this.load(true); else this.schedule();
-            }, this.poll_seconds * 1000);
+            }, seconds * 1000);
         },
 
         toggleLive() {
@@ -1067,13 +1081,98 @@ document.addEventListener('alpine:init', () => {
             this.applyCustom();
         },
 
+        // Subscribes to this machine's private channel once Echo exists (it is created by a
+        // deferred Vite module, so it can appear after Alpine starts; with live updates not
+        // configured it never does, and the chart just keeps polling).
+        connectLive() {
+            if (!window.Echo) {
+                window.addEventListener('echo:ready', () => this.connectLive(), { once: true });
+                return;
+            }
+            if (this.channelBound) return;
+            this.channelBound = true;
+
+            const connection = window.Echo.connector.pusher.connection;
+            this.socketLive = connection.state === 'connected';
+            connection.bind('state_change', ({ current }) => {
+                const wasLive = this.socketLive;
+                this.socketLive = current === 'connected';
+                // Back online: catch up on whatever was missed while the socket was down.
+                if (this.socketLive && !wasLive) this.load(true); else this.schedule();
+            });
+
+            window.Echo.private('machines.{{ $machine->id }}')
+                .listen('.reading.recorded', (e) => this.onLiveReading(e));
+        },
+
+        onLiveReading(e) {
+            if (!this.live) return;                                  // paused: the chart stays put
+            if (this.rangeChoice === 'custom' && !this.poll_seconds) return; // a finished window can't grow
+
+            // Whatever was charted, the machine just proved it's alive.
+            this.online = true;
+            this.last_seen_at = new Date().toISOString();
+            this.last_seen_human = 'just now';
+            this.lastUpdated = new Date().toLocaleTimeString();
+            this.reloadLogsSoon();
+
+            const value = this.metric ? e.readings?.[this.metric] : undefined;
+            if (typeof value !== 'number') return;                   // not the charted parameter
+
+            this.latest_reading_at = new Date(e.t * 1000).toISOString();
+            this.latest_reading_human = 'just now';
+
+            // A replayed, older-than-the-window reading isn't part of this view.
+            if (e.t * 1000 < Date.parse(this.window_start)) return;
+
+            // Raw mode (or an empty chart) can take the point as-is. Bucketed data would need
+            // the server's averaging, so it just re-fetches (debounced).
+            if (this.points.length >= 300 || (this.points.length && this.resolution !== 'Raw readings')) {
+                this.loadSoon();
+                return;
+            }
+
+            const first = this.points.length ? this.points[0].t : e.t;
+            const spanBefore = this.points.length ? this.points[this.points.length - 1].t - first : 0;
+            const span = Math.max(e.t, this.points.length ? this.points[this.points.length - 1].t : e.t) - first;
+
+            let points = [...this.points, {
+                t: e.t, avg: value, min: value, max: value, n: 1,
+                label: span <= 3600 ? e.labels.time : (span <= 86400 ? e.labels.hour : e.labels.date),
+            }];
+            if (points.length > 1 && points[points.length - 2].t > e.t) points.sort((a, b) => a.t - b.t);
+
+            // A preset window slides: drop what has fallen off its far end.
+            const length = this.windowSeconds[this.range];
+            if (this.range !== 'custom' && length) points = points.filter(p => p.t >= e.t - length);
+
+            this.points = points;
+            this.resolution = 'Raw readings';
+            this.reading_count = points.length;
+            this.latest = value;
+
+            // The data's span just grew past a label-format boundary, so earlier labels are
+            // now in a finer format than this one: re-fetch to relabel consistently.
+            if ((spanBefore <= 3600 && span > 3600) || (spanBefore <= 86400 && span > 86400)) this.loadSoon();
+        },
+
+        loadSoon() {
+            clearTimeout(this.reloadTimer);
+            this.reloadTimer = setTimeout(() => this.load(true), 2000);
+        },
+
+        reloadLogsSoon() {
+            clearTimeout(this.logsTimer);
+            this.logsTimer = setTimeout(() => window.machineLogsTable?.ajax.reload(null, false), 2000);
+        },
+
         get autoLabel() {
             return this.rangeChoice === 'auto' ? `Auto (${this.rangeLabels[this.range] ?? this.range})` : 'Auto';
         },
 
         get statusText() {
             const parts = [];
-            if (this.poll_seconds) parts.push(this.live ? `Live · every ${this.poll_seconds}s` : 'Paused');
+            if (this.poll_seconds) parts.push(this.live ? (this.socketLive ? 'Live · instant' : `Live · every ${this.poll_seconds}s`) : 'Paused');
             else parts.push('Fixed window');
             if (this.points.length) parts.push(`${this.resolution} (${this.reading_count})`);
             parts.push(`updated ${this.lastUpdated}`);

@@ -45,6 +45,11 @@ See `.env.example` for the full list. Application-specific ones worth knowing:
 | `APP_EDITION` | `full` or `lite` — see [Editions & module toggles](#editions--module-toggles) below | `full` |
 | `MODULE_BUILDINGS` / `MODULE_WORK_ORDERS` / `MODULE_MAINTENANCE` / `MODULE_REPORTS` | Force one module on or off regardless of edition | follows `APP_EDITION` |
 | `QUEUE_CONNECTION` | Queue driver | `database` |
+| `BROADCAST_CONNECTION` | `reverb` for live updates; `null`/`log` turns them off (the machine page just polls) | `reverb` in `.env.example` |
+| `REVERB_APP_ID` / `REVERB_APP_KEY` / `REVERB_APP_SECRET` | This install's Reverb credentials — make up your own random values; nothing is registered with anyone | placeholders |
+| `REVERB_HOST` / `REVERB_PORT` / `REVERB_SCHEME` | Where **Laravel itself** reaches Reverb to publish — same PC, so `127.0.0.1` / `8080` / `http` | see `.env.example` |
+| `REVERB_SERVER_HOST` / `REVERB_SERVER_PORT` | What the Reverb process listens on — `0.0.0.0` so browsers on the LAN can connect | `0.0.0.0` / `8080` |
+| `VITE_REVERB_HOST` | **Leave blank**: the browser then connects to the host the page was opened from, so the build works unchanged if the PC's IP changes. Any `VITE_*` change needs `npm run build` | blank |
 | `MAIL_MAILER` | Mail driver | `log` (emails write to `storage/logs/laravel.log` instead of sending — fine for local dev, must be changed before Phase 5's email alerts are useful in production) |
 
 ## Editions & module toggles
@@ -121,6 +126,34 @@ Start in: C:\path\to\BMS_VISHAY
 
 For local development, `php artisan schedule:work` runs the scheduler in the foreground without needing cron/Task Scheduler. Useful commands while developing: `php artisan schedule:list` (shows all four entries and their next run time) and `php artisan schedule:test` (runs a scheduled command on demand, without waiting for its next due time).
 
+## Live updates (Laravel Reverb) and hosting on the plant PC
+
+**What it is.** The machine page's sensor chart, Online/Offline badge and logs table update the moment an ESP32's reading is stored, instead of on a poll. It uses [Laravel Reverb](https://laravel.com/docs/reverb): a free, open-source WebSocket server that is just another PHP process (`php artisan reverb:start`) on the same PC as the app. Nothing is rented or registered — no Pusher, no cloud account, no per-message fees. (The browser side uses the `laravel-echo` and `pusher-js` npm packages; `pusher-js` is only a client library for the Pusher *protocol* that Reverb implements and never contacts Pusher.)
+
+It is deliberately an **add-on**: if Reverb isn't running, readings are still accepted and stored, and the page falls back to polling (the footer under the chart says `Live · instant` when pushed, `Live · every 5s` when polling).
+
+```
+ESP32 --HTTP POST--> Apache/Nginx (Laragon) --> Laravel --stores--> database
+                                                   |
+                                                   +--publishes--> Reverb :8080 --WebSocket--> browsers on the LAN
+```
+
+### Setting up the plant PC (Windows, same LAN as the ESP32s)
+
+1. **Fixed IP.** Give the PC a DHCP reservation on the router (or a static IP). The ESP32 firmware posts to `http://<pc-ip>/api/machine-logs` and browsers open `http://<pc-ip>/`; if the address changes, devices go silent.
+2. **Web server.** Install [Laragon](https://laragon.org) (free) and let it serve `public/` of this app (Apache or Nginx, PHP 8.2+, MySQL). In Laragon's preferences enable *Run Laragon when Windows starts* and *Start All automatically* — or install its Apache/MySQL as services. Don't use `php artisan serve` for production: it handles one request at a time, so several ESP32s and browsers would queue behind each other.
+3. **The app.** `composer install --no-dev --optimize-autoloader`, copy `.env.example` to `.env` and fill it in (`APP_ENV=production`, `APP_DEBUG=false`, database, the `REVERB_*` secrets), `php artisan key:generate`, `php artisan migrate --force`, `php artisan storage:link`, then `npm ci && npm run build`. Make sure there is **no `public/hot` file** (a leftover from `npm run dev` makes pages load assets from a dev server that isn't running).
+4. **Always-on processes.** Download [NSSM](https://nssm.cc/download) (free, a single `nssm.exe`), edit the three paths at the top of `deploy\windows\install-services.bat`, and run it **as Administrator**. It installs `BMS-Reverb` (`reverb:start`) and `BMS-Queue` (`queue:work`) as Windows services that start with Windows and restart if they crash, and opens port 8080 on the **Private** network profile only. `deploy\windows\uninstall-services.bat` reverses it. With a real queue worker running, AI chat replies and alert e-mails no longer wait for the per-minute scheduler (which stays in place as a backup).
+5. **Scheduler.** Add the Task Scheduler entry from [Scheduler](#scheduler) (every minute) — offline detection and preventive work orders depend on it.
+6. **Power.** Windows power options: never sleep or hibernate, and set Windows Update's active hours so restarts don't land mid-shift (the services come back on their own after a reboot).
+7. **Check it.** Open a machine page from another PC on the LAN: the footer should read `Live · instant`. Smoke test: post a reading (see [05-device-api.md](05-device-api.md)) and watch the chart move with no refresh.
+
+**After changing code or `.env`:** `php artisan reverb:restart` and `php artisan queue:restart` (the long-running processes only re-read config when restarted), and `npm run build` if any `VITE_*` value changed.
+
+**Capacity.** One Reverb process comfortably serves the handful of dashboards a plant keeps open; Reverb's horizontal scaling (Redis) is not needed here.
+
+**Cost.** None beyond the PC: Reverb, NSSM, Laragon, Laravel Echo and `pusher-js` are all free and open source.
+
 ## Settings
 
 The admin-only Settings page (`/settings`, `settings.view`/`settings.update`) holds operational configuration that used to be hardcoded: company name, extra alert-notification emails, the offline-detection timeout (`offline_timeout_minutes`, read by `app:check-offline-devices` when `--minutes` isn't passed), the preventive-maintenance lead time (`preventive_lead_days`, read by `app:generate-preventive-work-orders` when `--lead-days` isn't passed), an auto-fault-on-critical toggle, default alert thresholds applied to newly-created machines, and the machine-log retention window (`log_retention_days`, read by `MachineLog::prunable()`). Backed by `SettingInterface`/`SettingService`, cached forever and invalidated on every save — see [02-architecture.md](02-architecture.md#container-binding-registry). A change takes effect on the *next* run of the affected command/query; nothing needs restarting.
@@ -160,6 +193,8 @@ Set `BOOST_RULES_ENABLED=false` to disable the `.ai/rules` feature entirely (rem
 | A table's columns look squeezed into the left half on first load | The main layout reveals page content ~300ms after load; the shared DataTables assets partial re-adjusts column widths ~400ms after load as a safety net. If it's still off, check the page sets `autoWidth: false` in its `.DataTable({...})` call |
 | A machine shows "Offline" on the page but the device is actively sending readings | Either the scheduler isn't running in this environment (`schedule:run`/`schedule:work`/cron/Task Scheduler — see Scheduler above), or check `machines.last_seen_at` directly: it's only stamped by `MachineLogService::store()`, so a reading inserted any other way (a seeder, a manual DB edit) won't update it |
 | The Live Sensor Readings chart on a machine page is empty even though `machine_logs` has rows for it | The chart only offers the machine's **number parameters** (edit page → Sensor Parameters) — a machine with none shows "no numeric parameters to chart". If it has some, the selected one has no `readings.<key>` values in the chosen range — the empty state says when it last reported and offers a "Show it" button; **Auto** (the default range) opens on the smallest window that contains the latest reading, so only a manual range can come up empty. If the parameter *never* reports, check the logs' `readings` JSON actually uses the parameter's `key` |
+| The chart footer says `Live · every 5s` instead of `Live · instant` | The browser couldn't open the WebSocket, so it is polling (nothing is lost). Check, on the PC: `sc query BMS-Reverb` is RUNNING; `storage\logs\reverb-service.log`; that port 8080 is open on the Private network profile (`netsh advfirewall firewall show rule name="BMS Reverb (private network)"`); that `VITE_REVERB_APP_KEY` was present when `npm run build` ran (without it Echo isn't created at all); and that `public/hot` doesn't exist in production |
+| `laravel.log` shows `Live broadcast failed (is Reverb running?)` | Reverb isn't reachable from Laravel (`REVERB_HOST`/`REVERB_PORT` wrong, or the service is stopped). Readings are unaffected; after the first failure Laravel stops trying for 30s, so expect at most a couple of these lines per minute while it's down |
 | A device gets `422` for a reading it used to send fine | Since Phase 10 sensor values go inside a `readings` object and must match the machine's parameter keys — the response message lists the accepted keys. Check the machine's API Integration card |
 | A machine due for maintenance never gets a preventive work order | Either the scheduler isn't running (see Scheduler above), the machine has no `next_maintenance_date` set (nothing to compare against), the machine's `status` is `inactive` (deliberately excluded), or it already has an open preventive work order — `app:generate-preventive-work-orders` only ever creates one at a time per machine |
 | The maintenance dashboard shows a different overdue count than expected | It excludes `inactive` machines from every count (matching the work-order generator's own exclusion) — an inactive machine past its `next_maintenance_date` won't appear as overdue, since it's deliberately out of service |
