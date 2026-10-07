@@ -210,7 +210,10 @@ class MachineParameterReadingTest extends TestCase
             ->assertJsonPath('metric', 'coolant_temp')
             ->assertJsonPath('label', 'Coolant temperature (°C)')
             ->assertJsonPath('available_metrics', [['value' => 'coolant_temp', 'label' => 'Coolant temperature (°C)']])
-            ->assertJsonPath('latest', 45);
+            ->assertJsonPath('reading_count', 2);
+
+        // Two readings are two raw points, not one averaged bucket.
+        $this->assertEquals([40, 50], collect($response->json('points'))->pluck('avg')->sort()->values()->all());
 
         // Only a number parameter can be charted, and an unknown key falls back to the first one.
         $this->actingAs($user)->getJson(route('machines.readings', ['machine' => $this->machine, 'metric' => 'door_open']))

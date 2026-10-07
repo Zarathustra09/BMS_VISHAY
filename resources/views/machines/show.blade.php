@@ -361,12 +361,30 @@
                             <option :value="m.value" x-text="m.label" :selected="m.value === metric"></option>
                         </template>
                     </select>
-                    <select class="select select-sm" x-model="range">
+                    <select class="select select-sm" x-model="rangeChoice" aria-label="Time range">
+                        <option value="auto" x-text="autoLabel">Auto</option>
+                        <option value="5m">Last 5 minutes</option>
+                        <option value="15m">Last 15 minutes</option>
                         <option value="1h">Last hour</option>
+                        <option value="6h">Last 6 hours</option>
                         <option value="24h">Last 24 hours</option>
                         <option value="7d">Last 7 days</option>
+                        <option value="30d">Last 30 days</option>
+                        <option value="custom">Custom…</option>
                     </select>
                 </div>
+            </div>
+
+            {{-- Custom window: inputs are only applied on "Apply", so a half-edited range is never queried --}}
+            <div class="flex flex-wrap items-end gap-2 mb-4" x-show="rangeChoice === 'custom'" x-cloak>
+                <label class="flex flex-col gap-1 text-xs opacity-80">From
+                    <input type="datetime-local" class="input input-sm" x-model="customFrom" aria-label="From">
+                </label>
+                <label class="flex flex-col gap-1 text-xs opacity-80">To
+                    <input type="datetime-local" class="input input-sm" x-model="customTo" aria-label="To">
+                </label>
+                <button type="button" class="btn btn-sm btn-primary" @click="applyCustom()">Apply</button>
+                <p class="text-error text-xs w-full" x-show="rangeError" x-text="rangeError"></p>
             </div>
 
             {{-- No-data state --}}
@@ -378,6 +396,10 @@
                 <p class="text-sm" x-text="availableMetrics.length === 0
                     ? 'This machine has no numeric parameters to chart yet — add one on its edit page.'
                     : 'No ' + (label || 'sensor') + ' readings in this range.'"></p>
+                <p class="text-sm" x-show="availableMetrics.length > 0 && latest_reading_at">
+                    Latest reading was <span x-text="latest_reading_human"></span>.
+                    <button type="button" class="link link-primary" @click="showLatest()">Show it</button>
+                </p>
             </div>
 
             {{-- Chart --}}
@@ -416,7 +438,7 @@
 
                         {{-- Dots are HTML, not <circle> — preserveAspectRatio="none" would
                              squash a circle into an ellipse. Inline styles only. --}}
-                        <template x-for="(p, i) in (points.length <= 60 ? points : [])" :key="p.t">
+                        <template x-for="(p, i) in (points.length <= 120 ? points : [])" :key="p.t + '-' + i">
                             <span class="chart-dot" :style="`left:${pctX(i)}%; top:${pctY(p.avg)}%`"></span>
                         </template>
 
@@ -442,7 +464,10 @@
                 <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-primary"></div><span class="text-sm" x-text="label"></span></div>
                 <div class="flex items-center gap-2" x-show="hasWarningBand"><div class="w-3 h-3 rounded-full bg-warning"></div><span class="text-sm">Warning range</span></div>
                 <div class="flex items-center gap-2" x-show="hasCriticalBand"><div class="w-3 h-3 rounded-full bg-error"></div><span class="text-sm">Critical range</span></div>
-                <div class="text-xs opacity-60 ml-auto">Updates every 30s · <span x-text="lastUpdated"></span></div>
+                <div class="text-xs opacity-60 ml-auto flex items-center gap-2">
+                    <button type="button" class="btn btn-xs btn-ghost" x-show="poll_seconds" @click="toggleLive()" x-text="live ? 'Pause' : 'Resume'"></button>
+                    <span x-text="statusText"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -982,44 +1007,115 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('sensorChart', (initial) => ({
         ...initial,
         availableMetrics: initial.available_metrics,
-        bucketSeconds: initial.bucket_seconds,
+        // What the user picked (auto/preset/custom); `range` is what the server resolved it to.
+        rangeChoice: initial.requested_range,
+        customFrom: initial.window_start_input,
+        customTo: initial.window_end_input,
+        appliedFrom: null,
+        appliedTo: null,
+        rangeError: null,
+        live: true,
         loading: false,
         failures: 0,
         hover: null,
         lastUpdated: 'just now',
         timer: null,
         controller: null,
+        rangeLabels: { '5m': '5 min', '15m': '15 min', '1h': '1 hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days', custom: 'custom' },
 
         init() {
             this.$watch('metric', () => this.load());
-            this.$watch('range', () => this.load());
-            this.timer = setInterval(() => {
-                if (document.visibilityState === 'visible') this.load(true);
-            }, 30000);
+            this.$watch('rangeChoice', (choice) => {
+                this.rangeError = null;
+                // Custom waits for Apply — its inputs are still being edited.
+                if (choice !== 'custom') this.load();
+            });
+            this.schedule();
+        },
+
+        // The server decides how often a window is worth re-polling (poll_seconds): every few
+        // seconds for a short window someone is watching, slower for long ones, never for a
+        // custom window that has already ended.
+        schedule() {
+            clearTimeout(this.timer);
+            if (!this.live || !this.poll_seconds) return;
+            this.timer = setTimeout(() => {
+                if (document.visibilityState === 'visible') this.load(true); else this.schedule();
+            }, this.poll_seconds * 1000);
+        },
+
+        toggleLive() {
+            this.live = !this.live;
+            this.failures = 0;
+            if (this.live) this.load(true); else clearTimeout(this.timer);
+        },
+
+        applyCustom() {
+            if (!this.customFrom || !this.customTo) { this.rangeError = 'Pick both a start and an end.'; return; }
+            this.appliedFrom = this.customFrom;
+            this.appliedTo = this.customTo;
+            this.load();
+        },
+
+        // "Show it" on the empty state: auto already looks back 30 days, so if auto is what's
+        // showing, the reading is older than that and gets a custom window around it.
+        showLatest() {
+            if (this.rangeChoice !== 'auto') { this.rangeChoice = 'auto'; return; }
+            this.customFrom = this.latest_reading_from_input;
+            this.customTo = this.latest_reading_to_input;
+            this.rangeChoice = 'custom';
+            this.applyCustom();
+        },
+
+        get autoLabel() {
+            return this.rangeChoice === 'auto' ? `Auto (${this.rangeLabels[this.range] ?? this.range})` : 'Auto';
+        },
+
+        get statusText() {
+            const parts = [];
+            if (this.poll_seconds) parts.push(this.live ? `Live · every ${this.poll_seconds}s` : 'Paused');
+            else parts.push('Fixed window');
+            if (this.points.length) parts.push(`${this.resolution} (${this.reading_count})`);
+            parts.push(`updated ${this.lastUpdated}`);
+            return parts.join(' · ');
         },
 
         async load(silent = false) {
+            if (this.rangeChoice === 'custom' && !this.appliedFrom) return;
             if (this.controller) this.controller.abort();
             this.controller = new AbortController();
             if (!silent) this.loading = true;
+            let reschedule = true;
+            let aborted = false;
             try {
                 const url = new URL('{{ route('machines.readings', $machine) }}', window.location.origin);
                 url.searchParams.set('metric', this.metric ?? '');
-                url.searchParams.set('range', this.range);
+                url.searchParams.set('range', this.rangeChoice);
+                if (this.rangeChoice === 'custom') {
+                    url.searchParams.set('from', this.appliedFrom);
+                    url.searchParams.set('to', this.appliedTo);
+                }
                 const res = await fetch(url, { signal: this.controller.signal, headers: { 'Accept': 'application/json' } });
+                if (res.status === 422) {
+                    const body = await res.json();
+                    this.rangeError = Object.values(body.errors || {}).flat()[0] || 'That range is not valid.';
+                    reschedule = false;
+                    return;
+                }
                 if (!res.ok) throw new Error(res.status);
                 const d = await res.json();
-                Object.assign(this, d, { availableMetrics: d.available_metrics, bucketSeconds: d.bucket_seconds });
+                this.rangeError = null;
+                Object.assign(this, d, { availableMetrics: d.available_metrics });
                 this.lastUpdated = new Date().toLocaleTimeString();
                 this.failures = 0;
             } catch (e) {
-                if (e.name === 'AbortError') return;
-                if (++this.failures >= 5) { clearInterval(this.timer); this.lastUpdated = 'live updates paused'; }
+                if (e.name === 'AbortError') { aborted = true; reschedule = false; return; }
+                if (++this.failures >= 5) { this.live = false; this.lastUpdated = 'live updates paused'; reschedule = false; }
             } finally {
-                this.loading = false;
+                if (!aborted) this.loading = false;
+                if (reschedule) this.schedule();
             }
         },
-
         get scale() {
             const vals = [];
             this.points.forEach(p => vals.push(p.min, p.max));
@@ -1031,7 +1127,19 @@ document.addEventListener('alpine:init', () => {
             return { lo: lo - pad, hi: hi + pad };
         },
         yAt(v) { const { lo, hi } = this.scale; return 300 - ((v - lo) / (hi - lo)) * 300; },
-        xAt(i) { return this.points.length <= 1 ? 500 : (i / (this.points.length - 1)) * 1000; },
+        // Position by time, not by index, so an uneven reporting interval or a gap is drawn at its
+        // true width (falling back to even spacing when every point shares one timestamp).
+        xAt(i) {
+            const n = this.points.length;
+            if (n <= 1) return 500;
+            const span = this.points[n - 1].t - this.points[0].t;
+            return span > 0 ? ((this.points[i].t - this.points[0].t) / span) * 1000 : (i / (n - 1)) * 1000;
+        },
+        nearestIndex(t) {
+            let best = 0, dist = Infinity;
+            this.points.forEach((p, i) => { const d = Math.abs(p.t - t); if (d < dist) { dist = d; best = i; } });
+            return best;
+        },
         pctX(i) { return this.xAt(i) / 10; },
         pctY(v) { return this.yAt(v) / 3; },
         fmt(v) { return v === null || v === undefined ? '—' : (Math.round(v * 100) / 100).toString(); },
@@ -1039,7 +1147,7 @@ document.addEventListener('alpine:init', () => {
         get segments() {
             const segs = []; let cur = [];
             this.points.forEach((p, i) => {
-                const gap = cur.length && (p.t - cur[cur.length - 1].p.t) > this.bucketSeconds * 1.5;
+                const gap = cur.length && (p.t - cur[cur.length - 1].p.t) > this.gap_seconds;
                 if (gap) { segs.push(cur); cur = []; }
                 cur.push({ p, i });
             });
@@ -1094,14 +1202,16 @@ document.addEventListener('alpine:init', () => {
         get xLabels() {
             const n = this.points.length;
             if (!n) return ['', '', '', '', ''];
-            return [0, 1, 2, 3, 4].map(i => this.points[Math.round((n - 1) * i / 4)].label);
+            const t0 = this.points[0].t, span = this.points[n - 1].t - t0;
+            return [0, 1, 2, 3, 4].map(i => this.points[this.nearestIndex(t0 + span * i / 4)].label);
         },
 
         onHover(e) {
             if (!this.points.length) return;
             const r = e.currentTarget.getBoundingClientRect();
             const pct = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-            const i = Math.round(pct * (this.points.length - 1));
+            const n = this.points.length, t0 = this.points[0].t, span = this.points[n - 1].t - t0;
+            const i = span > 0 ? this.nearestIndex(t0 + span * pct) : Math.round(pct * (n - 1));
             this.hover = { point: this.points[i], x: this.xAt(i), px: this.pctX(i) };
         },
     }));

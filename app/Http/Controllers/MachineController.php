@@ -19,6 +19,7 @@ use App\Models\Floor;
 use App\Models\Machine;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class MachineController extends Controller
@@ -106,20 +107,34 @@ class MachineController extends Controller
     }
 
     /**
-     * JSON source for the sensor chart on machines/show — polled every 30s by Alpine.
+     * JSON source for the sensor chart on machines/show — re-polled by Alpine at the
+     * `poll_seconds` the response asks for. `range` is a preset, `auto` (the default) or
+     * `custom` with an explicit `from`/`to` of at most 90 days.
      */
     public function readings(Request $request, Machine $machine)
     {
+        $isCustom = $request->input('range') === 'custom';
+
         $validated = $request->validate([
             // Any string is accepted - an unknown key falls back to the machine's first number
             // parameter (MachineLogService::getReadingSeries()), exactly as a missing one does.
             'metric' => ['nullable', 'string', 'max:50'],
-            'range' => ['nullable', Rule::in(['1h', '24h', '7d'])],
+            'range' => ['nullable', Rule::in(['auto', 'custom', ...MachineLogInterface::RANGE_PRESETS])],
+            'from' => [Rule::requiredIf($isCustom), 'nullable', 'date'],
+            'to' => [Rule::requiredIf($isCustom), 'nullable', 'date', 'after:from', function ($attribute, $value, $fail) use ($request, $isCustom) {
+                if ($isCustom && $request->filled('from') && strtotime((string) $value) - strtotime((string) $request->input('from')) > 90 * 86400) {
+                    $fail('A custom range can span at most 90 days.');
+                }
+            }],
         ]);
 
-        return response()->json(
-            $this->machineLogService->getReadingSeries($machine, $validated['metric'] ?? null, $validated['range'] ?? '24h')
-        );
+        return response()->json($this->machineLogService->getReadingSeries(
+            $machine,
+            $validated['metric'] ?? null,
+            $validated['range'] ?? 'auto',
+            $isCustom ? Carbon::parse($validated['from']) : null,
+            $isCustom ? Carbon::parse($validated['to']) : null,
+        ));
     }
 
     /**
