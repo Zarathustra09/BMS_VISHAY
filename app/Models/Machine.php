@@ -211,10 +211,12 @@ class Machine extends Model
      * Generate a new device API key for this machine.
      * Stores a SHA-256 hash (used for fast auth lookups) plus an encrypted copy
      * (so it can be viewed again later by a user with the `machines.view-device-key` permission).
+     * A specific $plainKey can be supplied (the Docker demo install seeds a known one); otherwise
+     * a random one is generated.
      */
-    public function generateDeviceKey(): string
+    public function generateDeviceKey(?string $plainKey = null): string
     {
-        $plainKey = bin2hex(random_bytes(20)); // 40 hex chars
+        $plainKey ??= bin2hex(random_bytes(20)); // 40 hex chars
 
         $this->forceFill([
             'device_key' => hash('sha256', $plainKey),

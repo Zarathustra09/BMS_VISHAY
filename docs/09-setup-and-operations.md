@@ -26,11 +26,12 @@ composer run dev
 
 ## Default accounts
 
-After `php artisan db:seed`:
+After `php artisan db:seed` (or on the first start of the Docker install, see the README):
 
 | Email | Password | Role |
 |---|---|---|
-| `test@example.com` | `password` | `admin` |
+| `admin@example.com` | `password` | `admin` |
+| `viewer@example.com` | `password` | `viewer` (dashboard + machines: view/edit/delete, no create) |
 
 Change this password (or delete the account and create a real one) before any non-local deployment.
 

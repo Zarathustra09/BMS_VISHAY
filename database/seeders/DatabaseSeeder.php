@@ -6,31 +6,32 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Seeds a clean install: the roles and permissions, one admin, one viewer and one demo machine.
+ *
+ * BuildingSeeder, FloorSeeder, MachineAndLogSeeder and UserRoleTestSeeder (bulk fake data for
+ * development) are no longer part of this — run them on demand with `db:seed --class=`.
+ */
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
         $this->call(RolesAndPermissionsSeeder::class);
 
-        // User::factory(10)->create();
+        User::create([
+            'name' => 'Administrator',
+            'email' => 'admin@example.com',
+            'password' => 'password',
+        ])->assignRole('admin');
 
-        $admin = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password'=> bcrypt('password'),
-        ]);
-        $admin->assignRole('admin');
+        User::create([
+            'name' => 'Viewer',
+            'email' => 'viewer@example.com',
+            'password' => 'password',
+        ])->assignRole('viewer');
 
-        $this->call([
-            BuildingSeeder::class,
-            FloorSeeder::class,
-            UserRoleTestSeeder::class,
-//            MachineAndLogSeeder::class,
-        ]);
+        $this->call(DemoMachineSeeder::class);
     }
 }

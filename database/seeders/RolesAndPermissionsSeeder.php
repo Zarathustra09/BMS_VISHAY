@@ -116,16 +116,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports.view',
         ]);
 
-        // viewer: read-only across the board.
+        // viewer: the dashboard (needs no permission of its own) and machines - everything on a
+        // machine except creating one, including its device key. floors.view is only here
+        // because the machine edit form loads its Floor dropdown from the floors endpoint.
         $viewer->syncPermissions([
-            'buildings.view',
+            'machines.view', 'machines.update', 'machines.delete',
+            'machines.view-device-key',
             'floors.view',
-            'machines.view',
-            'machine-types.view',
-            'alerts.view',
-            'work-orders.view',
-            'maintenance.view',
-            'reports.view',
         ]);
     }
 }

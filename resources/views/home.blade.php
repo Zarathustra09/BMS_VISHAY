@@ -200,6 +200,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {{-- Building Health --}}
         @module('buildings')
+        @can('buildings.view')
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <h2 class="card-title">Building Health</h2>
@@ -234,10 +235,11 @@
                 </div>
             </div>
         </div>
+        @endcan
         @endmodule
 
         {{-- Recent Alerts — takes the whole row when the Building Health card beside it is off --}}
-        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::Buildings->isEnabled() ? '' : 'lg:col-span-2' }}">
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::Buildings->isEnabled() && auth()->user()->can('buildings.view') ? '' : 'lg:col-span-2' }}">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="card-title">Recent Alerts</h2>
@@ -274,6 +276,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {{-- Recent Work Orders --}}
         @module('work-orders')
+        @can('work-orders.view')
         <div class="lg:col-span-2 card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
@@ -333,6 +336,7 @@
                 </div>
             </div>
         </div>
+        @endcan
         @endmodule
 
         {{-- Quick Actions — takes the whole row when the Recent Work Orders card beside it is off --}}

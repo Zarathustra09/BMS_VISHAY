@@ -6,6 +6,7 @@ use App\Models\Machine;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DeviceKeyPermissionTest extends TestCase
@@ -22,10 +23,10 @@ class DeviceKeyPermissionTest extends TestCase
     public function test_a_role_without_the_permission_cannot_generate_a_device_key(): void
     {
         $machine = Machine::factory()->create();
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $readOnlyUser = User::factory()->create();
+        $readOnlyUser->assignRole($this->roleWithoutDeviceKeyAccess());
 
-        $response = $this->actingAs($viewer)
+        $response = $this->actingAs($readOnlyUser)
             ->post(route('machines.device-key.generate', $machine));
 
         $response->assertForbidden();
@@ -49,12 +50,17 @@ class DeviceKeyPermissionTest extends TestCase
     {
         $machine = Machine::factory()->create();
         $machine->generateDeviceKey();
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $readOnlyUser = User::factory()->create();
+        $readOnlyUser->assignRole($this->roleWithoutDeviceKeyAccess());
 
-        $response = $this->actingAs($viewer)->get(route('machines.show', $machine));
+        $response = $this->actingAs($readOnlyUser)->get(route('machines.show', $machine));
 
         $response->assertOk();
         $response->assertDontSee('Regenerate Key');
+    }
+
+    private function roleWithoutDeviceKeyAccess(): Role
+    {
+        return Role::create(['name' => 'read-only'])->givePermissionTo('machines.view');
     }
 }
