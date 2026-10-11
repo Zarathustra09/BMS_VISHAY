@@ -43,7 +43,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/machines/{machine}/readings', [App\Http\Controllers\MachineController::class, 'readings'])->name('machines.readings');
     Route::get('/machines/{machine}/parameters', [App\Http\Controllers\MachineController::class, 'parameters'])->name('machines.parameters');
     Route::post('/machines/{machine}/device-key', [App\Http\Controllers\MachineController::class, 'generateDeviceKey'])
-        ->middleware('permission:machines.view-device-key')
+        ->middleware(['permission:machines.view-device-key', 'permission:machines.update'])
         ->name('machines.device-key.generate');
 
     // Machine Type Routes
@@ -104,13 +104,17 @@ Route::middleware('auth')->group(function () {
     // Role Routes
     Route::resource('roles', App\Http\Controllers\RoleController::class);
     Route::get('/roles/{role}/delete', [App\Http\Controllers\RoleController::class, 'confirmDelete'])->name('roles.confirm-delete');
-    Route::post('/roles/{role}/users', [App\Http\Controllers\RoleController::class, 'assignUsers'])->name('roles.assign-users');
+    // Moving users between roles changes their accounts, so it needs users.update on top of the
+    // controller's roles.update.
+    Route::post('/roles/{role}/users', [App\Http\Controllers\RoleController::class, 'assignUsers'])
+        ->middleware('permission:users.update')
+        ->name('roles.assign-users');
 
     // Permission Routes (read-only)
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
 
     // AI Chat Routes
     Route::get('/ai/questions/{machine}', [App\Http\Controllers\AIController::class, 'getSuggestedQuestions'])->name('ai.questions');
-    Route::post('/ai/chat', [App\Http\Controllers\AIController::class, 'chat'])->name('ai.chat');
+    Route::post('/ai/chat', [App\Http\Controllers\AIController::class, 'chat'])->middleware('throttle:20,1')->name('ai.chat');
     Route::post('/ai/check-status', [App\Http\Controllers\AIController::class, 'checkStatus'])->name('ai.check-status');
 });

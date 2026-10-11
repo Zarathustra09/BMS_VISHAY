@@ -53,6 +53,7 @@
                     <input type="date" name="date_to" value="{{ $filters['date_to'] }}" class="input w-full" {{ $type === 'maintenance_compliance' ? 'disabled' : '' }}/>
                 </div>
 
+                @module('buildings')
                 <div class="flex flex-col gap-1.5 flex-1 min-w-[10rem]">
                     <label class="label py-0"><span class="text-sm font-medium">Building</span></label>
                     <select name="building_id" class="select w-full">
@@ -62,6 +63,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endmodule
 
                 <div class="flex gap-2">
                     <button type="submit" class="btn btn-primary gap-2">

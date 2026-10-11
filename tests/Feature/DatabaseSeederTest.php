@@ -35,7 +35,10 @@ class DatabaseSeederTest extends TestCase
         $this->assertTrue($admin->can('settings.update'));
         $this->assertTrue($viewer->hasRole('viewer'));
         $this->assertEqualsCanonicalizing(
-            ['machines.view', 'machines.update', 'machines.delete', 'machines.view-device-key', 'floors.view'],
+            [
+                'machines.view', 'machines.update', 'machines.delete', 'machines.view-device-key', 'floors.view',
+                'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
+            ],
             $viewer->getAllPermissions()->pluck('name')->all()
         );
     }
@@ -54,7 +57,7 @@ class DatabaseSeederTest extends TestCase
         ], ['X-Device-Key' => 'test-device-key'])->assertCreated();
     }
 
-    public function test_the_viewer_can_manage_machines_but_not_create_or_reach_other_modules(): void
+    public function test_the_viewer_can_manage_machines_and_alerts_but_not_create_or_reach_other_modules(): void
     {
         $viewer = User::where('email', 'viewer@example.com')->firstOrFail();
 
@@ -67,7 +70,9 @@ class DatabaseSeederTest extends TestCase
         $this->actingAs($viewer)->get(route('machines.edit', Machine::firstOrFail()))->assertOk();
         $this->actingAs($viewer)->get(route('machines.create'))->assertForbidden();
         $this->actingAs($viewer)->get(route('buildings.index'))->assertForbidden();
-        $this->actingAs($viewer)->get(route('alerts.index'))->assertForbidden();
+        $this->actingAs($viewer)->get(route('alerts.index'))->assertOk();
+        $this->actingAs($viewer)->get(route('users.index'))->assertForbidden();
+        $this->actingAs($viewer)->get(route('settings.index'))->assertForbidden();
     }
 
     public function test_the_viewer_cannot_create_a_machine_and_never_sees_the_add_button(): void

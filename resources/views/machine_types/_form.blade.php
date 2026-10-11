@@ -250,7 +250,7 @@
 
         <x-form.actions :cancel-href="$cancelHref"
                         :submit-label="$isEdit ? 'Save Changes' : 'Create Type'"
-                        :destructive-href="$isEdit ? route('machine-types.confirm-delete', $machineType) : null" />
+                        :destructive-href="$isEdit && auth()->user()->can('machine-types.delete') ? route('machine-types.confirm-delete', $machineType) : null" />
     </form>
 </div>
 

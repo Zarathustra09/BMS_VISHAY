@@ -55,7 +55,7 @@ echo.
 echo   Open:     http://localhost%PORT_SUFFIX%
 echo.
 echo   Admin:    admin@example.com   /  password   (full access)
-echo   Viewer:   viewer@example.com  /  password   (machines: view, edit, delete - no create)
+echo   Viewer:   viewer@example.com  /  password   (machines - no create - and alerts)
 echo.
 echo   NodeMCU - POST sensor readings to one of these addresses:
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (

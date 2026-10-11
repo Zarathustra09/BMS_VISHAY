@@ -26,13 +26,15 @@ class AlertsDataTable extends DataTable
                 if ($search = request()->input('search.value')) {
                     $query->where(function ($q) use ($search) {
                         $q->where('message', 'like', "%{$search}%")
-                          ->orWhereHas('machine', fn ($m) => $m->where('name', 'like', "%{$search}%"));
+                            ->orWhereHas('machine', fn ($m) => $m->where('name', 'like', "%{$search}%"));
                     });
                 }
             })
-            ->addColumn('machine', fn ($alert) => $alert->machine
-                ? '<a href="' . route('machines.show', $alert->machine) . '" class="link link-hover font-medium">' . e($alert->machine->name) . '</a>'
-                : '—')
+            ->addColumn('machine', fn ($alert) => match (true) {
+                $alert->machine === null => '—',
+                auth()->user()->can('machines.view') => '<a href="'.route('machines.show', $alert->machine).'" class="link link-hover font-medium">'.e($alert->machine->name).'</a>',
+                default => e($alert->machine->name),
+            })
             ->editColumn('metric', fn ($alert) => $alert->metric ? e(ucfirst(str_replace('_', ' ', $alert->metric))) : e(ucfirst($alert->type)))
             ->editColumn('severity', fn ($alert) => view('alerts._datatable-severity-cell', ['alert' => $alert])->render())
             ->editColumn('status', fn ($alert) => view('alerts._datatable-status-cell', ['alert' => $alert])->render())

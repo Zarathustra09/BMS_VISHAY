@@ -20,7 +20,7 @@
         </h1>
         <p class="text-sm opacity-70 mt-2">
             Every permission the system knows about, and which roles hold it.
-            @can('roles.create')
+            @can('roles.view')
                 Permissions are read-only here — a permission only takes effect once code checks it, so new ones are added by a developer, not from this page. To change who has a permission, edit a <a href="{{ route('roles.index') }}" class="link link-primary">role</a> instead.
             @endcan
         </p>

@@ -232,6 +232,7 @@
     <!-- Application Settings -->
     @php $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']); @endphp
     <form action="{{ route('settings.update') }}" method="POST" class="space-y-6">
+    <fieldset class="contents" @cannot('settings.update') disabled @endcannot>
         @csrf
         @method('PUT')
 
@@ -316,6 +317,7 @@
                 Save Changes
             </button>
         </div>
+    </fieldset>
     </form>
 </div>
 

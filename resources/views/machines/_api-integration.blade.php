@@ -25,7 +25,7 @@
         </h2>
         <p class="text-sm opacity-70">
             How this machine's device sends readings. Only the parameters below are accepted — anything else is rejected with a <code>422</code>.
-            Parameters are managed on the <a href="{{ route('machines.edit', $machine) }}#parameters" class="link">edit page</a>.
+            Parameters are managed on the @can('machines.update')<a href="{{ route('machines.edit', $machine) }}#parameters" class="link">edit page</a>@else edit page @endcan.
         </p>
 
         <div role="tablist" class="tabs tabs-border mt-2">

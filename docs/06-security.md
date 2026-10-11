@@ -52,7 +52,7 @@ Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidat
 | `admin` | Full access — gets every permission that exists (`syncPermissions(Permission::all())`) |
 | `manager` | Oversight of buildings/floors/machines (view/create/update, not delete); can view users but not manage accounts; views and can acknowledge/resolve alerts; full work order CRUD + status control |
 | `technician` | Field/hardware role — views buildings/floors, views + updates machines, wires up sensors, acts on alerts day-to-day (acknowledge/resolve), and works through their assigned work orders (view + status updates only — not create/edit/delete/reassign) |
-| `viewer` | Dashboard and machines only: view, edit, delete and the device key - but not create. (`floors.view` is held only so the machine edit form can load its Floor dropdown.) No other module is reachable |
+| `viewer` | Dashboard, machines (view, edit, delete and the device key - not create) and alerts (view, acknowledge, resolve). `floors.view` is held only so the machine edit form can load its Floor dropdown. No other module is reachable |
 
 The seeded accounts are `admin@example.com` (`admin`) and `viewer@example.com` (`viewer`), both with password `password`. More roles can be created from the Roles page — see below.
 
@@ -106,9 +106,9 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `roles.update` | ✅ | – | – | – |
 | `roles.delete` | ✅ | – | – | – |
 | `permissions.view` | ✅ | ✅ | – | – |
-| `alerts.view` | ✅ | ✅ | ✅ | – |
-| `alerts.acknowledge` | ✅ | ✅ | ✅ | – |
-| `alerts.resolve` | ✅ | ✅ | ✅ | – |
+| `alerts.view` | ✅ | ✅ | ✅ | ✅ |
+| `alerts.acknowledge` | ✅ | ✅ | ✅ | ✅ |
+| `alerts.resolve` | ✅ | ✅ | ✅ | ✅ |
 | `work-orders.view` | ✅ | ✅ | ✅ | – |
 | `work-orders.create` | ✅ | ✅ | – | – |
 | `work-orders.update` | ✅ | ✅ | – | – |
@@ -145,6 +145,24 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 3. Gate a route: in the controller's constructor, `$this->middleware('permission:your.permission')->only(['action1', 'action2'])` (see `BuildingController`/`MachineController`/`UserController`/`RoleController` for the pattern) — or directly on the route definition for a one-off action like `machines.device-key.generate`.
 4. Gate a Blade section: `@can('your.permission') ... @endcan`.
 5. Gate a check in PHP: `auth()->user()->can('your.permission')`.
+
+## Endpoint and UI guarding
+
+Every route behind login carries a `permission:` middleware, either from its controller constructor (`$this->middleware('permission:x')->only([...])`) or on the route itself. `tests/Feature/RoutePermissionCoverageTest.php` fails if a new authenticated route has none, apart from a short allowlist (`home`, `profile.*`, `notifications.*`, Laravel UI's logout/password-confirm).
+
+Routes that need **two** permissions because they change something a single permission doesn't cover:
+
+| Route | Permissions |
+|---|---|
+| `roles.assign-users` | `roles.update` + `users.update` (it changes users' roles) |
+| `machines.device-key.generate` | `machines.view-device-key` + `machines.update` (regenerating breaks the device's current key) |
+| `ai.questions`, `ai.chat`, `ai.check-status` | `machines.view`; `ai.chat` is throttled to 20/min, and an answer can only be collected by the user who asked (`check-status` is a 404 for anyone else, and only `ai_insight_{uuid}` keys are accepted) |
+
+The UI follows the same rule: a button, link, tab, modal or card is hidden (`@can`) unless the user could actually use it - and a link to a machine becomes plain text without `machines.view`. Sidebar items, dashboard cards, the machine page's Active Alerts card, the buildings page's floor/machine tabs and actions, and the Delete links on edit forms are all gated this way.
+
+## Error pages
+
+`resources/views/errors/` replaces Laravel's stock screens: `401`, `403`, `404`, `419`, `429`, `500`, `503`, plus `4xx`/`5xx` fallbacks for any other code. They share one standalone layout (`errors/layout.blade.php`) that does not extend the app layout - that layout queries the database for the bell and company name, so it could not render on the 500s it exists for. The 403 page never prints the exception text. JSON/AJAX requests still get JSON errors.
 
 ## Alert notifications (Phase 5, extended Phase 10)
 

@@ -472,8 +472,8 @@
         </div>
     </div>
 
-    <!-- Active Alerts (threshold breaches raised by AlertService — see Alert Thresholds on the edit page) -->
-    @if($activeAlerts->isNotEmpty())
+    {{-- Active Alerts (threshold breaches raised by AlertService — see Alert Thresholds on the edit page) --}}
+    @if($activeAlerts->isNotEmpty() && auth()->user()->can('alerts.view'))
         <div class="card bg-base-100 shadow-lg border border-error/40">
             <div class="card-body">
                 <div class="flex items-center justify-between">
@@ -521,7 +521,7 @@
         </div>
     @endif
 
-    <!-- Recent Alert-Level Logs (raw log entries with severity error/critical — distinct from the Active Alerts above, which are AlertService-raised threshold breaches) -->
+    {{-- Recent Alert-Level Logs (raw log entries with severity error/critical — distinct from the Active Alerts above, which are AlertService-raised threshold breaches) --}}
     @if($recentAlerts->isNotEmpty())
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">

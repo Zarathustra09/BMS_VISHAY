@@ -32,7 +32,7 @@
                     Reassign them to a different type first.
                 </p>
                 <div class="card-actions justify-end mt-4">
-                    <a href="{{ route('machine-types.edit', $machineType) }}" class="btn btn-ghost">Back to Type</a>
+                    <a href="{{ route('machine-types.index') }}" class="btn btn-ghost">Back to Type</a>
                 </div>
             </div>
         </div>
@@ -43,7 +43,7 @@
                 <form action="{{ route('machine-types.destroy', $machineType) }}" method="POST" class="card-actions justify-end mt-4">
                     @csrf
                     @method('DELETE')
-                    <a href="{{ route('machine-types.edit', $machineType) }}" class="btn btn-ghost">Cancel</a>
+                    <a href="{{ route('machine-types.index') }}" class="btn btn-ghost">Cancel</a>
                     <button type="submit" class="btn btn-error">Permanently Delete Type</button>
                 </form>
             </div>

@@ -31,7 +31,7 @@ After `php artisan db:seed` (or on the first start of the Docker install, see th
 | Email | Password | Role |
 |---|---|---|
 | `admin@example.com` | `password` | `admin` |
-| `viewer@example.com` | `password` | `viewer` (dashboard + machines: view/edit/delete, no create) |
+| `viewer@example.com` | `password` | `viewer` (dashboard, machines: view/edit/delete (no create) and alerts) |
 
 Change this password (or delete the account and create a real one) before any non-local deployment.
 

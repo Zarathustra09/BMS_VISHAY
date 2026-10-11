@@ -18,7 +18,7 @@ You only need **Docker Desktop** running.
    | Account | Email | Password | Can see |
    |---|---|---|---|
    | Admin | `admin@example.com` | `password` | everything |
-   | Viewer | `viewer@example.com` | `password` | dashboard and machines (view, edit, delete - no create) |
+   | Viewer | `viewer@example.com` | `password` | dashboard, machines (view, edit, delete - no create) and alerts |
 
 3. A machine called **Demo Machine** (`DEMO-001`) is already set up for your NodeMCU. Send it readings:
 
@@ -71,7 +71,7 @@ npm run build
 php artisan serve
 ```
 
-Default logins after seeding: `admin@example.com` (full access) and `viewer@example.com` (machines: view, edit, delete - no create), both with password `password`.
+Default logins after seeding: `admin@example.com` (full access) and `viewer@example.com` (machines (view, edit, delete - no create) and alerts), both with password `password`.
 
 See **[docs/09-setup-and-operations.md](docs/09-setup-and-operations.md)** for the queue worker, scheduler, and troubleshooting.
 
