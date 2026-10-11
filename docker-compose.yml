@@ -1,4 +1,4 @@
-# BMS in Docker: web app + MySQL + queue worker + scheduler + Reverb (live updates).
+# LogXense Enterprise in Docker: web app + MySQL + queue worker + scheduler + Reverb (live updates).
 # Start everything with docker-start.bat (or: docker compose up -d --build).
 
 name: bms
@@ -10,10 +10,11 @@ x-app: &app
   volumes:
     - storage:/var/www/html/storage
   environment: &app-env
-    APP_NAME: "NexBuild BMS"
+    APP_NAME: "LogXense Enterprise"
     APP_ENV: production
     APP_DEBUG: "false"
-    APP_EDITION: full
+    # Lite edition: machines, alerts, users/groups/roles and the sensor API. (Internal - not shown in the UI.)
+    APP_EDITION: ${APP_EDITION:-lite}
     APP_URL: http://localhost:${APP_PORT:-8080}
     LOG_CHANNEL: stack
     LOG_STACK: single,stderr
@@ -26,7 +27,9 @@ x-app: &app
     SESSION_DRIVER: database
     CACHE_STORE: database
     QUEUE_CONNECTION: database
-    MAIL_MAILER: log
+    # Real SMTP is configured from Settings in the app; these are only the fallback.
+    MAIL_MAILER: ${MAIL_MAILER:-log}
+    MAIL_FROM_NAME: "LogXense Enterprise"
     BROADCAST_CONNECTION: reverb
     REVERB_APP_ID: bms
     REVERB_APP_KEY: bms-docker-key

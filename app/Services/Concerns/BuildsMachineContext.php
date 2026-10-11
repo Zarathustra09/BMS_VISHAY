@@ -152,7 +152,7 @@ trait BuildsMachineContext
      */
     protected function buildPrompt(string $context, string $userMessage): string
     {
-        $systemPrompt = 'You are an expert Building Management System (BMS) AI assistant specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
+        $systemPrompt = 'You are an expert data logging and monitoring AI assistant for LogXense Enterprise, specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
 
 When analyzing machine data:
 1. Identify patterns in sensor readings and log events

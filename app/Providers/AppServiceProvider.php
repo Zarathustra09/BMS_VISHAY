@@ -8,6 +8,7 @@ use App\Interfaces\AlertInterface;
 use App\Interfaces\BuildingInterface;
 use App\Interfaces\DashboardInterface;
 use App\Interfaces\FloorInterface;
+use App\Interfaces\GroupInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
 use App\Interfaces\MachineParameterInterface;
@@ -25,10 +26,12 @@ use App\Services\BuildingService;
 use App\Services\DashboardService;
 use App\Services\FloorService;
 use App\Services\GeminiService;
+use App\Services\GroupService;
 use App\Services\MachineLogService;
 use App\Services\MachineParameterService;
 use App\Services\MachineService;
 use App\Services\MachineTypeService;
+use App\Services\MailSettings;
 use App\Services\MaintenanceService;
 use App\Services\OpenAIService;
 use App\Services\PermissionService;
@@ -38,8 +41,10 @@ use App\Services\SettingService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
 use App\Services\WorkOrderService;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -67,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(SuggestedQuestionInterface::class, SuggestedQuestionService::class);
         $this->app->bind(UserInterface::class, UserService::class);
         $this->app->bind(RoleInterface::class, RoleService::class);
+        $this->app->bind(GroupInterface::class, GroupService::class);
         $this->app->bind(PermissionInterface::class, PermissionService::class);
         $this->app->bind(AlertInterface::class, AlertService::class);
         $this->app->bind(WorkOrderInterface::class, WorkOrderService::class);
@@ -108,11 +114,27 @@ class AppServiceProvider extends ServiceProvider
             $view->with('recentAlertNotifications', $user ? $user->notifications()->latest()->limit(5)->get() : collect());
         });
 
-        // The sidebar's brand text was hardcoded ("BMS VISHAY") before Phase 10's Settings
+        // The sidebar's brand text was hardcoded ("BMS VISHAY", the project's old working name) before Phase 10's Settings
         // page made company_name a real, editable value — shared the same way as the bell
         // data above, since the sidebar isn't behind any one controller action either.
         View::composer('layouts.app', function ($view) {
             $view->with('companyName', $this->app->make(SettingInterface::class)->get('company_name'));
         });
+
+        // SMTP details saved on the Settings page (see MailSettings). Applied now, and again before
+        // every queued job because the queue worker outlives the settings being saved. The try/catch
+        // is for a database that isn't migrated yet (or is down): that must never stop the app booting.
+        $this->applyMailSettings();
+
+        Event::listen(JobProcessing::class, fn () => $this->applyMailSettings());
+    }
+
+    private function applyMailSettings(): void
+    {
+        try {
+            $this->app->make(MailSettings::class)->apply();
+        } catch (\Throwable) {
+            // Settings unavailable - the environment's MAIL_* config stays in force.
+        }
     }
 }

@@ -129,6 +129,16 @@
                         <span class="opacity-70">Serial Number:</span>
                         <span class="font-medium">{{ $machine->serial_number ?? 'N/A' }}</span>
                     </div>
+                    <div class="flex justify-between">
+                        <span class="opacity-70">Assignment Group:</span>
+                        <span class="font-medium">
+                            @if($machine->assignmentGroup && auth()->user()->can('groups.view'))
+                                <a href="{{ route('groups.show', $machine->assignmentGroup) }}" class="link link-hover">{{ $machine->assignmentGroup->name }}</a>
+                            @else
+                                {{ $machine->assignmentGroup?->name ?? 'N/A' }}
+                            @endif
+                        </span>
+                    </div>
                     <div class="divider my-2"></div>
                     @module('buildings')
                     <div class="flex justify-between">
@@ -717,7 +727,7 @@
                     </div>
                 </div>
                 <div>
-                    <div class="font-bold text-base-100">BMS AI Assistant</div>
+                    <div class="font-bold text-base-100">LogXense AI Assistant</div>
                     <div class="text-xs text-base-100/80 flex items-center gap-1">
                         <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
                         Powered by OpenAI GPT

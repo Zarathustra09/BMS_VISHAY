@@ -20,9 +20,15 @@
                 </div>
                 System Settings
             </h1>
-            <p class="text-sm opacity-70 mt-2">Configure your Building Management System preferences</p>
+            <p class="text-sm opacity-70 mt-2">Configure your LogXense Enterprise preferences</p>
         </div>
     </div>
+
+    @if(session('error'))
+    <div class="alert alert-error shadow-lg animate-fadeIn">
+        <span>{{ session('error') }}</span>
+    </div>
+    @endif
 
     @if(session('success'))
     <div class="alert alert-success shadow-lg animate-fadeIn">
@@ -230,7 +236,10 @@
     </div>
 
     <!-- Application Settings -->
-    @php $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']); @endphp
+    @php
+        $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']);
+        $mailPasswordSaved = filled($settings['mail_password'] ?? null);
+    @endphp
     <form action="{{ route('settings.update') }}" method="POST" class="space-y-6">
     <fieldset class="contents" @cannot('settings.update') disabled @endcannot>
         @csrf
@@ -309,6 +318,50 @@
             </div>
         </div>
 
+        <!-- Email (SMTP) -->
+        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+            <div class="card-body">
+                <h2 class="card-title flex items-center gap-2">
+                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    Email (SMTP)
+                </h2>
+                <p class="text-sm opacity-70">
+                    The mail server used to send alert emails. Leave the server empty to keep the server's own setup
+                    (a fresh install only writes emails to its log). Save, then use <strong>Send test email</strong> to check it.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <x-form.input name="mail_host" label="SMTP Server" maxlength="255"
+                                  :value="$settings['mail_host']" placeholder="smtp.example.com" />
+                    <x-form.input type="number" name="mail_port" label="Port" min="1" max="65535"
+                                  :value="$settings['mail_port']" help="Usually 587 (STARTTLS) or 465 (SSL/TLS)" />
+                    <x-form.input name="mail_username" label="Username" maxlength="255" autocomplete="off"
+                                  :value="$settings['mail_username']" />
+                    <x-form.input type="password" name="mail_password" label="Password" maxlength="255" autocomplete="new-password"
+                                  :help="$mailPasswordSaved ? 'A password is saved. Leave blank to keep it.' : null" />
+                    <x-form.select name="mail_encryption" label="Encryption"
+                                   :options="['tls' => 'STARTTLS (port 587)', 'ssl' => 'SSL/TLS (port 465)', 'none' => 'None / automatic']"
+                                   :selected="$settings['mail_encryption']" />
+                    <x-form.input type="email" name="mail_from_address" label="From Address" maxlength="255"
+                                  :value="$settings['mail_from_address']" placeholder="alerts@yourcompany.com" />
+                    <x-form.input name="mail_from_name" label="From Name" maxlength="255"
+                                  :value="$settings['mail_from_name']" placeholder="{{ config('app.name') }}" />
+                    <x-form.input type="url" name="app_url" label="Site Address" maxlength="255"
+                                  :value="$settings['app_url']" placeholder="http://192.168.1.50"
+                                  help="How people open this site. Used for the links inside emails" />
+                </div>
+
+                @can('settings.update')
+                <div>
+                    <button type="submit" form="testEmailForm" class="btn btn-outline btn-sm gap-2">Send test email to me</button>
+                    <span class="text-xs opacity-60 ml-2">Sends to {{ auth()->user()->email }} using the saved settings</span>
+                </div>
+                @endcan
+            </div>
+        </div>
+
         <div class="flex justify-end">
             <button type="submit" class="btn btn-primary gap-2 shadow-lg hover:shadow-primary/50">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -319,6 +372,10 @@
         </div>
     </fieldset>
     </form>
+
+    @can('settings.update')
+    <form id="testEmailForm" action="{{ route('settings.test-email') }}" method="POST">@csrf</form>
+    @endcan
 </div>
 
 <script>

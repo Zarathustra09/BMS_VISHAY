@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title BMS - remove Reverb and queue worker services
+title LogXense Enterprise - remove Reverb and queue worker services
 
 rem Removes the services and firewall rule created by install-services.bat.
 rem Run it by right-click -> "Run as administrator". Same NSSM path as the installer.

@@ -2,6 +2,14 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Phase 13 - LogXense Enterprise: rename, Groups, real email (2026-10-11)
+
+- **Renamed** to LogXense Enterprise everywhere users see it (UI, login, error pages, emails, README, Docker/Windows scripts, AI prompts); the old default company name is migrated. Internal identifiers (`bms` DB/containers, `BMS-*` services) are unchanged. The Docker install now defaults to the **lite** edition - which is never named in the UI.
+- **Groups**: new `groups` / `group_user` tables, `Group` model (Spatie roles + permissions), full CRUD module, `User::hasPermissionTo()` also checks the user's groups. `machines.assignment_group_id`.
+- **Alert emails** also go to every member of the machine's assignment group (deduplicated with admins/managers and the extra-recipients list); the email says why the recipient got it.
+- **Real email**: SMTP details on the Settings page (password encrypted), applied to the queue worker too, plus a Send-test-email button and a Site Address used for links in emails.
+- Tests: `GroupTest`, `MachineAssignmentGroupTest`, `MailSettingsTest`, `BrandingTest`.
+
 ## Phase 12 — Live sensor updates with Laravel Reverb, self-hosted (2026-10-08)
 
 The machine page learned of a new reading only by polling (5–30s). Readings are now pushed to open browsers the moment they're stored, over **Laravel Reverb** running on the same plant PC — free and open source, no Pusher or any other paid/third-party service, nothing leaves the LAN. The ESP32s are untouched: they still only call the HTTP API.

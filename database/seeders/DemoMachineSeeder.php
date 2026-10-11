@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\AppModule;
 use App\Models\Building;
 use App\Models\Floor;
 use App\Models\Machine;
@@ -18,26 +19,32 @@ class DemoMachineSeeder extends Seeder
 {
     public function run(): void
     {
-        $building = Building::create([
-            'name' => 'Main Building',
-            'code' => 'MB-001',
-            'type' => 'Manufacturing',
-            'status' => 'Operational',
-        ]);
+        // Buildings & Floors are switched off in the lite edition (config/modules.php), where
+        // nothing in the UI could show or edit a location — so the machine just has none.
+        $building = $floor = null;
 
-        $floor = Floor::create([
-            'building_id' => $building->id,
-            'name' => 'Ground Floor',
-            'floor_number' => 0,
-            'status' => 'Active',
-        ]);
+        if (AppModule::Buildings->isEnabled()) {
+            $building = Building::create([
+                'name' => 'Main Building',
+                'code' => 'MB-001',
+                'type' => 'Manufacturing',
+                'status' => 'Operational',
+            ]);
+
+            $floor = Floor::create([
+                'building_id' => $building->id,
+                'name' => 'Ground Floor',
+                'floor_number' => 0,
+                'status' => 'Active',
+            ]);
+        }
 
         $machine = Machine::create([
             'name' => 'Demo Machine',
             'machine_code' => 'DEMO-001',
             'machine_type_id' => MachineType::where('name', 'Other')->value('id'),
-            'building_id' => $building->id,
-            'floor_id' => $floor->id,
+            'building_id' => $building?->id,
+            'floor_id' => $floor?->id,
             'description' => 'Sample machine for testing a NodeMCU sensor. POST readings to /api/machine-logs.',
             'status' => 'active',
             'is_critical' => false,

@@ -2,7 +2,10 @@
 
 ## What this is
 
-NexBuild BMS is a Building Management System for manufacturing facilities. It tracks a hierarchy of **Buildings → Floors → Machines**, ingests sensor readings from hardware devices attached to those machines (temperature, humidity, pressure, vibration, power, etc.), and provides an AI assistant that can analyze a machine's log history and answer natural-language questions about it.
+LogXense Enterprise (formerly the NexBuild BMS) is a data logging and monitoring system for manufacturing facilities.
+
+> **Editions (internal).** The delivered product is the **lite** edition (`APP_EDITION=lite`, the Docker default): machines, machine types, alerts, users/groups/roles, settings and the sensor API. Buildings & Floors, Work Orders, Maintenance and Reports are switched off - see [09-setup-and-operations.md](09-setup-and-operations.md#editions--module-toggles). The word "lite" is deliberately never shown in the UI, the README or the installer; it only appears in these internal docs.
+ It tracks a hierarchy of **Buildings → Floors → Machines**, ingests sensor readings from hardware devices attached to those machines (temperature, humidity, pressure, vibration, power, etc.), and provides an AI assistant that can analyze a machine's log history and answer natural-language questions about it.
 
 The system was built for Vishay's manufacturing site. The temperature sensor integration was validated by Justin against the `POST /api/machine-logs` endpoint before this documentation was written.
 

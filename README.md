@@ -1,6 +1,6 @@
-# NexBuild BMS
+# LogXense Enterprise
 
-A Building Management System for manufacturing facilities: tracks Buildings → Floors → Machines, ingests sensor readings (temperature, humidity, vibration, power, etc.) from hardware devices, and provides an AI assistant for analyzing machine health.
+LogXense Enterprise is a data logging and monitoring system for manufacturing facilities: tracks Buildings → Floors → Machines, ingests sensor readings (temperature, humidity, vibration, power, etc.) from hardware devices, and provides an AI assistant for analyzing machine health.
 
 Built with Laravel 12, Tailwind + DaisyUI + Alpine, MySQL, and Spatie's permission package.
 
@@ -51,6 +51,7 @@ It runs five containers: `app` (the website: runs `php artisan serve --host=0.0.
 - **Different device key?** `set DEMO_DEVICE_KEY=your-key` before the first start (the key is created on first run only).
 - **Something wrong?** `docker compose logs app` (or `queue`, `reverb`, `db`).
 - Optional AI chat: `set OPENAI_API_KEY=...` before starting.
+- **Email alerts:** sign in as admin, open **Settings -> Email (SMTP)**, enter your mail server and press *Send test email*. Create **Groups** (sidebar -> Groups), put users in them, and pick a machine's *Assignment Group* - everyone in that group is emailed when the machine raises an alert.
 
 ## Quick start (without Docker)
 

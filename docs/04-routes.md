@@ -116,6 +116,23 @@ New in Phase 4b. Full `Route::resource` + a confirm-delete page, same pattern as
 | DELETE | `/roles/{role}` | `roles.destroy` | `RoleController@destroy` | `roles.delete` | Delete — blocked if `admin` or if any user still holds the role |
 | GET | `/roles/{role}/delete` | `roles.confirm-delete` | `RoleController@confirmDelete` | `roles.delete` | Confirmation page; shows the blocking user list when not deletable |
 
+## Groups
+
+Full `Route::resource` + a confirm-delete page (same pattern as Roles). Business rules live in `GroupService` (only an admin can give a group the admin role; a group a machine uses can't be deleted).
+
+| Method | URI | Name | Permission | Purpose |
+|---|---|---|---|---|
+| GET | `/groups` | `groups.index` | `groups.view` | List groups with member/role/machine counts |
+| GET | `/groups/create` | `groups.create` | `groups.create` | Form: name, members, roles, extra permissions |
+| POST | `/groups` | `groups.store` | `groups.create` | Create |
+| GET | `/groups/{group}` | `groups.show` | `groups.view` | Members, roles, assigned machines, read-only permissions |
+| GET | `/groups/{group}/edit` | `groups.edit` | `groups.update` | Edit form |
+| PUT/PATCH | `/groups/{group}` | `groups.update` | `groups.update` | Update (replaces members/roles/permissions) |
+| DELETE | `/groups/{group}` | `groups.destroy` | `groups.delete` | Delete - blocked while a machine uses it |
+| GET | `/groups/{group}/delete` | `groups.confirm-delete` | `groups.delete` | Confirmation page |
+
+Also new: `POST /settings/test-email` (`settings.test-email`, `settings.update`) sends one email to the signed-in user using the saved SMTP settings.
+
 ## Permissions
 
 New in Phase 4b. Read-only — there is no create/update/delete, since a permission only does something once code checks it (see [02-architecture.md](02-architecture.md) for how permissions gate controllers).

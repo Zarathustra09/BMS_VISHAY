@@ -10,6 +10,7 @@ use App\Enums\ParameterDataType;
 use App\Enums\SpecFieldType;
 use App\Exceptions\MachineParameterException;
 use App\Interfaces\AlertInterface;
+use App\Interfaces\GroupInterface;
 use App\Interfaces\MachineInterface;
 use App\Interfaces\MachineLogInterface;
 use App\Interfaces\MachineParameterInterface;
@@ -30,6 +31,7 @@ class MachineController extends Controller
         protected MachineLogInterface $machineLogService,
         protected MachineTypeInterface $machineTypeService,
         protected MachineParameterInterface $parameterService,
+        protected GroupInterface $groupService,
     ) {
         $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings', 'parameters']);
         $this->middleware('permission:machines.create')->only(['create', 'store']);
@@ -56,8 +58,9 @@ class MachineController extends Controller
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
         $machineTypes = $this->machineTypeService->getForSelect();
         $copySources = $this->machineService->getParameterCopySources();
+        $groups = $this->groupService->getForSelect();
 
-        return view('machines.create', compact('buildings', 'machineTypes', 'copySources'));
+        return view('machines.create', compact('buildings', 'machineTypes', 'copySources', 'groups'));
     }
 
     public function store(Request $request)
@@ -76,7 +79,7 @@ class MachineController extends Controller
 
     public function show(Machine $machine)
     {
-        $machine->load(['building', 'floor', 'machineType']);
+        $machine->load(['building', 'floor', 'machineType', 'assignmentGroup']);
 
         $logStats = $this->machineService->getLogStats($machine);
         $recentAlerts = $this->machineService->getRecentAlerts($machine);
@@ -154,8 +157,9 @@ class MachineController extends Controller
             : collect();
         $machineTypes = $this->machineTypeService->getForSelect();
         $machine->load('parameters');
+        $groups = $this->groupService->getForSelect();
 
-        return view('machines.edit', compact('machine', 'buildings', 'floors', 'machineTypes'));
+        return view('machines.edit', compact('machine', 'buildings', 'floors', 'machineTypes', 'groups'));
     }
 
     public function update(Request $request, Machine $machine)
@@ -213,6 +217,7 @@ class MachineController extends Controller
             'model_number' => 'nullable|string|max:255',
             'serial_number' => 'nullable|string|max:255',
             'building_id' => 'nullable|exists:buildings,id',
+            'assignment_group_id' => 'nullable|exists:groups,id',
             // `Rule::exists('floors', 'id')->where(...)` can't be made conditional on whether
             // building_id was actually submitted (DatabaseRule::where() with a null value
             // becomes a whereNull constraint, not "no constraint") — a closure says exactly

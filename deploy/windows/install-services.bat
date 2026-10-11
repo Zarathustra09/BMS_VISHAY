@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
-title BMS - install Reverb and queue worker as Windows services
+title LogXense Enterprise - install Reverb and queue worker as Windows services
 
 rem ===========================================================================
-rem  Installs the two always-on background processes the BMS needs on the plant PC
+rem  Installs the two always-on background processes LogXense Enterprise needs on the plant PC
 rem  as Windows services that start with Windows and restart themselves if they die:
 rem
 rem    BMS-Reverb  php artisan reverb:start   the WebSocket server for live updates
@@ -76,7 +76,7 @@ if not errorlevel 1 (
 "%NSSM%" install %1 "%PHP%" %~2 >nul
 if errorlevel 1 ( echo Could not install %1. & exit /b 1 )
 "%NSSM%" set %1 AppDirectory "%APP%" >nul
-"%NSSM%" set %1 DisplayName "BMS %~1" >nul
+"%NSSM%" set %1 DisplayName "LogXense Enterprise %~1" >nul
 "%NSSM%" set %1 Start SERVICE_AUTO_START >nul
 rem Restart whenever the process exits, whatever the exit code - the queue worker exits on
 rem purpose every hour (--max-time) to release memory.

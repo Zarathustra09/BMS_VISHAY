@@ -248,19 +248,30 @@ class AlertService implements AlertInterface
 
     /**
      * Admins and managers get alert notifications — the roles with `alerts.resolve`
-     * and oversight responsibility across machines (see docs/06-security.md) — plus any
-     * extra addresses configured in Settings' alert_emails, for recipients who don't hold
-     * either role (e.g. an external contractor or a shared ops inbox).
+     * and oversight responsibility across machines (see docs/06-security.md) — plus every
+     * member of the machine's assignment group, plus any extra addresses configured in
+     * Settings' alert_emails, for recipients who don't hold either role (e.g. an external
+     * contractor or a shared ops inbox). Nobody is notified twice for one alert: a user who
+     * is both a manager and in the group, or whose address is also in alert_emails, gets one.
      */
     private function notify(Alert $alert): void
     {
-        $recipients = User::role(['admin', 'manager'])->get();
+        $recipients = User::role(['admin', 'manager'])->get()
+            ->merge($alert->machine?->assignmentGroup?->users ?? [])
+            ->unique('id')
+            ->values();
 
         if ($recipients->isNotEmpty()) {
             Notification::send($recipients, new MachineAlertNotification($alert));
         }
 
+        $alreadyEmailed = $recipients->pluck('email')->map(fn ($email) => strtolower((string) $email));
+
         foreach ($this->settings->get('alert_emails', []) as $email) {
+            if ($alreadyEmailed->contains(strtolower($email))) {
+                continue;
+            }
+
             Notification::route('mail', $email)->notify(new MachineAlertNotification($alert));
         }
     }

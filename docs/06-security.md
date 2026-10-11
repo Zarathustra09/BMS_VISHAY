@@ -146,6 +146,18 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 4. Gate a Blade section: `@can('your.permission') ... @endcan`.
 5. Gate a check in PHP: `auth()->user()->can('your.permission')`.
 
+## Groups
+
+A **group** holds roles and direct permissions, and every member inherits them; a user can be in several groups. Access is managed by moving a user in or out of a group instead of editing the user.
+
+- `User::hasPermissionTo()` returns true when the user's own check does, or any of their groups' does. Spatie's `Gate::before` goes through that method, so `@can`, `$user->can()` and the `permission:` middleware all honour groups. `hasRole()`, `getRoleNames()` and `User::role()` do **not** - they still report only roles assigned directly.
+- A switched-off module's permissions stay denied even when a group grants them (the app's own `Gate::before` runs first).
+- Only an `admin` can create or change a group that has the `admin` role (`GroupService`), so editing groups can't be used to become an admin.
+- A role held by a group can't be deleted (`RoleService::delete`), and a group used as a machine's assignment group can't be deleted.
+- Permissions: `groups.view/create/update/delete`; admin has all, manager has `groups.view`.
+
+**Alert recipients** are now: admins and managers, plus every member of the machine's assignment group, plus the Settings "extra alert recipients" list - each person at most once per alert.
+
 ## Endpoint and UI guarding
 
 Every route behind login carries a `permission:` middleware, either from its controller constructor (`$this->middleware('permission:x')->only([...])`) or on the route itself. `tests/Feature/RoutePermissionCoverageTest.php` fails if a new authenticated route has none, apart from a short allowlist (`home`, `profile.*`, `notifications.*`, Laravel UI's logout/password-confirm).

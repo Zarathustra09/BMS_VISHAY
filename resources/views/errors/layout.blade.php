@@ -27,7 +27,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'Error') ({{ $statusCode }}) — {{ config('app.name', 'BMS') }}</title>
+    <title>@yield('title', 'Error') ({{ $statusCode }}) — {{ config('app.name', 'LogXense Enterprise') }}</title>
 
     <script>
         (function () {
@@ -55,7 +55,7 @@
     <header class="px-4 sm:px-6 lg:px-8 h-16 flex items-center border-b border-base-300/40 bg-base-100/80">
         <a href="{{ url('/') }}" class="flex items-center gap-3">
             @include('partials._brand-logo', ['class' => 'h-8 w-auto object-contain'])
-            <span class="text-sm font-bold leading-none">NextBuild <span class="opacity-50 font-normal">BMS</span></span>
+            <span class="text-sm font-bold leading-none">LogXense <span class="opacity-50 font-normal">Enterprise</span></span>
         </a>
     </header>
 
@@ -90,7 +90,7 @@
     </main>
 
     <footer class="py-4 text-center text-xs text-base-content/40">
-        {{ config('app.name', 'BMS') }} · Error {{ $statusCode }}
+        {{ config('app.name', 'LogXense Enterprise') }} · Error {{ $statusCode }}
     </footer>
 </body>
 </html>

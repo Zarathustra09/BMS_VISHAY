@@ -88,6 +88,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/settings', [App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
     Route::put('/settings', [App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
+    Route::post('/settings/test-email', [App\Http\Controllers\SettingController::class, 'testEmail'])->name('settings.test-email');
     // Profile Routes
     Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'index'])->name('profile.index');
     Route::put('/profile', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
@@ -109,6 +110,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/roles/{role}/users', [App\Http\Controllers\RoleController::class, 'assignUsers'])
         ->middleware('permission:users.update')
         ->name('roles.assign-users');
+
+    // Group Routes - a group holds roles/permissions that its members inherit, and can be a
+    // machine's assignment group (alert emails go to every member).
+    Route::resource('groups', App\Http\Controllers\GroupController::class);
+    Route::get('/groups/{group}/delete', [App\Http\Controllers\GroupController::class, 'confirmDelete'])->name('groups.confirm-delete');
 
     // Permission Routes (read-only)
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');

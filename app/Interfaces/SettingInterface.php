@@ -15,6 +15,14 @@ interface SettingInterface
         'preventive_lead_days',
         'auto_fault_on_critical',
         'log_retention_days',
+        'mail_host',
+        'mail_port',
+        'mail_username',
+        'mail_password',
+        'mail_encryption',
+        'mail_from_address',
+        'mail_from_name',
+        'app_url',
     ];
 
     /**
@@ -22,12 +30,21 @@ interface SettingInterface
      * were already saved).
      */
     public const DEFAULTS = [
-        'company_name' => 'NexBuild BMS',
+        'company_name' => 'LogXense Enterprise',
         'alert_emails' => [],
         'offline_timeout_minutes' => 10,
         'preventive_lead_days' => 7,
         'auto_fault_on_critical' => false,
         'log_retention_days' => 365,
+        // Outgoing email (see MailSettings). Empty host = keep using the MAIL_* environment mailer.
+        'mail_host' => '',
+        'mail_port' => 587,
+        'mail_username' => '',
+        'mail_password' => '', // stored encrypted, never shown again
+        'mail_encryption' => 'tls',
+        'mail_from_address' => '',
+        'mail_from_name' => '',
+        'app_url' => '', // address the site is opened at, used for links inside emails
     ];
 
     /**

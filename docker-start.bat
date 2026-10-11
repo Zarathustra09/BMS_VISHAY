@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title BMS - start with Docker
+title LogXense Enterprise - start with Docker
 cd /d "%~dp0"
 
 docker info >nul 2>&1
@@ -10,7 +10,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem Stop any earlier BMS run first (keeps the data) so it doesn't hold the ports we are about to check.
+rem Stop any earlier LogXense Enterprise run first (keeps the data) so it doesn't hold the ports we are about to check.
 docker compose down >nul 2>&1
 
 rem ---- Pick the website port: 80 if it is free, otherwise 8080 --------------------------------
@@ -38,8 +38,8 @@ if errorlevel 1 goto :busy_live
 set "PORT_SUFFIX=:%APP_PORT%"
 if "%APP_PORT%"=="80" set "PORT_SUFFIX="
 
-if "%PORT_FELL_BACK%"=="1" echo Port 80 is in use by another program, so BMS will use port 8080 instead.
-echo Building and starting BMS. The first time takes several minutes - please wait...
+if "%PORT_FELL_BACK%"=="1" echo Port 80 is in use by another program, so LogXense Enterprise will use port 8080 instead.
+echo Building and starting LogXense Enterprise. The first time takes several minutes - please wait...
 docker compose up -d --build --wait
 if errorlevel 1 (
     echo.
@@ -50,7 +50,7 @@ if errorlevel 1 (
 
 echo.
 echo ================================================================
-echo   BMS is running
+echo   LogXense Enterprise is running
 echo.
 echo   Open:     http://localhost%PORT_SUFFIX%
 echo.

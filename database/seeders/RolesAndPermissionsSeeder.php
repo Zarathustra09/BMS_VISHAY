@@ -10,7 +10,7 @@ use Spatie\Permission\PermissionRegistrar;
 class RolesAndPermissionsSeeder extends Seeder
 {
     /**
-     * Base roles and permissions for the BMS.
+     * Base roles and permissions for LogXense Enterprise.
      *
      * Permissions are CRUD-granular per module ({module}.view/create/update/delete)
      * rather than one blanket "manage" permission, so a role can, for example, view and
@@ -21,7 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $crudModules = ['buildings', 'floors', 'machines', 'machine-types', 'users', 'roles', 'work-orders'];
+        $crudModules = ['buildings', 'floors', 'machines', 'machine-types', 'users', 'roles', 'groups', 'work-orders'];
         $actions = ['view', 'create', 'update', 'delete'];
 
         $permissions = [];
@@ -93,6 +93,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'machine-types.view', 'machine-types.create', 'machine-types.update',
             'users.view',
             'roles.view',
+            'groups.view',
             'permissions.view',
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
             'work-orders.view', 'work-orders.create', 'work-orders.update', 'work-orders.update-status',

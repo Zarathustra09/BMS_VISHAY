@@ -256,7 +256,7 @@ Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severi
 
 **Scopes**: `alerts()` (severity in error/critical), `byType($type)`, `recent($days = 7)`, `bySeverity($severity)`.
 
-**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
+**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days`, and the outgoing-email keys `mail_host`, `mail_port`, `mail_username`, `mail_password` (stored **encrypted**), `mail_encryption`, `mail_from_address`, `mail_from_name`, `app_url` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
 
 ### `machine_parameters`
 
@@ -392,6 +392,21 @@ Migrations: [2026_09_27_052350_create_activity_log_table.php](../database/migrat
 | timestamps | | | |
 
 See [02-architecture.md](02-architecture.md#audit-logging-spatielaravel-activitylog) for which models log, why `Alert` logs a narrower column set than the others, and how the machine page's combined Activity feed queries this table.
+
+### `groups` and `group_user`
+
+Migration: [create_groups_table.php](../database/migrations/2026_10_11_165424_create_groups_table.php).
+
+A group is a named set of users that shares roles/permissions and can be a machine's **assignment group**.
+
+| Column | Type | Notes |
+|---|---|---|
+| `groups.id`, `name` (unique), `description` (nullable), timestamps | | |
+| `group_user.group_id`, `user_id` | FKs, cascade | composite primary key; a user can be in many groups |
+
+A `Group` uses Spatie's `HasRoles`, so its roles and direct permissions live in the same `model_has_roles` / `model_has_permissions` tables as a user's (`model_type = App\Models\Group`). It must declare `$guard_name = 'web'`. `User::hasPermissionTo()` also asks the user's groups, which is how a member inherits them - see [06-security.md](06-security.md#groups).
+
+`machines.assignment_group_id` (migration `add_assignment_group_id_to_machines_table`): nullable FK to `groups`, `nullOnDelete`. Its members are emailed when the machine raises an alert (`AlertService::notify()`).
 
 ### Auth & permissions tables
 

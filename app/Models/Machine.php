@@ -13,7 +13,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Machine model used by the Building Management System (manufacturing context).
+ * Machine model used by LogXense Enterprise (manufacturing context).
  * Its type-specific specifications are stored as a `specifications` JSON column, keyed by the
  * field keys defined on its `machineType` — see App\Models\MachineType and
  * MachineService::normalizeSpecifications(). `power_rating` and `spec_voltage` stay as real
@@ -48,6 +48,7 @@ class Machine extends Model
         'serial_number',
         'building_id',
         'floor_id',
+        'assignment_group_id',
         'description',
         'specifications',
         'status',
@@ -80,6 +81,7 @@ class Machine extends Model
         'specifications' => 'array',
         'building_id' => 'integer',
         'floor_id' => 'integer',
+        'assignment_group_id' => 'integer',
         'machine_type_id' => 'integer',
         'last_seen_at' => 'datetime',
     ];
@@ -165,6 +167,14 @@ class Machine extends Model
     public function floor(): BelongsTo
     {
         return $this->belongsTo(Floor::class);
+    }
+
+    /**
+     * The group emailed when this machine raises an alert (see AlertService::notify()).
+     */
+    public function assignmentGroup(): BelongsTo
+    {
+        return $this->belongsTo(Group::class, 'assignment_group_id');
     }
 
     /**

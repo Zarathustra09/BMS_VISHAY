@@ -240,7 +240,7 @@ class GeminiService implements AIInterface
             }
         }
 
-        $prompt = "You are an expert Building Management System (BMS) analyst specializing in manufacturing equipment maintenance and diagnostics.\n\n";
+        $prompt = "You are an expert data logging and monitoring analyst for LogXense Enterprise, specializing in manufacturing equipment maintenance and diagnostics.\n\n";
         $prompt .= $machineInfo;
         $prompt .= $logsSummary;
         $prompt .= $recentLogsInfo;

@@ -16,6 +16,7 @@
     $statusValue = old('status', $machine?->status ?? 'active');
     $buildingValue = old('building_id', $machine?->building_id ?? '');
     $floorValue = old('floor_id', $machine?->floor_id ?? '');
+    $assignmentGroupValue = old('assignment_group_id', $machine?->assignment_group_id ?? '');
     $lastMaintenanceValue = old('last_maintenance_date', $machine?->last_maintenance_date?->format('Y-m-d') ?? '');
     $maintenanceIntervalValue = old('maintenance_interval_days', $machine?->maintenance_interval_days ?? '');
     $nextMaintenanceValue = old('next_maintenance_date', $machine?->next_maintenance_date?->format('Y-m-d') ?? '');
@@ -149,7 +150,7 @@
             <a href="#specifications" class="block px-3 py-2 rounded-lg hover:bg-base-200">Specifications</a>
             <a href="#parameters" class="block px-3 py-2 rounded-lg hover:bg-base-200">Sensor Parameters</a>
             <a href="#maintenance" class="block px-3 py-2 rounded-lg hover:bg-base-200">Maintenance</a>
-            <a href="#notes" class="block px-3 py-2 rounded-lg hover:bg-base-200">Notes &amp; Criticality</a>
+            <a href="#notes" class="block px-3 py-2 rounded-lg hover:bg-base-200">Alerting, Notes &amp; Criticality</a>
         </nav>
 
         <form id="machineForm" action="{{ $actionUrl }}" method="POST" @submit="submitting = true" class="space-y-6 min-w-0">
@@ -342,7 +343,11 @@
                 </div>
             </x-form.section>
 
-            <x-form.section id="notes" title="Notes & Criticality">
+            <x-form.section id="notes" title="Alerting, Notes & Criticality">
+                <x-form.select name="assignment_group_id" label="Assignment Group" placeholder="— No Group —"
+                                help="Everyone in this group is emailed when this machine raises an alert (admins and managers always are)"
+                                :options="($groups ?? collect())->pluck('name', 'id')->all()" :selected="$assignmentGroupValue" />
+
                 <x-form.textarea name="description" label="Description" :rows="3" span
                                   :value="$machine?->description ?? null" />
 

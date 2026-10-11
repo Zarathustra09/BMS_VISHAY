@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Enums\AppModule;
 use App\Exceptions\RoleActionException;
 use App\Interfaces\RoleInterface;
+use App\Models\Group;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -79,6 +81,19 @@ class RoleService implements RoleInterface
         if ($userCount > 0) {
             throw new RoleActionException(
                 "Cannot delete \"{$role->name}\" — {$userCount} user(s) still have this role. Reassign them to a different role first."
+            );
+        }
+
+        // A group can hold the role too (model_has_roles is polymorphic) - without this check the
+        // foreign key would silently strip the role from every group that has it.
+        $groupCount = DB::table('model_has_roles')
+            ->where('role_id', $role->id)
+            ->where('model_type', Group::class)
+            ->count();
+
+        if ($groupCount > 0) {
+            throw new RoleActionException(
+                "Cannot delete \"{$role->name}\" — {$groupCount} group(s) still have this role. Remove it from those groups first."
             );
         }
 
