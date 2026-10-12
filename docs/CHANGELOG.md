@@ -2,6 +2,19 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Phase 10 — Header machine search (2026-10-08)
+
+The search box in the top-right of the header was a static input that did nothing (and its placeholder still said "Search orders, parts..."). It is now a live machine search: type 2+ characters and a dropdown lists matching machines, each linking to its page.
+
+- **`GET /search?q=`** (`search`) → `SearchController@index` → `SearchInterface::searchMachines()` (`SearchService`, bound in `AppServiceProvider`). Searches `name`, `machine_code`, `serial_number` and `model_number`, limit 8, ordered by name; returns name, code, type, a status label + badge class (from `MachineStatus`) and a `machines.show` URL. `q` is validated inline (required, 2–100 chars → 422).
+- **Gated by `machines.search` + `machines.view`**: a new `machines.search` permission (seeded to admin, manager and technician — **not viewer**) alongside `machines.view`. The controller constructor 403s anyone missing either, and the box *and its script* are wrapped in `@can('machines.search')`/`@can('machines.view')`, so a viewer's page has no trace of the search. Viewers still have the Machines list and its own table search. **Existing databases need `php artisan db:seed --class=RolesAndPermissionsSeeder`** to create the permission (it also re-syncs the four base roles' permission sets).
+- **One search implementation**: the OR-`LIKE` across those four columns moved onto `Machine::scopeSearch()`, and `MachinesDataTable`'s search override now calls it too, so the header search and the Machines table can't drift apart.
+- **Header dropdown** (Alpine `headerSearch`): debounced typing, `AbortController` for stale requests, loading / "no results" / error states. Keyboard: ↑/↓ to move, Enter to open, Esc to close, `/` to focus.
+- **Full results**: Enter with no row highlighted (or the "See all results" link) opens `machines.index?search=<q>`; `MachineController::index` passes `search` to the view, which seeds the DataTable's search box.
+- **Not changed**: no schema changes, and no search indexes (`LIKE '%…%'` can't use one anyway). Machines is always-on core, so the endpoint has no `module:` middleware.
+- Tests: new `HeaderSearchTest` (13 tests) — results and JSON shape, each searchable column, empty result, the 8-row limit, 403 without `machines.view`, 403 for a viewer, 403 for `machines.search` without `machines.view`, 422 for a 1-character query, guest redirect, the `?search=` prefill on the machines list, the header box rendering for a technician, a viewer's page containing no search markup, and the seeded role grants.
+- Docs: `04-routes.md` (new *Search* section, `?search=` on `machines.index`), `02-architecture.md` (registry row), `06-security.md` (permission description + role matrix row), `08-frontend.md` (header entry + *Header machine search* interactivity pattern).
+
 ## Phase 9 — Lite edition via module toggles, one repo (2026-10-03)
 
 A second, smaller version of the app was wanted: machines, users and API integration only. Rather than a long-lived branch or a separate repo — both of which drift from `master`, so every future machine/user/API fix would need copying across by hand — the app is now **one codebase that deployments configure per `.env`**: `APP_EDITION=full` (default, unchanged behavior) or `APP_EDITION=lite`. Scope of lite, per the request: Machines, Machine Types, Alerts, AI chat, Users/Roles/Permissions, Settings/Profile and the sensor API stay; **Buildings & Floors, Work Orders, Maintenance and Reports are switched off.**

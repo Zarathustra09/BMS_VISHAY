@@ -33,15 +33,86 @@
     <div class="flex-none gap-2">
         <!-- Production Status -->
 
-        <!-- Search -->
-        <div class="hidden sm:block">
+        <!-- Search (machines) -->
+        @can('machines.search')
+        @can('machines.view')
+        <style>[x-cloak] { display: none !important; }</style>
+        <div class="hidden sm:block relative"
+             x-data="headerSearch(@js(['endpoint' => route('search'), 'resultsUrl' => route('machines.index')]))"
+             @keydown.window="onGlobalKey($event)"
+             @click.outside="close()">
             <label class="input input-sm flex items-center gap-2 bg-base-200/50 focus-within:bg-base-200">
                 <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <input type="text" class="grow w-32 lg:w-48" placeholder="Search orders, parts..." />
+                <input type="text"
+                       x-ref="input"
+                       x-model="query"
+                       class="grow w-32 lg:w-48"
+                       placeholder="Search machines..."
+                       autocomplete="off"
+                       role="combobox"
+                       aria-label="Search machines"
+                       aria-controls="header-search-results"
+                       aria-autocomplete="list"
+                       :aria-expanded="isOpen.toString()"
+                       :aria-activedescendant="activeIndex >= 0 ? 'header-search-option-' + activeIndex : null"
+                       @input.debounce.250ms="fetchResults()"
+                       @focus="if (canSearch()) isOpen = true"
+                       @keydown.arrow-down.prevent="move(1)"
+                       @keydown.arrow-up.prevent="move(-1)"
+                       @keydown.enter.prevent="open()"
+                       @keydown.escape="close(true)" />
+                <span class="loading loading-spinner loading-xs" x-show="loading" x-cloak></span>
+                <kbd class="kbd kbd-xs hidden lg:inline-flex" x-show="!query" x-cloak>/</kbd>
             </label>
+
+            <div class="absolute right-0 mt-2 w-96 max-w-[90vw] bg-base-100 border border-base-300/50 rounded-box shadow-xl z-50 overflow-hidden"
+                 x-show="isOpen && canSearch()"
+                 x-cloak>
+                <div class="px-4 py-4 text-sm opacity-60 text-center" x-show="loading && results.length === 0">
+                    Searching...
+                </div>
+                <div class="px-4 py-4 text-sm opacity-60 text-center"
+                     x-show="!loading && !failed && results.length === 0">
+                    No machines match "<span x-text="query.trim()"></span>"
+                </div>
+                <div class="px-4 py-4 text-sm text-error text-center" x-show="failed && !loading">
+                    Search is unavailable right now. Please try again.
+                </div>
+
+                <ul id="header-search-results" role="listbox" class="menu menu-sm p-2" x-show="results.length > 0">
+                    <template x-for="(item, index) in results" :key="item.id">
+                        <li role="presentation">
+                            <a :id="'header-search-option-' + index"
+                               role="option"
+                               :href="item.url"
+                               :aria-selected="(index === activeIndex).toString()"
+                               :class="index === activeIndex ? 'bg-base-200' : ''"
+                               class="flex items-center justify-between gap-3"
+                               @mouseenter="activeIndex = index">
+                                <span class="min-w-0">
+                                    <span class="block font-medium truncate" x-text="item.name"></span>
+                                    <span class="block text-xs opacity-60 truncate">
+                                        <span class="font-mono" x-text="item.code"></span>
+                                        <span x-show="item.type" x-text="' · ' + item.type"></span>
+                                    </span>
+                                </span>
+                                <span class="badge badge-sm shrink-0" :class="item.status_badge" x-text="item.status_label"></span>
+                            </a>
+                        </li>
+                    </template>
+                </ul>
+
+                <a :href="resultsHref()"
+                   class="block px-4 py-2 text-xs text-center border-t border-base-300/50 hover:bg-base-200"
+                   x-show="results.length > 0">
+                    See all results for "<span x-text="query.trim()"></span>"
+                </a>
+            </div>
         </div>
+        @endcan
+        @endcan
 
         <!-- Quick Stats -->
         <div class="dropdown dropdown-end">
@@ -208,6 +279,128 @@
     });
 </script>
 
-<div>
-    <!-- Simplicity is the essence of happiness. - Cedric Bledsoe -->
-</div>
+@can('machines.search')
+@can('machines.view')
+@push('scripts')
+<script>
+document.addEventListener('alpine:init', () => {
+    // Header machine search: debounced typing (set on the input), AbortController to drop a
+    // stale in-flight request, and a keyboard map of ↑/↓ move, Enter open, Esc close, "/" focus.
+    Alpine.data('headerSearch', (config) => ({
+        query: '',
+        results: [],
+        activeIndex: -1,
+        isOpen: false,
+        loading: false,
+        failed: false,
+        controller: null,
+
+        canSearch() {
+            return this.query.trim().length >= 2;
+        },
+
+        resultsHref() {
+            return config.resultsUrl + '?search=' + encodeURIComponent(this.query.trim());
+        },
+
+        async fetchResults() {
+            if (this.controller) {
+                this.controller.abort();
+                this.controller = null;
+            }
+
+            this.activeIndex = -1;
+            this.failed = false;
+
+            if (!this.canSearch()) {
+                this.results = [];
+                this.loading = false;
+                this.isOpen = false;
+                return;
+            }
+
+            this.isOpen = true;
+            this.loading = true;
+            const controller = new AbortController();
+            this.controller = controller;
+
+            try {
+                const response = await fetch(config.endpoint + '?q=' + encodeURIComponent(this.query.trim()), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: controller.signal,
+                });
+                if (!response.ok) {
+                    throw new Error('Search failed: ' + response.status);
+                }
+                this.results = (await response.json()).data;
+                this.loading = false;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
+                this.results = [];
+                this.failed = true;
+                this.loading = false;
+            }
+        },
+
+        move(step) {
+            if (!this.isOpen) {
+                if (this.canSearch()) {
+                    this.isOpen = true;
+                }
+                return;
+            }
+            const count = this.results.length;
+            if (count === 0) {
+                return;
+            }
+            // From "nothing selected" (-1), ↓ lands on the first row and ↑ on the last.
+            if (this.activeIndex === -1) {
+                this.activeIndex = step > 0 ? 0 : count - 1;
+            } else {
+                this.activeIndex = (this.activeIndex + step + count) % count;
+            }
+            this.$nextTick(() => {
+                document.getElementById('header-search-option-' + this.activeIndex)?.scrollIntoView({ block: 'nearest' });
+            });
+        },
+
+        open() {
+            if (this.activeIndex >= 0 && this.results[this.activeIndex]) {
+                window.location.href = this.results[this.activeIndex].url;
+                return;
+            }
+            if (this.canSearch()) {
+                window.location.href = this.resultsHref();
+            }
+        },
+
+        close(blur = false) {
+            this.isOpen = false;
+            this.activeIndex = -1;
+            if (blur) {
+                this.$refs.input.blur();
+            }
+        },
+
+        onGlobalKey(event) {
+            if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+            const target = event.target;
+            const typing = target instanceof HTMLElement
+                && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+            if (typing) {
+                return;
+            }
+            event.preventDefault();
+            this.$refs.input.focus();
+            this.$refs.input.select();
+        },
+    }));
+});
+</script>
+@endpush
+@endcan
+@endcan

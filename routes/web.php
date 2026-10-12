@@ -34,6 +34,9 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    // Header search — JSON, consumed by the live dropdown in layouts/header.blade.php.
+    Route::get('/search', [App\Http\Controllers\SearchController::class, 'index'])->name('search');
+
     // Machine Routes
     // Same ordering requirement as buildings.data above.
     Route::get('/machines/data', [App\Http\Controllers\MachineController::class, 'data'])->name('machines.data');

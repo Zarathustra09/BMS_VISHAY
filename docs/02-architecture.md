@@ -310,6 +310,7 @@ All bindings live in [AppServiceProvider.php](../app/Providers/AppServiceProvide
 | `PermissionInterface` | `PermissionService` | `RoleController`, `PermissionController` |
 | `AlertInterface` | `AlertService` | `MachineLogService` (evaluates every reading), `MachineController` (thresholds + active-alerts card), `AlertController`, `WorkOrderService` (resolves the linked alert on completion) |
 | `WorkOrderInterface` | `WorkOrderService` | `WorkOrderController`, `app:generate-preventive-work-orders` |
+| `SearchInterface` | `SearchService` | `SearchController` (header live search — `searchMachines()` uses `Machine::scopeSearch()`, the same scope the machines DataTable's search override uses) |
 | `MaintenanceInterface` | `MaintenanceService` | `MaintenanceController`, `ReportService` (reuses `getStats()`/`getBuildingBreakdown()`/`getQueryForDataTable()` for the maintenance compliance report rather than recomputing its rules) |
 | `DashboardInterface` | `DashboardService` | `HomeController` |
 | `ReportInterface` | `ReportService` | `ReportController` |

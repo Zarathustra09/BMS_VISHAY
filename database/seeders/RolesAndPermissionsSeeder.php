@@ -36,6 +36,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // install/wire up hardware or administer it.
         $permissions[] = 'machines.view-device-key';
 
+        // The header live search is a convenience for people who work across many machines,
+        // so it's a separate permission from machines.view — a viewer keeps read-only access
+        // to the machines list but never sees (or can call) the search. It only makes sense
+        // alongside machines.view, which SearchController and the header check as well.
+        $permissions[] = 'machines.search';
+
         // Permissions themselves are read-only in the UI (a permission only does something
         // once code checks it, so there's no "create"/"update"/"delete" action for one).
         $permissions[] = 'permissions.view';
@@ -89,7 +95,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'buildings.view', 'buildings.create', 'buildings.update',
             'floors.view', 'floors.create', 'floors.update',
             'machines.view', 'machines.create', 'machines.update',
-            'machines.view-device-key',
+            'machines.view-device-key', 'machines.search',
             'machine-types.view', 'machine-types.create', 'machine-types.update',
             'users.view',
             'roles.view',
@@ -108,7 +114,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'buildings.view',
             'floors.view',
             'machines.view', 'machines.update',
-            'machines.view-device-key',
+            'machines.view-device-key', 'machines.search',
             'machine-types.view',
             'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
             'work-orders.view', 'work-orders.update-status',

@@ -32,13 +32,16 @@ class MachineController extends Controller
         $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $stats = $this->machineService->getStats();
         $machineTypes = $this->machineTypeService->getForSelect();
         $buildings = Building::select('id', 'name')->orderBy('name')->get();
 
-        return view('machines.index', compact('stats', 'machineTypes', 'buildings'));
+        // Pre-fills the DataTable search box — the header search's "see all results" link lands here.
+        $search = (string) $request->query('search', '');
+
+        return view('machines.index', compact('stats', 'machineTypes', 'buildings', 'search'));
     }
 
     public function data(MachinesDataTable $dataTable)

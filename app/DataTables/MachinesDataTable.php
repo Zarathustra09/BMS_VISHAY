@@ -23,15 +23,10 @@ class MachinesDataTable extends DataTable
     {
         return DataTables::eloquent($query)
             ->filter(function ($query) {
-                // Overrides automatic search — replicates the old form's OR search across
-                // name/machine_code/model_number/serial_number.
+                // Overrides automatic search — one OR search across
+                // name/machine_code/model_number/serial_number (Machine::scopeSearch).
                 if ($search = request()->input('search.value')) {
-                    $query->where(function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%")
-                            ->orWhere('machine_code', 'like', "%{$search}%")
-                            ->orWhere('model_number', 'like', "%{$search}%")
-                            ->orWhere('serial_number', 'like', "%{$search}%");
-                    });
+                    $query->search($search);
                 }
             })
             ->addColumn('machine', fn ($machine) => view('machines._datatable-name-cell', ['machine' => $machine])->render())

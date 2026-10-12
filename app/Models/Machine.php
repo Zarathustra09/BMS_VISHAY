@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -204,6 +205,20 @@ class Machine extends Model
     public function scopeByFloor($query, int $floorId)
     {
         return $query->where('floor_id', $floorId);
+    }
+
+    /**
+     * Scope for a free-text search across name, machine code, model number and serial number.
+     * Shared by the machines DataTable and the header search so the two can't drift apart.
+     */
+    public function scopeSearch(Builder $query, string $term): Builder
+    {
+        return $query->where(function (Builder $q) use ($term) {
+            $q->where('name', 'like', "%{$term}%")
+                ->orWhere('machine_code', 'like', "%{$term}%")
+                ->orWhere('model_number', 'like', "%{$term}%")
+                ->orWhere('serial_number', 'like', "%{$term}%");
+        });
     }
 
     /**

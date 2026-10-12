@@ -63,6 +63,7 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `floors` | `.view`, `.create`, `.update`, `.delete` | Floors CRUD routes (JSON endpoints used by the machine forms) |
 | `machines` | `.view`, `.create`, `.update`, `.delete` | Machines CRUD routes/buttons |
 | `machines` (special) | `.view-device-key` | Viewing a machine's device API key (persistent Show/Copy control) and generating/regenerating it. Separate from the CRUD set on purpose — it's about hardware credential exposure, not record editing. |
+| `machines` (special) | `.search` | The header live search (`GET /search`). Separate from `machines.view` on purpose — a **viewer** keeps read-only access to the machines list but never sees the search box, and gets a 403 if they call `/search` directly. Only meaningful alongside `machines.view` (results link to `machines.show`), so `SearchController` and the header require **both**. |
 | `users` | `.view`, `.create`, `.update`, `.delete` | Users page: list, create accounts, edit/reassign role/reset password, delete accounts |
 | `roles` | `.view`, `.create`, `.update`, `.delete` | Roles page: list, create custom roles, edit a role's permissions, delete an unused role |
 | `permissions` (special) | `.view` | The read-only Permissions list page. No `.create`/`.update`/`.delete` — a permission does nothing until code checks it, so it can't be managed from the UI (see [02-architecture.md](02-architecture.md)) |
@@ -90,6 +91,7 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `machines.update` | ✅ | ✅ | ✅ | – |
 | `machines.delete` | ✅ | – | – | – |
 | `machines.view-device-key` | ✅ | ✅ | ✅ | – |
+| `machines.search` | ✅ | ✅ | ✅ | – |
 | `machine-types.view` | ✅ | ✅ | ✅ | ✅ |
 | `machine-types.create` | ✅ | ✅ | – | – |
 | `machine-types.update` | ✅ | ✅ | – | – |
