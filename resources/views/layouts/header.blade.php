@@ -8,17 +8,17 @@
         </label>
     </div>
 
-    <div class="flex-1 px-2 lg:px-4">
-        <div class="flex items-center gap-3">
+    <div class="flex-1 min-w-0 px-2 lg:px-4">
+        <div class="flex min-w-0 items-center gap-3">
 
-            <div class="breadcrumbs text-sm hidden md:block">
+            <div class="breadcrumbs min-w-0 text-sm hidden md:block">
                 <ul>
                     <li><a href="{{ route('home') }}">Manufacturing Dashboard</a></li>
                     @yield('breadcrumbs')
                 </ul>
 
             </div>
-            <div class="hidden lg:flex items-center gap-2 px-3 py-1 bg-success/10 rounded-lg border border-success/20">
+            <div class="hidden xl:flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-1 bg-success/10 rounded-lg border border-success/20">
             <span class="relative flex h-2 w-2">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
@@ -30,16 +30,16 @@
 
     </div>
 
-    <div class="flex-none gap-2">
+    <div class="flex flex-none items-center gap-1 sm:gap-2">
         <!-- Production Status -->
 
         <!-- Search -->
-        <div class="hidden sm:block">
+        <div class="hidden 2xl:block">
             <label class="input input-sm flex items-center gap-2 bg-base-200/50 focus-within:bg-base-200">
                 <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <input type="text" class="grow w-32 lg:w-48" placeholder="Search orders, parts..." />
+                <input type="text" class="grow w-48" placeholder="Search orders, parts..." />
             </label>
         </div>
 
@@ -149,7 +149,7 @@
                         <span class="text-xs font-semibold">{{ substr(Auth::user()->name, 0, 2) }}</span>
                     </div>
                 </div>
-                <span class="hidden md:inline font-medium">{{ Auth::user()->name }}</span>
+                <span class="hidden lg:inline font-medium">{{ Auth::user()->name }}</span>
                 <svg class="w-4 h-4 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
@@ -216,6 +216,3 @@
     });
 </script>
 
-<div>
-    <!-- Simplicity is the essence of happiness. - Cedric Bledsoe -->
-</div>
