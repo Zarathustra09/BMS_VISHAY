@@ -29,13 +29,13 @@ class PermissionDeniedTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_a_viewer_cannot_delete_a_machine(): void
+    public function test_a_technician_cannot_delete_a_machine(): void
     {
         $machine = Machine::factory()->create();
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $technician = User::factory()->create();
+        $technician->assignRole('technician');
 
-        $this->actingAs($viewer)
+        $this->actingAs($technician)
             ->delete(route('machines.destroy', $machine))
             ->assertForbidden();
     }

@@ -14,7 +14,7 @@ use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
- * Machine model used by the Building Management System (manufacturing context).
+ * Machine model used by LogXense Enterprise (manufacturing context).
  * Its type-specific specifications are stored as a `specifications` JSON column, keyed by the
  * field keys defined on its `machineType` — see App\Models\MachineType and
  * MachineService::normalizeSpecifications(). `power_rating` and `spec_voltage` stay as real
@@ -49,6 +49,7 @@ class Machine extends Model
         'serial_number',
         'building_id',
         'floor_id',
+        'assignment_group_id',
         'description',
         'specifications',
         'status',
@@ -81,6 +82,7 @@ class Machine extends Model
         'specifications' => 'array',
         'building_id' => 'integer',
         'floor_id' => 'integer',
+        'assignment_group_id' => 'integer',
         'machine_type_id' => 'integer',
         'last_seen_at' => 'datetime',
     ];
@@ -94,11 +96,12 @@ class Machine extends Model
     }
 
     /**
-     * Per-metric warning/critical bounds used by AlertService::evaluate().
+     * The readings this machine reports through the sensor API (and their alert bounds),
+     * in display order — see MachineParameter.
      */
-    public function thresholds(): HasMany
+    public function parameters(): HasMany
     {
-        return $this->hasMany(SensorThreshold::class);
+        return $this->hasMany(MachineParameter::class)->orderBy('sort_order')->orderBy('id');
     }
 
     /**
@@ -168,6 +171,14 @@ class Machine extends Model
     }
 
     /**
+     * The group emailed when this machine raises an alert (see AlertService::notify()).
+     */
+    public function assignmentGroup(): BelongsTo
+    {
+        return $this->belongsTo(Group::class, 'assignment_group_id');
+    }
+
+    /**
      * The machine's type, whose spec_fields define what `specifications` holds for it.
      */
     public function machineType(): BelongsTo
@@ -225,10 +236,12 @@ class Machine extends Model
      * Generate a new device API key for this machine.
      * Stores a SHA-256 hash (used for fast auth lookups) plus an encrypted copy
      * (so it can be viewed again later by a user with the `machines.view-device-key` permission).
+     * A specific $plainKey can be supplied (the Docker demo install seeds a known one); otherwise
+     * a random one is generated.
      */
-    public function generateDeviceKey(): string
+    public function generateDeviceKey(?string $plainKey = null): string
     {
-        $plainKey = bin2hex(random_bytes(20)); // 40 hex chars
+        $plainKey ??= bin2hex(random_bytes(20)); // 40 hex chars
 
         $this->forceFill([
             'device_key' => hash('sha256', $plainKey),

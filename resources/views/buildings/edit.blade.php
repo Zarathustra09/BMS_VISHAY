@@ -213,7 +213,7 @@
                 <!-- Form Actions -->
                 <x-form.actions :cancel-href="route('buildings.show', $building->id ?? 0)"
                                 submit-label="Save Changes"
-                                :destructive-href="route('buildings.confirm-delete', $building->id ?? 0)"
+                                :destructive-href="auth()->user()->can('buildings.delete') ? route('buildings.confirm-delete', $building->id ?? 0) : null"
                                 destructive-label="Delete Building" />
             </form>
         </div>

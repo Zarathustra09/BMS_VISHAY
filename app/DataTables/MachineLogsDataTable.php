@@ -37,12 +37,15 @@ class MachineLogsDataTable extends DataTable
 
     public function dataTable($query): EloquentDataTable
     {
+        // Loaded once per request, not per row - the cell only needs each parameter's label/unit.
+        $parameters = $this->machine->parameters()->get()->keyBy('key');
+
         return DataTables::eloquent($query)
             ->editColumn('logged_at', fn ($log) => view('machines._datatable-timestamp-cell', ['log' => $log])->render())
-            ->editColumn('log_type', fn ($log) => '<div class="badge badge-outline badge-sm">' . e(str_replace('_', ' ', ucfirst($log->log_type))) . '</div>')
+            ->editColumn('log_type', fn ($log) => '<div class="badge badge-outline badge-sm">'.e(str_replace('_', ' ', ucfirst($log->log_type))).'</div>')
             ->editColumn('event', fn ($log) => view('machines._datatable-event-cell', ['log' => $log])->render())
             ->editColumn('severity', fn ($log) => view('machines._datatable-severity-cell', ['log' => $log])->render())
-            ->addColumn('sensors', fn ($log) => view('machines._datatable-sensors-cell', ['log' => $log])->render())
+            ->addColumn('sensors', fn ($log) => view('machines._datatable-sensors-cell', ['log' => $log, 'parameters' => $parameters])->render())
             ->editColumn('performed_by', fn ($log) => $log->performed_by ?? 'System')
             ->rawColumns(['logged_at', 'log_type', 'event', 'severity', 'sensors']);
     }

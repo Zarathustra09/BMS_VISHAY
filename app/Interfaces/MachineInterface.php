@@ -33,6 +33,12 @@ interface MachineInterface
      */
     public function getActivityFeed(Machine $machine, int $limit = 20): Collection;
 
+    /**
+     * Machines that have at least one parameter (id, name, machine_code, parameters_count), by
+     * name - the options of the create form's "Copy parameters from..." picker.
+     */
+    public function getParameterCopySources(): Collection;
+
     public function create(array $data): Machine;
 
     public function update(Machine $machine, array $data): Machine;

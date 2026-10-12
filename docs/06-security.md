@@ -28,6 +28,9 @@ The hardware ingestion endpoint is deliberately **not** protected by user sessio
 - Incoming requests to `/api/machine-logs` go through the `AuthenticateDevice` middleware (alias `device.auth`, registered in [bootstrap/app.php](../bootstrap/app.php)): it reads the `X-Device-Key` header, looks up `Machine::findByDeviceKey()`, and returns `401` if it doesn't match. On success, it attaches the resolved machine to the request (`$request->attributes->set('device_machine', $machine)`). It does **not** stamp `last_seen_at` — that happens inside `MachineLogService::store()` (see [03-data-model.md](03-data-model.md)) so every caller of `store()`, not just this endpoint, keeps offline detection in sync.
 - The controller (`API\MachineLogController@store`) takes `machine_id` **only** from the authenticated device, never from the request body — a device physically cannot write logs for a machine other than its own, even if it tried to spoof `machine_id` in the payload.
 - The route also has `throttle:120,1` (120 requests/minute).
+- What a device may report is limited to **its own machine's parameters** (`MachineParameterService::readingRules()`): an unknown key, a wrong type or an out-of-range value is a `422`, so a compromised or buggy device can't write arbitrary keys into its logs.
+- The machine page's **API Integration** card (endpoint, example body, `curl`) is visible to anyone with `machines.view`, so it never embeds the real device key — the `curl` example carries a `YOUR_DEVICE_KEY` placeholder. The key itself stays behind `machines.view-device-key`.
+- `GET /machines/{machine}/parameters` (the "copy parameters" JSON) needs `machines.view`; it returns parameter definitions only, never readings or keys.
 
 **Machine liveness (online/offline) is intentionally not permission-gated.** `last_seen_at`'s existing display was behind `machines.view-device-key` only because that's where it happened to be printed on `machines/show`; the Online/Offline badge in the page header (Phase 6) is visible to anyone who can view the machine at all (`machines.view`) — "this machine stopped reporting" is operational information, not a secret tied to the device key.
 
@@ -49,9 +52,9 @@ Regenerating a key (`POST /machines/{machine}/device-key`) immediately invalidat
 | `admin` | Full access — gets every permission that exists (`syncPermissions(Permission::all())`) |
 | `manager` | Oversight of buildings/floors/machines (view/create/update, not delete); can view users but not manage accounts; views and can acknowledge/resolve alerts; full work order CRUD + status control |
 | `technician` | Field/hardware role — views buildings/floors, views + updates machines, wires up sensors, acts on alerts day-to-day (acknowledge/resolve), and works through their assigned work orders (view + status updates only — not create/edit/delete/reassign) |
-| `viewer` | Read-only across buildings/floors/machines, alerts, work orders, the maintenance dashboard, and reports; no access to Users at all |
+| `viewer` | Dashboard, machines (view, edit, delete and the device key - not create) and alerts (view, acknowledge, resolve). `floors.view` is held only so the machine edit form can load its Floor dropdown. No other module is reachable |
 
-The seeded test user (`test@example.com`) is assigned `admin`. More roles can be created from the Roles page — see below.
+The seeded accounts are `admin@example.com` (`admin`) and `viewer@example.com` (`viewer`), both with password `password`. More roles can be created from the Roles page — see below.
 
 ### Permissions — CRUD-granular, not one blanket "manage" per module
 
@@ -78,7 +81,7 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 
 | Permission | admin | manager | technician | viewer |
 |---|:---:|:---:|:---:|:---:|
-| `buildings.view` | ✅ | ✅ | ✅ | ✅ |
+| `buildings.view` | ✅ | ✅ | ✅ | – |
 | `buildings.create` | ✅ | ✅ | – | – |
 | `buildings.update` | ✅ | ✅ | – | – |
 | `buildings.delete` | ✅ | – | – | – |
@@ -88,11 +91,11 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `floors.delete` | ✅ | – | – | – |
 | `machines.view` | ✅ | ✅ | ✅ | ✅ |
 | `machines.create` | ✅ | ✅ | – | – |
-| `machines.update` | ✅ | ✅ | ✅ | – |
-| `machines.delete` | ✅ | – | – | – |
-| `machines.view-device-key` | ✅ | ✅ | ✅ | – |
+| `machines.update` | ✅ | ✅ | ✅ | ✅ |
+| `machines.delete` | ✅ | – | – | ✅ |
+| `machines.view-device-key` | ✅ | ✅ | ✅ | ✅ |
 | `machines.search` | ✅ | ✅ | ✅ | – |
-| `machine-types.view` | ✅ | ✅ | ✅ | ✅ |
+| `machine-types.view` | ✅ | ✅ | ✅ | – |
 | `machine-types.create` | ✅ | ✅ | – | – |
 | `machine-types.update` | ✅ | ✅ | – | – |
 | `machine-types.delete` | ✅ | – | – | – |
@@ -106,19 +109,19 @@ Permissions follow `{module}.{action}` where `{action}` is `view`, `create`, `up
 | `roles.delete` | ✅ | – | – | – |
 | `permissions.view` | ✅ | ✅ | – | – |
 | `alerts.view` | ✅ | ✅ | ✅ | ✅ |
-| `alerts.acknowledge` | ✅ | ✅ | ✅ | – |
-| `alerts.resolve` | ✅ | ✅ | ✅ | – |
-| `work-orders.view` | ✅ | ✅ | ✅ | ✅ |
+| `alerts.acknowledge` | ✅ | ✅ | ✅ | ✅ |
+| `alerts.resolve` | ✅ | ✅ | ✅ | ✅ |
+| `work-orders.view` | ✅ | ✅ | ✅ | – |
 | `work-orders.create` | ✅ | ✅ | – | – |
 | `work-orders.update` | ✅ | ✅ | – | – |
 | `work-orders.delete` | ✅ | – | – | – |
 | `work-orders.update-status` | ✅ | ✅ | ✅ | – |
-| `maintenance.view` | ✅ | ✅ | ✅ | ✅ |
-| `reports.view` | ✅ | ✅ | ✅ | ✅ |
+| `maintenance.view` | ✅ | ✅ | ✅ | – |
+| `reports.view` | ✅ | ✅ | ✅ | – |
 | `settings.view` | ✅ | – | – | – |
 | `settings.update` | ✅ | – | – | – |
 
-Deletion of any kind is deliberately admin-only across every module — it's the one action with no undo from the UI (only `machines` and `work_orders` use `SoftDeletes`; every other table here is a hard delete), so it isn't delegated to manager/technician even though they can create/update. This table itself is generated by hand from `RolesAndPermissionsSeeder`; if you change the seeder, update this table in the same commit.
+Deletion of any kind is admin-only across every module except machines, which the seeded `viewer` can also delete — it's the one action with no undo from the UI (only `machines` and `work_orders` use `SoftDeletes`; every other table here is a hard delete), so it isn't delegated to manager/technician even though they can create/update. This table itself is generated by hand from `RolesAndPermissionsSeeder`; if you change the seeder, update this table in the same commit.
 
 ### Roles are fully manageable from the UI; permissions are read-only
 
@@ -145,11 +148,55 @@ A user holds **exactly one role** in this app's UI (`syncRoles([$role])` on crea
 4. Gate a Blade section: `@can('your.permission') ... @endcan`.
 5. Gate a check in PHP: `auth()->user()->can('your.permission')`.
 
+## Groups
+
+A **group** holds roles and direct permissions, and every member inherits them; a user can be in several groups. Access is managed by moving a user in or out of a group instead of editing the user.
+
+- `User::hasPermissionTo()` returns true when the user's own check does, or any of their groups' does. Spatie's `Gate::before` goes through that method, so `@can`, `$user->can()` and the `permission:` middleware all honour groups. `hasRole()`, `getRoleNames()` and `User::role()` do **not** - they still report only roles assigned directly.
+- A switched-off module's permissions stay denied even when a group grants them (the app's own `Gate::before` runs first).
+- Only an `admin` can create or change a group that has the `admin` role (`GroupService`), so editing groups can't be used to become an admin.
+- A role held by a group can't be deleted (`RoleService::delete`), and a group used as a machine's assignment group can't be deleted.
+- Permissions: `groups.view/create/update/delete`; admin has all, manager has `groups.view`.
+
+**Alert recipients** are now: admins and managers, plus every member of the machine's assignment group, plus the Settings "extra alert recipients" list - each person at most once per alert.
+
+## Endpoint and UI guarding
+
+Every route behind login carries a `permission:` middleware, either from its controller constructor (`$this->middleware('permission:x')->only([...])`) or on the route itself. `tests/Feature/RoutePermissionCoverageTest.php` fails if a new authenticated route has none, apart from a short allowlist (`home`, `profile.*`, `notifications.*`, Laravel UI's logout/password-confirm).
+
+Routes that need **two** permissions because they change something a single permission doesn't cover:
+
+| Route | Permissions |
+|---|---|
+| `roles.assign-users` | `roles.update` + `users.update` (it changes users' roles) |
+| `machines.device-key.generate` | `machines.view-device-key` + `machines.update` (regenerating breaks the device's current key) |
+| `ai.questions`, `ai.chat`, `ai.check-status` | `machines.view`; `ai.chat` is throttled to 20/min, and an answer can only be collected by the user who asked (`check-status` is a 404 for anyone else, and only `ai_insight_{uuid}` keys are accepted) |
+
+The UI follows the same rule: a button, link, tab, modal or card is hidden (`@can`) unless the user could actually use it - and a link to a machine becomes plain text without `machines.view`. Sidebar items, dashboard cards, the machine page's Active Alerts card, the buildings page's floor/machine tabs and actions, and the Delete links on edit forms are all gated this way.
+
+## Error pages
+
+`resources/views/errors/` replaces Laravel's stock screens: `401`, `403`, `404`, `419`, `429`, `500`, `503`, plus `4xx`/`5xx` fallbacks for any other code. They share one standalone layout (`errors/layout.blade.php`) that does not extend the app layout - that layout queries the database for the bell and company name, so it could not render on the 500s it exists for. The 403 page never prints the exception text. JSON/AJAX requests still get JSON errors.
+
 ## Alert notifications (Phase 5, extended Phase 10)
 
 `AlertService::notify()` sends `MachineAlertNotification` to every user holding the `admin` or `manager` role — resolved fresh via `User::role(['admin', 'manager'])` on each alert, not a stored subscriber list, so adding/removing someone from those roles immediately changes who gets notified going forward. `technician` and `viewer` don't receive notifications even though they can view/act on alerts in the UI — they're expected to work from the alerts list or the machine page directly rather than being paged. See [02-architecture.md](02-architecture.md#d-threshold-evaluation-alertserviceevaluate-phase-5) for the full evaluate/notify sequence.
 
 As of Phase 10, `notify()` **also** routes the same notification to every address in the `alert_emails` setting (`Notification::route('mail', $email)->notify(...)`) — for recipients who need alert emails without holding `admin`/`manager` (an external contractor, a shared ops inbox). Configured on the Settings page, admin-only.
+
+## Live alerts and the alert trail
+
+- **Trail.** Every change to an alert is appended to `alert_events` with the user who did it (null = the system), so there is a record of how people and the system interacted with a machine's alerts. `alerts.show` and the machine page's Alert trail need `alerts.view`; the trail card is hidden from users without it.
+- **Channels.** `private-alerts` (everyone with `alerts.view`) and `private-machines.{id}` carry `App\Events\AlertChanged`; each person's bell uses `private-App.Models.User.{id}`. Subscribing needs the same permission as seeing the page (`routes/channels.php`). The payload only names the alert, machine, severity, status, action and actor - pages re-fetch their own (permission-checked) HTML/JSON, so nothing is exposed that the page endpoints wouldn't show.
+- **Reverb never blocks anything.** Broadcasts go through `SafeBroadcaster` (a 30 s circuit breaker shared with live readings), so a stopped Reverb cannot fail a device's POST or a user's Acknowledge click.
+- **A user can't be notified about an alert they can't see:** an address on the Settings recipients list is email-only (no bell, no push).
+
+## Live updates (Reverb, Phase 12)
+
+- **Private channels.** A machine's readings are broadcast on `private-machines.{id}`. Subscribing needs a signature from `POST /broadcasting/auth`, which only a logged-in user holding `machines.view` — the same permission that opens the page — can get (`routes/channels.php`). A guest gets `403`, as does a user without that permission.
+- **What's public by design.** `REVERB_APP_KEY` is sent to every browser (it identifies the app to the WebSocket server, like a Pusher key). `REVERB_APP_SECRET` signs subscriptions and the server-to-Reverb publish API and **never leaves the PC** — it is not a `VITE_` variable. Generate your own values per install (`.env.example` ships placeholders).
+- **Network exposure.** Reverb listens on `0.0.0.0:8080` so browsers elsewhere on the LAN can connect; the installer's firewall rule opens that port on the **Private** network profile only. Don't port-forward it to the internet from the router — this deployment is LAN-only by design. `allowed_origins` in `config/reverb.php` is `*` because the page's origin is the PC's own (changing) IP; the channel authorization above is what actually protects the data.
+- **No new device attack surface.** Devices still only call the HTTP API; they never touch the WebSocket.
 
 ## Secrets in `.env`
 
@@ -159,6 +206,7 @@ As of Phase 10, `notify()` **also** routes the same notification to every addres
 | `DB_*` | Database credentials |
 | `OPENAI_API_KEY`, `GEMINI_API_KEY` | AI provider credentials — see [07-ai-insights.md](07-ai-insights.md) |
 | `AI_PROVIDER` | `openai` or `gemini` — which `AIInterface` implementation is bound |
+| `REVERB_APP_SECRET` | Signs private-channel subscriptions and the app→Reverb publish API — see [Live updates](#live-updates-reverb-phase-12). Keep it server-side; the `REVERB_APP_KEY` next to it is the public half |
 
 `.env` is git-ignored; `.env.example` documents every key with placeholder values and should be kept in sync whenever a new config value is added.
 
@@ -167,4 +215,3 @@ As of Phase 10, `notify()` **also** routes the same notification to every addres
 - No 2FA / password policy beyond Laravel UI defaults.
 - No idempotency protection on the sensor ingestion endpoint (a resent reading creates a duplicate row) — acceptable for telemetry, called out in [05-device-api.md](05-device-api.md).
 - Rate limiting on `/api/machine-logs` is per-IP (Laravel's default throttle key), not per-device — a shared NAT/gateway in front of many devices would share one bucket. Not an issue at current scale.
-- An **acknowledged threshold alert never auto-resolves** even after the reading returns to normal — `AlertService::evaluate()`'s auto-resolve only matches `Alert::open()`. This is the opposite of offline alerts, which resolve from both `open` and `acknowledged` (see [03-data-model.md](03-data-model.md)). The asymmetry is intentional for now (a person who acknowledged a threshold breach is expected to also resolve it once satisfied it's handled) but is worth revisiting.

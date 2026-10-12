@@ -1,5 +1,6 @@
 <div class="flex items-center gap-2">
-    @if($alert->machine)
+    <a href="{{ route('alerts.show', $alert) }}" class="btn btn-ghost btn-xs">Trail</a>
+    @if($alert->machine && auth()->user()->can('machines.view'))
         <a href="{{ route('machines.show', $alert->machine) }}" class="btn btn-ghost btn-xs">Machine</a>
     @endif
     @if($alert->status === 'open')

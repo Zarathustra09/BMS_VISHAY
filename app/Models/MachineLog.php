@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * MachineLog model for storing per-machine sensor readings, events and maintenance logs.
- * Uses distinct columns for sensor values (no JSON) to support analytics and alerts in manufacturing BMS.
+ * Sensor values live in the `readings` JSON column, keyed by the machine's own MachineParameter keys,
+ * so each machine reports whatever it actually measures with no schema change per new parameter.
  */
 class MachineLog extends Model
 {
@@ -31,34 +32,15 @@ class MachineLog extends Model
         'severity',
         'previous_status',
         'current_status',
-        'temperature',
-        'humidity',
-        'pressure',
-        'power_consumption',
-        'voltage',
-        'current',
-        'frequency',
-        'runtime_hours',
-        'vibration_rms',
-        'bearing_temp',
-        'oil_level',
+        'readings',
         'notes',
         'performed_by',
         'logged_at',
     ];
 
     protected $casts = [
-        'temperature' => 'decimal:2',
-        'humidity' => 'decimal:2',
-        'pressure' => 'decimal:2',
-        'power_consumption' => 'decimal:2',
-        'voltage' => 'decimal:2',
-        'current' => 'decimal:2',
-        'frequency' => 'decimal:2',
+        'readings' => 'array',
         'logged_at' => 'datetime',
-        'vibration_rms' => 'decimal:3',
-        'bearing_temp' => 'decimal:2',
-        'oil_level' => 'decimal:2',
     ];
 
     /**

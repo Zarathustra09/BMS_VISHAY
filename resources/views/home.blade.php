@@ -66,6 +66,7 @@
 
         {{-- Pending Work Orders --}}
         @module('work-orders')
+        @can('work-orders.view')
         <div class="stat bg-base-100 rounded-box shadow-lg border border-base-300/50 hover:shadow-xl transition-all group cursor-pointer">
             <div class="stat-figure text-warning">
                 <div class="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -78,9 +79,11 @@
             <div class="stat-value text-warning">{{ $summary['work_orders']['pending'] }}</div>
             <div class="stat-desc">{{ $summary['work_orders']['urgent'] }} urgent priority</div>
         </div>
+        @endcan
         @endmodule
 
-        <!-- Open Alerts -->
+        {{-- Open Alerts --}}
+        @can('alerts.view')
         <div class="stat bg-base-100 rounded-box shadow-lg border border-base-300/50 hover:shadow-xl transition-all group cursor-pointer">
             <div class="stat-figure text-error">
                 <div class="w-12 h-12 rounded-xl bg-error/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -90,14 +93,16 @@
                 </div>
             </div>
             <div class="stat-title">Open Alerts</div>
-            <div class="stat-value text-error">{{ $summary['alerts']['open'] }}</div>
-            <div class="stat-desc">{{ $summary['alerts']['critical'] }} critical</div>
+            <div class="stat-value text-error" data-live-stat="open">{{ $summary['alerts']['open'] }}</div>
+            <div class="stat-desc"><span data-live-stat="critical">{{ $summary['alerts']['critical'] }}</span> critical</div>
         </div>
+        @endcan
     </div>
 
     <!-- Charts and Analytics -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Alerts Trend -->
+        @can('alerts.view')
         <div class="lg:col-span-2 card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
@@ -136,9 +141,10 @@
                 </div>
             </div>
         </div>
+        @endcan
 
         <!-- Equipment Status -->
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ auth()->user()->can('alerts.view') ? '' : 'lg:col-span-3' }}">
             <div class="card-body">
                 <h2 class="card-title mb-4">Equipment Status</h2>
 
@@ -200,7 +206,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {{-- Building Health --}}
         @module('buildings')
-        <div class="card bg-base-100 shadow-lg border border-base-300/50">
+        @can('buildings.view')
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ auth()->user()->can('alerts.view') ? '' : 'lg:col-span-2' }}">
             <div class="card-body">
                 <h2 class="card-title">Building Health</h2>
 
@@ -234,10 +241,12 @@
                 </div>
             </div>
         </div>
+        @endcan
         @endmodule
 
         {{-- Recent Alerts — takes the whole row when the Building Health card beside it is off --}}
-        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::Buildings->isEnabled() ? '' : 'lg:col-span-2' }}">
+        @can('alerts.view')
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::Buildings->isEnabled() && auth()->user()->can('buildings.view') ? '' : 'lg:col-span-2' }}">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="card-title">Recent Alerts</h2>
@@ -246,34 +255,19 @@
                     @endcan
                 </div>
 
-                <div class="space-y-3">
-                    @forelse($recentAlerts as $alert)
-                        <div class="alert {{ $alert->severity === 'critical' ? 'alert-error' : 'alert-warning' }}">
-                            <div class="flex-1">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                                <div>
-                                    <div class="font-bold">{{ $alert->machine->name ?? 'Unknown machine' }}</div>
-                                    <div class="text-xs">{{ $alert->message }} · {{ $alert->created_at->diffForHumans() }}</div>
-                                </div>
-                            </div>
-                            @if($alert->machine)
-                                <a href="{{ route('machines.show', $alert->machine) }}" class="btn btn-sm btn-ghost">Details</a>
-                            @endif
-                        </div>
-                    @empty
-                        <p class="text-sm opacity-70">No alerts yet.</p>
-                    @endforelse
+                <div class="space-y-3" id="recentAlertsList" data-live-recent-url="{{ route('home.alerts-live') }}">
+                    @include('partials._recent-alerts')
                 </div>
             </div>
         </div>
+        @endcan
     </div>
 
     {{-- Recent Work Orders & Quick Actions --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {{-- Recent Work Orders --}}
         @module('work-orders')
+        @can('work-orders.view')
         <div class="lg:col-span-2 card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <div class="flex items-center justify-between mb-4">
@@ -333,10 +327,12 @@
                 </div>
             </div>
         </div>
+        @endcan
         @endmodule
 
         {{-- Quick Actions — takes the whole row when the Recent Work Orders card beside it is off --}}
-        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::WorkOrders->isEnabled() ? '' : 'lg:col-span-3' }}">
+        @canany(['work-orders.create', 'maintenance.view', 'reports.view', 'alerts.view'])
+        <div class="card bg-base-100 shadow-lg border border-base-300/50 {{ \App\Enums\AppModule::WorkOrders->isEnabled() && auth()->user()->can('work-orders.view') ? '' : 'lg:col-span-3' }}">
             <div class="card-body">
                 <h2 class="card-title mb-4">Quick Actions</h2>
 
@@ -379,6 +375,7 @@
                 </div>
             </div>
         </div>
+        @endcanany
     </div>
 </div>
 @endsection

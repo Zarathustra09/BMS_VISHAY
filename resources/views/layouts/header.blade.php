@@ -8,17 +8,17 @@
         </label>
     </div>
 
-    <div class="flex-1 px-2 lg:px-4">
-        <div class="flex items-center gap-3">
+    <div class="flex-1 min-w-0 px-2 lg:px-4">
+        <div class="flex min-w-0 items-center gap-3">
 
-            <div class="breadcrumbs text-sm hidden md:block">
+            <div class="breadcrumbs min-w-0 text-sm hidden md:block">
                 <ul>
                     <li><a href="{{ route('home') }}">Manufacturing Dashboard</a></li>
                     @yield('breadcrumbs')
                 </ul>
 
             </div>
-            <div class="hidden lg:flex items-center gap-2 px-3 py-1 bg-success/10 rounded-lg border border-success/20">
+            <div class="hidden xl:flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-1 bg-success/10 rounded-lg border border-success/20">
             <span class="relative flex h-2 w-2">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
@@ -30,14 +30,14 @@
 
     </div>
 
-    <div class="flex-none gap-2">
+    <div class="flex flex-none items-center gap-1 sm:gap-2">
         <!-- Production Status -->
 
         <!-- Search (machines) -->
         @can('machines.search')
         @can('machines.view')
         <style>[x-cloak] { display: none !important; }</style>
-        <div class="hidden sm:block relative"
+        <div class="hidden 2xl:block relative"
              x-data="headerSearch(@js(['endpoint' => route('search'), 'resultsUrl' => route('machines.index')]))"
              @keydown.window="onGlobalKey($event)"
              @click.outside="close()">
@@ -48,7 +48,7 @@
                 <input type="text"
                        x-ref="input"
                        x-model="query"
-                       class="grow w-32 lg:w-48"
+                       class="grow w-48"
                        placeholder="Search machines..."
                        autocomplete="off"
                        role="combobox"
@@ -146,32 +146,36 @@
             </div>
         </div>
 
+        @can('alerts.view')
+        {{-- Live connection state, driven by resources/js/alerts-live.js. Hidden until Echo reports one. --}}
+        <div id="liveStatus" class="hidden shrink-0 items-center gap-1.5 whitespace-nowrap px-2 text-xs opacity-80" role="status" aria-live="polite">
+            <span class="w-2 h-2 rounded-full bg-base-300" data-live-dot></span>
+            <span class="hidden 2xl:inline" data-live-text>Connecting…</span>
+        </div>
+        @endcan
+
         <!-- Alerts & Notifications -->
         @can('alerts.view')
-        <div class="dropdown dropdown-end">
+        <div class="dropdown dropdown-end" id="notificationBell" data-read-url="{{ route('notifications.read', ['id' => ':id']) }}" data-alert-url="{{ route('alerts.show', ['alert' => ':id']) }}">
             <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
                 <div class="indicator">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                     </svg>
-                    @if($unreadAlertCount > 0)
-                        <span class="badge badge-xs badge-error indicator-item"></span>
-                    @endif
+                    <span id="bellBadge" class="badge badge-sm badge-error indicator-item tabular-nums {{ $unreadAlertCount > 0 ? '' : 'hidden' }}" aria-label="Unread notifications">{{ $unreadAlertCount > 99 ? '99+' : $unreadAlertCount }}</span>
                 </div>
             </div>
             <div tabindex="0" class="dropdown-content z-[1] card card-compact w-80 mt-3 shadow-2xl bg-base-100 border border-base-300/50">
                 <div class="card-body">
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="font-bold text-lg">Alerts & Notifications</h3>
-                        @if($unreadAlertCount > 0)
-                            <span class="badge badge-error badge-sm">{{ $unreadAlertCount }} new</span>
-                        @endif
+                        <span id="bellCount" class="badge badge-error badge-sm {{ $unreadAlertCount > 0 ? '' : 'hidden' }}" data-count="{{ $unreadAlertCount }}">{{ $unreadAlertCount }} new</span>
                     </div>
-                    <div class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="space-y-2 max-h-96 overflow-y-auto" id="bellList">
                         @forelse($recentAlertNotifications as $notification)
                             <form action="{{ route('notifications.read', $notification->id) }}" method="POST">
                                 @csrf
-                                <button type="submit" class="alert alert-{{ ($notification->data['severity'] ?? 'warning') === 'critical' ? 'error' : 'warning' }} w-full text-left {{ $notification->read_at ? 'opacity-50' : '' }}">
+                                <button type="submit" class="alert alert-{{ match ($notification->data['severity'] ?? 'warning') { 'critical' => 'error', 'info' => 'info', default => 'warning' } }} w-full text-left {{ $notification->read_at ? 'opacity-50' : '' }}">
                                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                                     </svg>
@@ -182,10 +186,14 @@
                                 </button>
                             </form>
                         @empty
-                            <p class="text-sm opacity-60 text-center py-4">No alerts yet.</p>
+                            <p class="text-sm opacity-60 text-center py-4" id="bellEmpty">No alerts yet.</p>
                         @endforelse
                     </div>
-                    <div class="card-actions justify-end mt-2">
+                    <div class="card-actions justify-between mt-2">
+                        <form action="{{ route('notifications.read-all') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-ghost">Mark all read</button>
+                        </form>
                         <a href="{{ route('alerts.index') }}" class="btn btn-sm btn-ghost">View All Alerts</a>
                     </div>
                 </div>
@@ -212,7 +220,7 @@
                         <span class="text-xs font-semibold">{{ substr(Auth::user()->name, 0, 2) }}</span>
                     </div>
                 </div>
-                <span class="hidden md:inline font-medium">{{ Auth::user()->name }}</span>
+                <span class="hidden lg:inline font-medium">{{ Auth::user()->name }}</span>
                 <svg class="w-4 h-4 hidden md:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>

@@ -1,0 +1,118 @@
+# LogXense Enterprise in Docker: web app + MySQL + queue worker + scheduler + Reverb (live updates).
+# Start everything with docker-start.bat (or: docker compose up -d --build).
+
+name: bms
+
+x-app: &app
+  image: bms-app
+  pull_policy: never
+  restart: unless-stopped
+  volumes:
+    - storage:/var/www/html/storage
+  environment: &app-env
+    APP_NAME: "LogXense Enterprise"
+    APP_ENV: production
+    APP_DEBUG: "false"
+    # Lite edition: machines, alerts, users/groups/roles and the sensor API. (Internal - not shown in the UI.)
+    APP_EDITION: ${APP_EDITION:-lite}
+    APP_URL: http://localhost:${APP_PORT:-8080}
+    LOG_CHANNEL: stack
+    LOG_STACK: single,stderr
+    DB_CONNECTION: mysql
+    DB_HOST: db
+    DB_PORT: "3306"
+    DB_DATABASE: bms
+    DB_USERNAME: bms
+    DB_PASSWORD: bms-db-password
+    SESSION_DRIVER: database
+    CACHE_STORE: database
+    QUEUE_CONNECTION: database
+    # Fixed on purpose (not read from a host .env): real SMTP is configured on the Settings page.
+    MAIL_MAILER: log
+    MAIL_FROM_NAME: "LogXense Enterprise"
+    BROADCAST_CONNECTION: reverb
+    REVERB_APP_ID: bms
+    REVERB_APP_KEY: bms-docker-key
+    REVERB_HOST: reverb
+    REVERB_PORT: "8081"
+    REVERB_SCHEME: http
+    REVERB_SERVER_HOST: 0.0.0.0
+    REVERB_SERVER_PORT: "8081"
+    DEMO_DEVICE_KEY: ${DEMO_DEVICE_KEY:-nodemcu-demo-key}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: bms
+      MYSQL_USER: bms
+      MYSQL_PASSWORD: bms-db-password
+      MYSQL_ROOT_PASSWORD: bms-root-password
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pbms-root-password --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # The website - same as `php artisan serve --host=0.0.0.0 --port=80`.
+  app:
+    <<: *app
+    build: .
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: app
+      PHP_CLI_SERVER_WORKERS: "4"
+    ports:
+      - "${APP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1/up') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  # Background jobs (alert e-mails, AI chat replies).
+  queue:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90"]
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: queue
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # Runs the scheduled tasks: offline-device detection, preventive work orders, log pruning.
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: scheduler
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # WebSocket server for live chart updates. Browsers connect to <this PC>:8081.
+  reverb:
+    <<: *app
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8081"]
+    environment:
+      <<: *app-env
+      CONTAINER_ROLE: reverb
+    ports:
+      - "8081:8081"
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  storage:

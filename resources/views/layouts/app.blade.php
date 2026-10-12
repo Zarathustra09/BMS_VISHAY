@@ -6,6 +6,11 @@
 
     <!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @can('alerts.view')
+        {{-- Tells resources/js/alerts-live.js to follow alert changes over Reverb for this user. --}}
+        <meta name="live-alerts" content="1">
+        <meta name="live-user-id" content="{{ auth()->id() }}">
+    @endcan
 
     <title>{{ config('app.name', 'Laravel') }} - @yield('title', 'Dashboard')</title>
 
@@ -62,7 +67,7 @@
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                                     {{ $companyName }}
                                 </div>
-                                <div class="text-xs opacity-70">NextBuild - BMS</div>
+                                <div class="text-xs opacity-70">Data Logging &amp; Monitoring</div>
                             </div>
                         </a>
                     </div>
@@ -81,6 +86,7 @@
                         <div class="divider text-xs opacity-50 my-2">MANAGEMENT</div>
 
                         @module('buildings')
+                        @can('buildings.view')
                         <li>
                             <a href="{{ route('buildings.index') }}" class="gap-3 {{ request()->is('buildings*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -90,9 +96,11 @@
                                 <span class="badge badge-primary badge-sm">12</span>
                             </a>
                         </li>
+                        @endcan
                         @endmodule
 
-                      <li>
+                        @can('machines.view')
+                        <li>
                             <a href="{{ route('machines.index') }}" class="gap-3 {{ request()->is('machines*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -101,6 +109,7 @@
                                 Machines
                             </a>
                         </li>
+                        @endcan
 
                         @can('machine-types.view')
                         <li>
@@ -131,14 +140,13 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                                 </svg>
                                 Alerts
-                                @if($unreadAlertCount > 0)
-                                    <span class="badge badge-error badge-sm">{{ $unreadAlertCount }}</span>
-                                @endif
+                                {{-- Open alerts only (not unread notifications); kept current by alerts-live.js --}}
+                                <span id="sidebarAlertCount" data-stats-url="{{ route('alerts.stats') }}" class="badge badge-error badge-sm tabular-nums {{ $openAlertCount > 0 ? '' : 'hidden' }}" aria-label="Open alerts">{{ $openAlertCount > 99 ? '99+' : $openAlertCount }}</span>
                             </a>
                         </li>
                         @endcan
 
-                        @canany(['users.view', 'roles.view', 'permissions.view'])
+                        @canany(['users.view', 'groups.view', 'roles.view', 'permissions.view'])
                         <div class="divider text-xs opacity-50 my-2">ACCESS CONTROL</div>
 
                         @can('users.view')
@@ -148,6 +156,17 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                                 </svg>
                                 Users
+                            </a>
+                        </li>
+                        @endcan
+
+                        @can('groups.view')
+                        <li>
+                            <a href="{{ route('groups.index') }}" class="gap-3 {{ request()->is('groups*') ? 'bg-primary text-primary-content font-semibold shadow-lg' : 'hover:bg-base-200' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                                Groups
                             </a>
                         </li>
                         @endcan
@@ -228,7 +247,7 @@
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="font-semibold truncate">{{ Auth::user()->name }}</div>
-                                        <div class="text-xs opacity-70 truncate">Administrator</div>
+                                        <div class="text-xs opacity-70 truncate">{{ Auth::user()->getRoleNames()->first() ? ucfirst(Auth::user()->getRoleNames()->first()) : 'No role' }}</div>
                                     </div>
                                 </div>
                             </div>
@@ -271,6 +290,11 @@
     </div>
 
     @stack('scripts')
+
+    @can('alerts.view')
+        {{-- New alerts pop up here on any page (see resources/js/alerts-live.js). --}}
+        <div id="liveToasts" class="toast toast-top toast-end z-[100] mt-20 max-w-sm" aria-live="polite"></div>
+    @endcan
     <script>
         // Hide skeleton loader and show actual content. `.content-hidden`/`.content-visible`
         // only started actually doing anything once app.css was compiled for real (see

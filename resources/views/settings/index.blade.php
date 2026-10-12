@@ -20,9 +20,15 @@
                 </div>
                 System Settings
             </h1>
-            <p class="text-sm opacity-70 mt-2">Configure your Building Management System preferences</p>
+            <p class="text-sm opacity-70 mt-2">Configure your LogXense Enterprise preferences</p>
         </div>
     </div>
+
+    @if(session('error'))
+    <div class="alert alert-error shadow-lg animate-fadeIn">
+        <span>{{ session('error') }}</span>
+    </div>
+    @endif
 
     @if(session('success'))
     <div class="alert alert-success shadow-lg animate-fadeIn">
@@ -230,8 +236,12 @@
     </div>
 
     <!-- Application Settings -->
-    @php $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']); @endphp
+    @php
+        $alertEmailsValue = implode(PHP_EOL, $settings['alert_emails']);
+        $mailPasswordSaved = filled($settings['mail_password'] ?? null);
+    @endphp
     <form action="{{ route('settings.update') }}" method="POST" class="space-y-6">
+    <fieldset class="contents" @cannot('settings.update') disabled @endcannot>
         @csrf
         @method('PUT')
 
@@ -308,51 +318,47 @@
             </div>
         </div>
 
-        <!-- Default Alert Thresholds for New Machines -->
+        <!-- Email (SMTP) -->
         <div class="card bg-base-100 shadow-lg border border-base-300/50">
             <div class="card-body">
                 <h2 class="card-title flex items-center gap-2">
                     <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
-                    Default Alert Thresholds for New Machines
+                    Email (SMTP)
                 </h2>
-                <p class="text-sm opacity-70">Applied automatically to every machine created from now on. Existing machines are unaffected — edit their thresholds individually on the machine's edit page.</p>
+                <p class="text-sm opacity-70">
+                    The mail server used to send alert emails. Leave the server empty to keep the server's own setup
+                    (a fresh install only writes emails to its log). Save, then use <strong>Send test email</strong> to check it.
+                </p>
 
-                <div class="overflow-x-auto mt-4">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Warning Min</th>
-                                <th>Warning Max</th>
-                                <th>Critical Min</th>
-                                <th>Critical Max</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach(\App\Interfaces\AlertInterface::METRIC_LABELS as $metric => $label)
-                                @php $bounds = $settings['default_thresholds'][$metric] ?? []; @endphp
-                                <tr>
-                                    <td class="font-medium whitespace-nowrap">{{ $label }}</td>
-                                    @foreach(['warning_min', 'warning_max', 'critical_min', 'critical_max'] as $bound)
-                                        @php $errorKey = "thresholds.$metric.$bound"; @endphp
-                                        <td>
-                                            <input type="number" step="any"
-                                                   name="thresholds[{{ $metric }}][{{ $bound }}]"
-                                                   value="{{ old($errorKey, $bounds[$bound] ?? '') }}"
-                                                   aria-label="{{ $label }} {{ str_replace('_', ' ', $bound) }}"
-                                                   class="input input-sm w-28 @error($errorKey) input-error @enderror" />
-                                            @error($errorKey)
-                                                <p class="text-error text-xs mt-0.5">{{ $message }}</p>
-                                            @enderror
-                                        </td>
-                                    @endforeach
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <x-form.input name="mail_host" label="SMTP Server" maxlength="255"
+                                  :value="$settings['mail_host']" placeholder="smtp.example.com" />
+                    <x-form.input type="number" name="mail_port" label="Port" min="1" max="65535"
+                                  :value="$settings['mail_port']" help="Usually 587 (STARTTLS) or 465 (SSL/TLS)" />
+                    <x-form.input name="mail_username" label="Username" maxlength="255" autocomplete="off"
+                                  :value="$settings['mail_username']" />
+                    <x-form.input type="password" name="mail_password" label="Password" maxlength="255" autocomplete="new-password"
+                                  :help="$mailPasswordSaved ? 'A password is saved. Leave blank to keep it.' : null" />
+                    <x-form.select name="mail_encryption" label="Encryption"
+                                   :options="['tls' => 'STARTTLS (port 587)', 'ssl' => 'SSL/TLS (port 465)', 'none' => 'None / automatic']"
+                                   :selected="$settings['mail_encryption']" />
+                    <x-form.input type="email" name="mail_from_address" label="From Address" maxlength="255"
+                                  :value="$settings['mail_from_address']" placeholder="alerts@yourcompany.com" />
+                    <x-form.input name="mail_from_name" label="From Name" maxlength="255"
+                                  :value="$settings['mail_from_name']" placeholder="{{ config('app.name') }}" />
+                    <x-form.input type="url" name="app_url" label="Site Address" maxlength="255"
+                                  :value="$settings['app_url']" placeholder="http://192.168.1.50"
+                                  help="How people open this site. Used for the links inside emails" />
                 </div>
+
+                @can('settings.update')
+                <div>
+                    <button type="submit" form="testEmailForm" class="btn btn-outline btn-sm gap-2">Send test email to me</button>
+                    <span class="text-xs opacity-60 ml-2">Sends to {{ auth()->user()->email }} using the saved settings</span>
+                </div>
+                @endcan
             </div>
         </div>
 
@@ -364,7 +370,12 @@
                 Save Changes
             </button>
         </div>
+    </fieldset>
     </form>
+
+    @can('settings.update')
+    <form id="testEmailForm" action="{{ route('settings.test-email') }}" method="POST">@csrf</form>
+    @endcan
 </div>
 
 <script>

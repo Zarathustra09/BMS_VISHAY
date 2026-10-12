@@ -63,6 +63,7 @@ sequenceDiagram
     participant Iface as MachineLogInterface
     participant Svc as MachineLogService
     participant DB as machine_logs table
+    participant Reverb as Reverb (live push)
 
     Device->>Route: POST /api/machine-logs (X-Device-Key header)
     Route->>Mid: AuthenticateDevice
@@ -79,10 +80,13 @@ sequenceDiagram
         DB-->>Svc: MachineLog model
         Svc->>DB: stamp machines.last_seen_at = now()
         Svc->>Svc: AlertInterface::evaluate($log) — see (d)/(e) below
+        Svc-)Reverb: MachineReadingRecorded (rescued; skipped for 30s after a failure)
         Svc-->>Ctrl: MachineLog model
         Ctrl-->>Device: 201 JSON
     end
 ```
+
+**Live push.** After the reading is stored and evaluated, `MachineLogService::broadcastReading()` fires `App\Events\MachineReadingRecorded` — a `ShouldBroadcastNow` event (not queued: the queue only runs once a minute from the scheduler, which would be slower than the polling it replaces) on the private channel `machines.{id}`. [Laravel Reverb](09-setup-and-operations.md#live-updates-laravel-reverb-and-hosting-on-the-plant-pc), a free self-hosted WebSocket server on the same PC, relays it to every browser on that machine's page. **Reverb is strictly an add-on**: the dispatch is `rescue()`d, so a stopped or unreachable Reverb can never fail the device's POST; the first failure opens a 30-second circuit breaker (`live-broadcast-down` cache key) so the following readings skip the attempt instead of each waiting out the connect timeout, and one warning line is logged rather than a stack trace per reading. The machine page falls back to polling the moment its socket drops.
 
 Note there is no user session involved in this flow at all — the device authenticates itself with its own key, independent of any logged-in user. See [05-device-api.md](05-device-api.md) and [06-security.md](06-security.md).
 
@@ -128,13 +132,13 @@ Runs synchronously as the last step of `MachineLogService::store()` — every re
 sequenceDiagram
     participant Svc as MachineLogService
     participant Alert as AlertInterface / AlertService
-    participant DB as sensor_thresholds / alerts tables
+    participant DB as machine_parameters / alerts tables
     participant Notif as Notification::send()
     participant Queue
 
     Svc->>Alert: evaluate($log)
-    Alert->>DB: load thresholds for $log->machine_id
-    loop each metric present on $log
+    Alert->>DB: load the machine's number parameters that have bounds
+    loop each such parameter with a value in $log->readings
         Alert->>Alert: determineSeverity(threshold, value)
         alt within bounds
             Alert->>DB: resolve() any open alert for this metric
@@ -199,7 +203,7 @@ sequenceDiagram
     Note over Alert: ...then the normal threshold evaluation<br/>from (d) continues
 ```
 
-**The early-return gotcha.** `evaluate()` loads the machine's `sensor_thresholds` and returns immediately if there are none (see (d)). `resolveOfflineAlerts()` is called *before* that check specifically so a machine with no configured thresholds can still clear its offline alert — placing it after would mean such a machine's offline alert could never resolve. This ordering has its own explicit comment in `AlertService::evaluate()`; don't reorder it.
+**The early-return gotcha.** `evaluate()` loads the machine's number parameters that have at least one alert bound (`machine_parameters`) and returns immediately if there are none (see (d)). `resolveOfflineAlerts()` is called *before* that check specifically so a machine with no configured thresholds can still clear its offline alert — placing it after would mean such a machine's offline alert could never resolve. This ordering has its own explicit comment in `AlertService::evaluate()`; don't reorder it.
 
 **Idempotency** is enforced with `whereDoesntHave('alerts', type=offline, status in [open, acknowledged])` in the query itself, not a separate check — running the command every minute never re-raises or re-notifies for a machine already flagged. `last_seen_at IS NULL` (never commissioned) and `status = 'inactive'` (deliberately out of service) are both excluded from the query — see [03-data-model.md](03-data-model.md) for the reasoning.
 

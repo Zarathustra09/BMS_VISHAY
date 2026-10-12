@@ -60,7 +60,7 @@
             <p class="text-sm opacity-70 mt-2">
                 <code class="font-mono">{{ $workOrder->code }}</code>
                 · {{ ucfirst($workOrder->type) }}
-                · <a href="{{ route('machines.show', $workOrder->machine) }}" class="link link-hover">{{ $workOrder->machine->name }}</a>
+                · @can('machines.view')<a href="{{ route('machines.show', $workOrder->machine) }}" class="link link-hover">{{ $workOrder->machine->name }}</a>@else{{ $workOrder->machine->name }}@endcan
             </p>
         </div>
         <div class="flex gap-2">

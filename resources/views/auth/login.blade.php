@@ -20,10 +20,10 @@
                     {{-- Logo + Wordmark --}}
                     <div class="space-y-1">
                         <img src="{{ asset('assets/images/logo-white.png') }}"
-                             alt="NextBuild BMS"
+                             alt="LogXense Enterprise"
                              class="h-9 w-auto object-contain"
                              onerror="this.onerror=null;this.src='{{ asset('assets/images/logo-black.png') }}'">
-                        <p class="text-[10px] tracking-widest uppercase opacity-40 pl-0.5">Building Management System</p>
+                        <p class="text-[10px] tracking-widest uppercase opacity-40 pl-0.5">Data Logging & Monitoring System</p>
                     </div>
 
                     {{-- Headline --}}
@@ -72,7 +72,7 @@
                 {{-- Mobile logo --}}
                 <div class="lg:hidden mb-6 flex flex-col items-center gap-1">
                     @include('partials._brand-logo', ['class' => 'h-8 w-auto object-contain'])
-                    <span class="text-[10px] tracking-widest uppercase opacity-40">Building Management System</span>
+                    <span class="text-[10px] tracking-widest uppercase opacity-40">Data Logging & Monitoring System</span>
                 </div>
 
                 <div class="mb-6 sm:mb-8">

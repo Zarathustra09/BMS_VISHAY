@@ -8,6 +8,7 @@
 @endphp
 
 <!-- Create Floor Modal -->
+@can('floors.create')
 <dialog id="createFloorModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box max-w-2xl bg-base-100 border border-base-300/50">
         <form method="dialog">
@@ -52,8 +53,10 @@
         <button>close</button>
     </form>
 </dialog>
+@endcan
 
 <!-- Edit Floor Modal -->
+@can('floors.update')
 <dialog id="editFloorModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box max-w-2xl bg-base-100 border border-base-300/50">
         <form method="dialog">
@@ -99,8 +102,10 @@
         <button>close</button>
     </form>
 </dialog>
+@endcan
 
 <!-- View Floor Details Modal -->
+@can('floors.view')
 <dialog id="viewFloorModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box max-w-3xl bg-base-100 border border-base-300/50">
         <form method="dialog">
@@ -114,8 +119,10 @@
         <button>close</button>
     </form>
 </dialog>
+@endcan
 
 <!-- Delete Floor Modal -->
+@can('floors.delete')
 <dialog id="deleteFloorModal" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box max-w-md bg-base-100 border border-base-300/50">
         <form method="dialog">
@@ -151,3 +158,4 @@
         <button>close</button>
     </form>
 </dialog>
+@endcan

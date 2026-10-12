@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -42,6 +43,8 @@ class Alert extends Model
         'acknowledged_by',
         'acknowledged_at',
         'resolved_at',
+        'resolved_by',
+        'resolution',
     ];
 
     protected $casts = [
@@ -63,6 +66,19 @@ class Alert extends Model
     public function acknowledgedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'acknowledged_by');
+    }
+
+    public function resolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    /**
+     * The trail of everything that happened to this alert, newest first.
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(AlertEvent::class)->orderByDesc('created_at')->orderByDesc('id');
     }
 
     public function scopeOpen($query)

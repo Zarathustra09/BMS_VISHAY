@@ -70,8 +70,8 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 | GET | `/machines/{machine}/delete` | `machines.confirm-delete` | `MachineController@confirmDelete` | `machines.delete` | Confirmation page |
 | GET | `/machines/{machine}/logs/data` | `machines.logs.data` | `MachineController@logsData` | `machines.view` | **Ajax source for the machine-logs DataTable** on `machines/show` — severity/log_type/date-range filters. The highest-volume table in the app (see [02-architecture.md](02-architecture.md)). |
 | POST | `/machines/{machine}/device-key` | `machines.device-key.generate` | `MachineController@generateDeviceKey` | `machines.view-device-key` | Generate/regenerate this machine's sensor device API key |
-| PUT | `/machines/{machine}/thresholds` | `machines.thresholds.update` | `MachineController@updateThresholds` | `machines.update` | Save this machine's alert warning/critical bounds (Phase 5) — a separate form/route from the edit wizard, since it persists through `AlertService` rather than `MachineService` |
-| GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` and `?range=` (`1h`\|`24h`\|`7d`) query params, both validated against a fixed list; polled every 30s by the chart's Alpine component |
+| GET | `/machines/{machine}/parameters` | `machines.parameters` | `MachineController@parameters` | `machines.view` | JSON — another machine's parameters as id-less builder rows, for the create form's "Copy parameters from…" picker (Phase 10). Parameters themselves are saved as part of the machine form (`machines.store` / `machines.update`, `parameters[i][...]`) |
+| GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` (a parameter key; unknown falls back to the first number parameter) and `?range=` — `auto` (default: the smallest preset that contains the parameter's latest reading), a preset (`5m`\|`15m`\|`1h`\|`6h`\|`24h`\|`7d`\|`30d`) or `custom` with `from`/`to` (required, `to` after `from`, at most 90 days apart). Re-polled by the chart's Alpine component at the `poll_seconds` the response asks for (5s / 10s / 30s by window length, none for a custom window that already ended) |
 
 ## Search
 
@@ -124,6 +124,23 @@ New in Phase 4b. Full `Route::resource` + a confirm-delete page, same pattern as
 | DELETE | `/roles/{role}` | `roles.destroy` | `RoleController@destroy` | `roles.delete` | Delete — blocked if `admin` or if any user still holds the role |
 | GET | `/roles/{role}/delete` | `roles.confirm-delete` | `RoleController@confirmDelete` | `roles.delete` | Confirmation page; shows the blocking user list when not deletable |
 
+## Groups
+
+Full `Route::resource` + a confirm-delete page (same pattern as Roles). Business rules live in `GroupService` (only an admin can give a group the admin role; a group a machine uses can't be deleted).
+
+| Method | URI | Name | Permission | Purpose |
+|---|---|---|---|---|
+| GET | `/groups` | `groups.index` | `groups.view` | List groups with member/role/machine counts |
+| GET | `/groups/create` | `groups.create` | `groups.create` | Form: name, members, roles, extra permissions |
+| POST | `/groups` | `groups.store` | `groups.create` | Create |
+| GET | `/groups/{group}` | `groups.show` | `groups.view` | Members, roles, assigned machines, read-only permissions |
+| GET | `/groups/{group}/edit` | `groups.edit` | `groups.update` | Edit form |
+| PUT/PATCH | `/groups/{group}` | `groups.update` | `groups.update` | Update (replaces members/roles/permissions) |
+| DELETE | `/groups/{group}` | `groups.destroy` | `groups.delete` | Delete - blocked while a machine uses it |
+| GET | `/groups/{group}/delete` | `groups.confirm-delete` | `groups.delete` | Confirmation page |
+
+Also new: `POST /settings/test-email` (`settings.test-email`, `settings.update`) sends one email to the signed-in user using the saved SMTP settings.
+
 ## Permissions
 
 New in Phase 4b. Read-only — there is no create/update/delete, since a permission only does something once code checks it (see [02-architecture.md](02-architecture.md) for how permissions gate controllers).
@@ -138,6 +155,11 @@ New in Phase 5. Same controller-constructor permission-gating pattern; `alerts.a
 
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
+| GET | `/alerts/{alert}` | `alerts.show` | `AlertController@show` | `alerts.view` | One alert with its trail (who raised/acknowledged/resolved it, and when) |
+| GET | `/alerts/stats` | `alerts.stats` | `AlertController@stats` | `alerts.view` | The four counters as JSON - re-fetched by the Alerts page whenever an alert changes |
+| GET | `/machines/{machine}/alerts-panel` | `machines.alerts-panel` | `MachineController@alertsPanel` | `machines.view` + `alerts.view` | JSON: `open_count` plus HTML fragments (`active_html`, `trail_html`, `compact_html`) for the machine page's Alerts tab and Overview card |
+| GET | `/machines/{machine}/summary` | `machines.summary` | `MachineController@summary` | `machines.view` | JSON: last reading, log totals/today/week/critical/errors/warnings and (with `alerts.view`) the open-alert count - re-fetched as readings and alerts arrive |
+| GET | `/home/alerts-live` | `home.alerts-live` | `HomeController@alertsLive` | `alerts.view` | JSON: the dashboard's open/critical counters and Recent Alerts list HTML |
 | GET | `/alerts` | `alerts.index` | `AlertController@index` | `alerts.view` | List page shell + stat tiles — the table loads via `alerts.data` |
 | GET | `/alerts/data` | `alerts.data` | `AlertController@data` | `alerts.view` | **Ajax source for the alerts DataTable** — status/severity/machine filters |
 | POST | `/alerts/{alert}/acknowledge` | `alerts.acknowledge` | `AlertController@acknowledge` | `alerts.acknowledge` | Mark an open alert as being handled |
@@ -230,5 +252,6 @@ Both `settings.view` and `settings.update` are admin-only — see [06-security.m
 | Method | URI | Purpose |
 |---|---|---|
 | GET | `/up` | Laravel health check |
+| POST | `/broadcasting/auth` | Laravel Echo's private-channel authorization (session + `web` middleware; registered by `channels:` in `bootstrap/app.php`, rules in `routes/channels.php`) — returns a signed subscription for `machines.{id}` only to a user with `machines.view` (Phase 12). Not CSRF-checked: Laravel exempts this route itself |
 | GET | `/storage/{path}` | Public storage symlink (building images, etc.) |
 | GET | `/sanctum/csrf-cookie` | Sanctum SPA CSRF cookie endpoint (unused by this app currently) |

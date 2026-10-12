@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>NextBuild BMS — @yield('title', 'Welcome')</title>
+    <title>LogXense Enterprise — @yield('title', 'Welcome')</title>
 
     <!-- Same no-flash theme bootstrap as layouts/app.blade.php — a user who switched to dark
          while logged in should still see it here after logging out. No toggle UI on guest
@@ -40,8 +40,8 @@
                 <a href="{{ url('/') }}" class="flex items-center gap-3 group">
                     @include('partials._brand-logo', ['class' => 'h-8 w-auto object-contain group-hover:opacity-80 transition-opacity duration-200'])
                     <div class="hidden sm:block">
-                        <span class="text-sm font-bold leading-none block">NextBuild</span>
-                        <span class="text-[10px] opacity-50 leading-none tracking-widest uppercase">Building Management</span>
+                        <span class="text-sm font-bold leading-none block">LogXense</span>
+                        <span class="text-[10px] opacity-50 leading-none tracking-widest uppercase">Enterprise</span>
                     </div>
                 </a>
 
@@ -81,8 +81,8 @@
             <a href="{{ url('/') }}" class="flex items-center gap-3">
                 @include('partials._brand-logo', ['class' => 'h-7 w-auto object-contain opacity-80'])
                 <div class="text-left">
-                    <span class="text-sm font-bold leading-none block">NextBuild</span>
-                    <span class="text-[10px] opacity-40 leading-none tracking-widest uppercase">Building Management System</span>
+                    <span class="text-sm font-bold leading-none block">LogXense</span>
+                    <span class="text-[10px] opacity-40 leading-none tracking-widest uppercase">Enterprise</span>
                 </div>
             </a>
             <p class="hidden sm:block text-xs opacity-40 max-w-xs text-center">
@@ -102,7 +102,7 @@
         {{-- Copyright --}}
         <aside>
             <p class="text-xs opacity-40">
-                © {{ date('Y') }} NextBuild BMS. All rights reserved.
+                © {{ date('Y') }} LogXense Enterprise. All rights reserved.
             </p>
         </aside>
     </footer>

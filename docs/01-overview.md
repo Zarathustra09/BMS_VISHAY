@@ -2,7 +2,10 @@
 
 ## What this is
 
-NexBuild BMS is a Building Management System for manufacturing facilities. It tracks a hierarchy of **Buildings → Floors → Machines**, ingests sensor readings from hardware devices attached to those machines (temperature, humidity, pressure, vibration, power, etc.), and provides an AI assistant that can analyze a machine's log history and answer natural-language questions about it.
+LogXense Enterprise (formerly the NexBuild BMS) is a data logging and monitoring system for manufacturing facilities.
+
+> **Editions (internal).** The delivered product is the **lite** edition (`APP_EDITION=lite`, the Docker default): machines, machine types, alerts, users/groups/roles, settings and the sensor API. Buildings & Floors, Work Orders, Maintenance and Reports are switched off - see [09-setup-and-operations.md](09-setup-and-operations.md#editions--module-toggles). The word "lite" is deliberately never shown in the UI, the README or the installer; it only appears in these internal docs.
+ It tracks a hierarchy of **Buildings → Floors → Machines**, ingests sensor readings from hardware devices attached to those machines (temperature, humidity, pressure, vibration, power, etc.), and provides an AI assistant that can analyze a machine's log history and answer natural-language questions about it.
 
 The system was built for Vishay's manufacturing site. The temperature sensor integration was validated by Justin against the `POST /api/machine-logs` endpoint before this documentation was written.
 
@@ -63,7 +66,7 @@ See [CHANGELOG.md](CHANGELOG.md) for what's shipped so far and the plan document
 | **Machine log** | A single event or sensor reading recorded against a machine: a status change, a maintenance action, an alarm, or a raw sensor reading. |
 | **Severity** | One of `info`, `warning`, `error`, `critical` — set on a machine log to indicate how serious it is. |
 | **Alert** | A record raised by `AlertService` when a sensor reading crosses a configured threshold, or when a device stops reporting — has a severity (warning/critical) and a status (open/acknowledged/resolved), and triggers an in-app + email notification to admins/managers. |
-| **Sensor threshold** | Per-machine, per-metric warning/critical bounds (e.g. `temperature.critical_max`), configured on the machine edit page — see [03-data-model.md](03-data-model.md#sensor_thresholds). |
+| **Machine parameter** | One reading a specific machine reports through the sensor API (e.g. "Coolant temperature, °C"), defined on the machine's edit page. A number parameter also carries its accepted range and its warning/critical alert bounds — see [03-data-model.md](03-data-model.md#machine_parameters). Not the same as a machine type's *specification fields*, which describe the machine rather than its live readings. |
 | **Work Order** | A maintenance or repair task against a machine — created manually (from the Work Orders page, a machine page, or an open alert), and from Phase 8 also generated automatically from a due maintenance schedule. Has a type (preventive/corrective/emergency/inspection), a priority, and a status (pending/in_progress/completed/cancelled), and is optionally assigned to a technician. |
 | **Setting** | A key-value row in the `settings` table (e.g. `offline_timeout_minutes`), read/written through the cached `SettingInterface` — see [03-data-model.md](03-data-model.md#settings). |
 | **Activity log** | A `spatie/laravel-activitylog` entry recording a field-level change to a model (who changed what, from what, to what) — see [02-architecture.md](02-architecture.md#audit-logging). |

@@ -8,7 +8,7 @@ erDiagram
     BUILDINGS ||--o{ MACHINES : has
     FLOORS ||--o{ MACHINES : has
     MACHINES ||--o{ MACHINE_LOGS : has
-    MACHINES ||--o{ SENSOR_THRESHOLDS : has
+    MACHINES ||--o{ MACHINE_PARAMETERS : has
     MACHINES ||--o{ ALERTS : has
     MACHINES ||--o{ WORK_ORDERS : has
     MACHINE_LOGS ||--o| ALERTS : "raised by"
@@ -52,23 +52,23 @@ erDiagram
         bigint machine_id FK
         enum log_type
         enum severity
-        decimal temperature
-        decimal humidity
-        decimal pressure
-        decimal power_consumption
-        decimal voltage
-        decimal current
-        decimal vibration_rms
+        json readings "parameter key => value"
         timestamp logged_at
     }
-    SENSOR_THRESHOLDS {
+    MACHINE_PARAMETERS {
         bigint id PK
         bigint machine_id FK
-        enum metric
+        string key "unique per machine, never changes"
+        string label
+        enum data_type "number, boolean, text"
+        boolean required
+        decimal min "nullable"
+        decimal max "nullable"
         decimal warning_min "nullable"
         decimal warning_max "nullable"
         decimal critical_min "nullable"
         decimal critical_max "nullable"
+        int sort_order
     }
     ALERTS {
         bigint id PK
@@ -173,7 +173,7 @@ Migrations: [2026_02_19_142824_create_machines_table.php](../database/migrations
 
 Both columns are in the model's `$hidden` array, so they never appear in `toArray()`/`toJson()` output even accidentally.
 
-**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `belongsTo(MachineType)` (as `machineType()`), `hasMany(MachineLog)` (as `logs()`), `hasMany(SensorThreshold)` (as `thresholds()`), `hasMany(Alert)` (as `alerts()`).
+**Relationships** ([Machine.php](../app/Models/Machine.php)): `belongsTo(Building)`, `belongsTo(Floor)`, `belongsTo(MachineType)` (as `machineType()`), `hasMany(MachineLog)` (as `logs()`), `hasMany(MachineParameter)` (as `parameters()`, ordered by `sort_order`), `hasMany(Alert)` (as `alerts()`).
 
 **Scopes**: `active()`, `critical()`, `byBuilding($id)`, `byFloor($id)`.
 
@@ -244,17 +244,7 @@ This is the sensor/event log table — every reading from a device and every man
 | event | string | ✓ | short description |
 | severity | enum | | `info` (default), `warning`, `error`, `critical` |
 | previous_status, current_status | string | ✓ | used for `status_change` logs |
-| temperature | decimal(8,2) | ✓ | °C, can be negative |
-| humidity | decimal(5,2) | ✓ | 0–100% |
-| pressure | decimal(10,2) | ✓ | bar, can be negative |
-| power_consumption | decimal(10,2) | ✓ | kW, non-negative |
-| voltage | decimal(8,2) | ✓ | non-negative |
-| current | decimal(8,2) | ✓ | non-negative |
-| frequency | decimal(8,2) | ✓ | non-negative |
-| runtime_hours | integer | ✓ | non-negative |
-| vibration_rms | decimal(8,3) | ✓ | non-negative |
-| bearing_temp | decimal(8,2) | ✓ | °C, can be negative |
-| oil_level | decimal(6,2) | ✓ | non-negative |
+| readings | json | ✓ | sensor values as `{parameter key: value}`, for the keys defined on the log's machine (see [`machine_parameters`](#machine_parameters)); numbers, booleans or strings per the parameter's `data_type`. Never holds a null value. Null when the log carries no readings (e.g. an alarm). Replaced the old fixed `temperature`/`humidity`/… columns |
 | notes | text | ✓ | |
 | performed_by | string | ✓ | free text — a user's name, or "system"/the device identifier |
 | logged_at | timestamp | | defaults to `CURRENT_TIMESTAMP` at the DB level; app also defaults it in `MachineLogService::store()` if omitted |
@@ -266,27 +256,34 @@ Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severi
 
 **Scopes**: `alerts()` (severity in error/critical), `byType($type)`, `recent($days = 7)`, `bySeverity($severity)`.
 
-**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
+**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days`, and the outgoing-email keys `mail_host`, `mail_port`, `mail_username`, `mail_password` (stored **encrypted**), `mail_encryption`, `mail_from_address`, `mail_from_name`, `app_url` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
 
-### `sensor_thresholds`
+> **Alert limits - how they are read.** For a number parameter: *critical* when the reading is **below `critical_min` or above `critical_max`**; otherwise *warning* when **below `warning_min` or above `warning_max`**; otherwise normal (`MachineParameter::severityFor()` - the one definition, used by `AlertService` and the machine page). So "critical below" must be the **lower** number and "critical above" the **higher** one. Entering "warning 60-80, critical 81-100" as ranges makes every reading under 81 critical. The Edit page labels the boxes, shows the rule as a sentence and rejects contradictions on save (`MachineController::limitRule()`); `MachineParameter::thresholdProblems()` reports them for limits saved before that.
 
-Migration: [2026_09_26_191411_create_sensor_thresholds_table.php](../database/migrations/2026_09_26_191411_create_sensor_thresholds_table.php)
+### `machine_parameters`
 
-Per-machine, per-metric warning/critical bounds, configured on the machine edit page. `AlertService::evaluate()` checks every incoming `machine_logs` row against these.
+Migration: [2026_10_07_175019_create_machine_parameters_table.php](../database/migrations/2026_10_07_175019_create_machine_parameters_table.php)
+
+The readings a specific machine reports through the sensor API (`machine_logs.readings`), defined per machine on its edit page. **Separate from a machine type's specification fields**: those describe the machine (capacity, fuel…); these are the live values its device sends. A number parameter also carries its accepted range and its alert thresholds — `AlertService::evaluate()` checks every incoming reading against them. This table replaced both the fixed sensor columns on `machine_logs` and the old `sensor_thresholds` table (see [CHANGELOG.md](CHANGELOG.md), Phase 10).
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | id | bigint PK | | |
-| machine_id | bigint FK → machines.id | | `onDelete('cascade')` |
-| metric | enum | | one of `temperature`, `humidity`, `pressure`, `power_consumption`, `voltage`, `current`, `frequency`, `vibration_rms`, `bearing_temp`, `oil_level` — matches a `machine_logs` column |
-| warning_min, warning_max | decimal(12,3) | ✓ | a null bound means that side isn't checked |
-| critical_min, critical_max | decimal(12,3) | ✓ | checked before the warning bounds — see `AlertService::determineSeverity()` |
+| machine_id | bigint FK → machines.id | | `cascadeOnDelete()` |
+| key | string(50) | | the name used inside a POST's `readings` object. Generated from the label (or typed on a new row); **never changed after creation** — stored readings and device firmware refer to it. Matches `^[a-z][a-z0-9_]*$` |
+| label | string | | shown in the chart dropdown, logs table, alerts and AI context |
+| unit | string(30) | ✓ | e.g. `°C` |
+| data_type | enum | | `number` (default), `boolean`, `text` — never changed after creation (`App\Enums\ParameterDataType`) |
+| required | boolean | | must be present in every `sensor_reading` log (not enforced for other log types) |
+| min, max | decimal(16,4) | ✓ | number only — accepted range; a value outside it is rejected by the API |
+| warning_min, warning_max | decimal(16,4) | ✓ | number only — a null bound means that side isn't checked |
+| critical_min, critical_max | decimal(16,4) | ✓ | number only — checked before the warning bounds, see `AlertService::determineSeverity()` |
+| sort_order | unsigned int | | display order, from the row's position in the form |
 | timestamps | | | |
 
-Unique on `(machine_id, metric)` — one threshold row per machine per metric. A metric with all four bounds empty has no row at all (removed by `AlertService::saveThresholds()` rather than stored as all-null).
+Unique on `(machine_id, key)`. Bounds are cleared for a non-number parameter by `MachineParameterService`, which also owns the rules above.
 
-**Relationships** ([SensorThreshold.php](../app/Models/SensorThreshold.php)): `belongsTo(Machine)`.
-
+**Relationships** ([MachineParameter.php](../app/Models/MachineParameter.php)): `belongsTo(Machine)`.
 ### `alerts`
 
 Migration: [2026_09_26_191411_create_alerts_table.php](../database/migrations/2026_09_26_191411_create_alerts_table.php)
@@ -299,7 +296,7 @@ A threshold breach or a device-offline event raised against a machine. Created/e
 | machine_id | bigint FK → machines.id | | `onDelete('cascade')` |
 | machine_log_id | bigint FK → machine_logs.id | ✓ | the reading that raised/last updated this alert; **always null for an `offline` alert** — it isn't caused by any one reading; `nullOnDelete()` |
 | type | enum | | `threshold` (default) or `offline` |
-| metric | string | ✓ | one of the `sensor_thresholds.metric` values for a threshold alert; **always null for `offline`** |
+| metric | string | ✓ | the key of the `machine_parameters` row that was breached, for a threshold alert; **always null for `offline`**. Not a foreign key — it survives the parameter being deleted |
 | value | decimal(12,3) | ✓ | the reading that triggered/last updated this alert; **always null for `offline`** |
 | severity | enum | | `warning`, `critical` — no `info` level exists, so even an offline alert must pick one of these two (see below) |
 | status | enum | | `open` (default), `acknowledged`, `resolved` |
@@ -307,13 +304,28 @@ A threshold breach or a device-offline event raised against a machine. Created/e
 | acknowledged_by | bigint FK → users.id | ✓ | `nullOnDelete()` |
 | acknowledged_at | timestamp | ✓ | |
 | resolved_at | timestamp | ✓ | |
+| resolved_by | bigint FK → users.id | ✓ | `nullOnDelete()`; null when the system resolved it |
+| resolution | string(30) | ✓ | `manual`, `auto`, `work_order` or `device_back_online` |
 | timestamps | | | |
 
 Indexes: `(machine_id, metric, status)` (the lookup `AlertService::evaluate()` does on every reading), `type`, `status`.
 
 **Relationships** ([Alert.php](../app/Models/Alert.php)): `belongsTo(Machine)`, `belongsTo(MachineLog)`, `belongsTo(User, 'acknowledged_by')` (as `acknowledgedBy()`).
 
-**Scopes**: `open()` (status = open).
+**Scopes**: `open()` (status = open). Note `AlertService::evaluate()` looks for an alert in **`open` or `acknowledged`** (not just `open`): an acknowledged alert still auto-resolves when the reading recovers, and a new breach reuses it instead of opening a duplicate. If an acknowledged alert becomes critical it is **re-opened** (`escalated`, acknowledgement cleared) and notified again.
+
+**`alert_events`** - the alert trail: one row per thing that happened to an alert, appended by `AlertService::recordEvent()` (the only place alert state changes are made), never edited.
+
+| Column | Notes |
+|---|---|
+| `alert_id` | FK, cascade |
+| `user_id` | FK, `nullOnDelete`; **null = the system** (a device reading, the scheduler) |
+| `action` | `raised`, `escalated`, `acknowledged`, `resolved`, `auto_resolved`, `resolved_by_work_order`, `device_back_online` |
+| `from_status`, `to_status` | the status change, when there was one |
+| `severity`, `value` | severity at the time and the reading that caused it |
+| `note`, `created_at` | (no `updated_at`) |
+
+Index `(alert_id, created_at)`. Alerts that predate the table were backfilled with raised/acknowledged/resolved rows by the migration. Shown on the alert page (`alerts.show`) and as the machine page's **Alert trail**.
 
 **Threshold alert rules enforced in `AlertService`, not the schema**: at most one **open** alert per `(machine_id, metric)` at a time — a second breach updates the existing row (raising `severity` from `warning` to `critical` if the new reading is worse, never downgrading it) rather than inserting a new row; a reading back within both bounds auto-resolves whatever was **open** (not acknowledged) for that metric.
 
@@ -373,10 +385,10 @@ A generic key-value store — one row per setting, rather than one column per se
 |---|---|---|---|
 | id | bigint PK | | |
 | key | string | | unique; one of `SettingInterface::KEYS` |
-| value | text | ✓ | JSON-encoded (`json_encode`/`json_decode`), so a value can be a string, number, bool, or array (e.g. `alert_emails`, `default_thresholds`) |
+| value | text | ✓ | JSON-encoded (`json_encode`/`json_decode`), so a value can be a string, number, bool, or array (e.g. `alert_emails`) |
 | timestamps | | | |
 
-**Keys** (`SettingInterface::KEYS` / `::DEFAULTS`): `company_name`, `alert_emails` (array of strings), `offline_timeout_minutes`, `preventive_lead_days`, `auto_fault_on_critical` (bool), `default_thresholds` (array keyed by metric, same shape as a `sensor_thresholds` row), `log_retention_days`. A key with no row falls back to its default — `SettingService::all()` merges stored values over `DEFAULTS`, so a fresh install (or a key added later without a migration) never crashes on a missing setting.
+**Keys** (`SettingInterface::KEYS` / `::DEFAULTS`): `company_name`, `alert_emails` (array of strings), `offline_timeout_minutes`, `preventive_lead_days`, `auto_fault_on_critical` (bool), `log_retention_days`. A key with no row falls back to its default — `SettingService::all()` merges stored values over `DEFAULTS`, so a fresh install (or a key added later without a migration) never crashes on a missing setting.
 
 `SettingService` caches the merged result forever under `app.settings` and calls `Cache::forget()` on every `update()` — see [02-architecture.md](02-architecture.md#container-binding-registry) for consumers (the offline/preventive commands, `AlertService`, `MachineService`, `MachineLog::prunable()`, the sidebar's company name).
 
@@ -397,6 +409,21 @@ Migrations: [2026_09_27_052350_create_activity_log_table.php](../database/migrat
 | timestamps | | | |
 
 See [02-architecture.md](02-architecture.md#audit-logging-spatielaravel-activitylog) for which models log, why `Alert` logs a narrower column set than the others, and how the machine page's combined Activity feed queries this table.
+
+### `groups` and `group_user`
+
+Migration: [create_groups_table.php](../database/migrations/2026_10_11_165424_create_groups_table.php).
+
+A group is a named set of users that shares roles/permissions and can be a machine's **assignment group**.
+
+| Column | Type | Notes |
+|---|---|---|
+| `groups.id`, `name` (unique), `description` (nullable), timestamps | | |
+| `group_user.group_id`, `user_id` | FKs, cascade | composite primary key; a user can be in many groups |
+
+A `Group` uses Spatie's `HasRoles`, so its roles and direct permissions live in the same `model_has_roles` / `model_has_permissions` tables as a user's (`model_type = App\Models\Group`). It must declare `$guard_name = 'web'`. `User::hasPermissionTo()` also asks the user's groups, which is how a member inherits them - see [06-security.md](06-security.md#groups).
+
+`machines.assignment_group_id` (migration `add_assignment_group_id_to_machines_table`): nullable FK to `groups`, `nullOnDelete`. Its members are emailed when the machine raises an alert (`AlertService::notify()`).
 
 ### Auth & permissions tables
 

@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'LogXense Enterprise'),
 
     /*
     |--------------------------------------------------------------------------
@@ -66,6 +66,19 @@ return [
     */
 
     'timezone' => 'UTC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Demo Device Key
+    |--------------------------------------------------------------------------
+    |
+    | Plaintext sensor API key given to the machine created by DemoMachineSeeder
+    | (the Docker install sets it from DEMO_DEVICE_KEY). Left null, the seeder
+    | generates a random key instead.
+    |
+    */
+
+    'demo_device_key' => env('DEMO_DEVICE_KEY'),
 
     /*
     |--------------------------------------------------------------------------

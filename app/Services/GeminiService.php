@@ -13,7 +13,9 @@ class GeminiService implements AIInterface
     use BuildsMachineContext;
 
     protected $apiKey;
+
     protected $baseUrl;
+
     protected $model = 'gemini-2.0-flash-exp'; // Updated to Gemini 2.0 Flash
 
     public function __construct()
@@ -60,9 +62,9 @@ class GeminiService implements AIInterface
             'base_url' => $this->baseUrl,
             'model' => $this->model,
             'prompt_length' => strlen($prompt),
-            'prompt_preview' => substr($prompt, 0, 200) . '...',
-            'has_api_key' => !empty($this->apiKey),
-            'api_key_prefix' => $this->apiKey ? substr($this->apiKey, 0, 8) . '...' : 'NOT_SET',
+            'prompt_preview' => substr($prompt, 0, 200).'...',
+            'has_api_key' => ! empty($this->apiKey),
+            'api_key_prefix' => $this->apiKey ? substr($this->apiKey, 0, 8).'...' : 'NOT_SET',
         ]);
 
         try {
@@ -75,16 +77,16 @@ class GeminiService implements AIInterface
                     'contents' => [
                         [
                             'parts' => [
-                                ['text' => $prompt]
-                            ]
-                        ]
+                                ['text' => $prompt],
+                            ],
+                        ],
                     ],
                     'generationConfig' => [
                         'temperature' => 0.7,
                         'maxOutputTokens' => 2048, // Increased for Gemini 2.0
                         'topP' => 0.95,
                         'topK' => 40,
-                    ]
+                    ],
                 ]);
 
             $duration = microtime(true) - $startTime;
@@ -100,7 +102,7 @@ class GeminiService implements AIInterface
                     'status_code' => $response->status(),
                     'duration_seconds' => round($duration, 2),
                     'response_length' => strlen($text),
-                    'response_preview' => substr($text, 0, 200) . '...',
+                    'response_preview' => substr($text, 0, 200).'...',
                     'candidates_count' => count($data['candidates'] ?? []),
                     'finish_reason' => $data['candidates'][0]['finishReason'] ?? 'unknown',
                 ]);
@@ -108,7 +110,7 @@ class GeminiService implements AIInterface
                 return [
                     'success' => true,
                     'text' => $text,
-                    'raw' => $data
+                    'raw' => $data,
                 ];
             }
 
@@ -125,7 +127,7 @@ class GeminiService implements AIInterface
             return [
                 'success' => false,
                 'text' => 'Failed to generate response. Please try again.',
-                'error' => $response->body()
+                'error' => $response->body(),
             ];
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
@@ -144,7 +146,7 @@ class GeminiService implements AIInterface
             return [
                 'success' => false,
                 'text' => 'Connection error. Please check your network and try again.',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
 
         } catch (\Illuminate\Http\Client\RequestException $e) {
@@ -163,7 +165,7 @@ class GeminiService implements AIInterface
             return [
                 'success' => false,
                 'text' => 'Request failed. Please try again.',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
 
         } catch (\Exception $e) {
@@ -178,13 +180,13 @@ class GeminiService implements AIInterface
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
                 'success' => false,
                 'text' => 'An error occurred while processing your request.',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
@@ -210,43 +212,41 @@ class GeminiService implements AIInterface
         $machineInfo .= "- Status: {$machineData['status']}\n";
         $machineInfo .= "- Location: {$machineData['location']}\n";
 
-        if (!empty($machineData['power_rating'])) {
+        if (! empty($machineData['power_rating'])) {
             $machineInfo .= "- Power Rating: {$machineData['power_rating']} kW\n";
         }
 
         $logsSummary = "\nLog Statistics:\n";
-        $logsSummary .= "- Total Logs: " . ($logsData['total'] ?? 0) . "\n";
-        $logsSummary .= "- Critical: " . ($logsData['critical'] ?? 0) . "\n";
-        $logsSummary .= "- Errors: " . ($logsData['errors'] ?? 0) . "\n";
-        $logsSummary .= "- Warnings: " . ($logsData['warnings'] ?? 0) . "\n";
-        $logsSummary .= "- Today: " . ($logsData['today'] ?? 0) . "\n";
-        $logsSummary .= "- This Week: " . ($logsData['week'] ?? 0) . "\n";
+        $logsSummary .= '- Total Logs: '.($logsData['total'] ?? 0)."\n";
+        $logsSummary .= '- Critical: '.($logsData['critical'] ?? 0)."\n";
+        $logsSummary .= '- Errors: '.($logsData['errors'] ?? 0)."\n";
+        $logsSummary .= '- Warnings: '.($logsData['warnings'] ?? 0)."\n";
+        $logsSummary .= '- Today: '.($logsData['today'] ?? 0)."\n";
+        $logsSummary .= '- This Week: '.($logsData['week'] ?? 0)."\n";
 
         $recentLogsInfo = "\nRecent Log Entries (Last 10):\n";
-        if (!empty($logsData['recent_logs'])) {
+        if (! empty($logsData['recent_logs'])) {
             foreach (array_slice($logsData['recent_logs'], 0, 10) as $index => $log) {
-                $recentLogsInfo .= ($index + 1) . ". [{$log['severity']}] {$log['event']}\n";
+                $recentLogsInfo .= ($index + 1).". [{$log['severity']}] {$log['event']}\n";
                 $recentLogsInfo .= "   Time: {$log['logged_at']}\n";
-                if (!empty($log['temperature'])) {
-                    $recentLogsInfo .= "   Temperature: {$log['temperature']}°C\n";
-                }
-                if (!empty($log['power_consumption'])) {
-                    $recentLogsInfo .= "   Power: {$log['power_consumption']} kW\n";
-                }
-                if (!empty($log['vibration_rms'])) {
-                    $recentLogsInfo .= "   Vibration: {$log['vibration_rms']} RMS\n";
+                foreach ((array) ($log['readings'] ?? []) as $readingKey => $readingValue) {
+                    if (is_bool($readingValue)) {
+                        $readingValue = $readingValue ? 'Yes' : 'No';
+                    }
+
+                    $recentLogsInfo .= '   '.ucfirst(str_replace('_', ' ', (string) $readingKey)).": {$readingValue}\n";
                 }
                 $recentLogsInfo .= "\n";
             }
         }
 
-        $prompt = "You are an expert Building Management System (BMS) analyst specializing in manufacturing equipment maintenance and diagnostics.\n\n";
+        $prompt = "You are an expert data logging and monitoring analyst for LogXense Enterprise, specializing in manufacturing equipment maintenance and diagnostics.\n\n";
         $prompt .= $machineInfo;
         $prompt .= $logsSummary;
         $prompt .= $recentLogsInfo;
         $prompt .= "\nUser Question: {$question}\n\n";
-        $prompt .= "Provide a professional, concise, and actionable answer based on the machine data and logs. ";
-        $prompt .= "Use bullet points where appropriate. Be specific and technical but clear.";
+        $prompt .= 'Provide a professional, concise, and actionable answer based on the machine data and logs. ';
+        $prompt .= 'Use bullet points where appropriate. Be specific and technical but clear.';
 
         Log::debug('Gemini Prompt Built', [
             'prompt_length' => strlen($prompt),

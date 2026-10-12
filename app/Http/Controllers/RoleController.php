@@ -26,8 +26,11 @@ class RoleController extends Controller
     {
         $roles = $this->roles->getAll();
 
-        // Lean payload for the "Add Users" picker modal — id/name/email/current role only.
-        $users = User::select('id', 'name', 'email')->with('roles:id,name')->orderBy('name')->get();
+        // Lean payload for the "Add Users" picker modal — id/name/email/current role only. Only
+        // someone who can actually use the picker (roles.update + users.update) gets the user list.
+        $users = auth()->user()->can('roles.update') && auth()->user()->can('users.update')
+            ? User::select('id', 'name', 'email')->with('roles:id,name')->orderBy('name')->get()
+            : collect();
 
         return view('roles.index', compact('roles', 'users'));
     }

@@ -12,7 +12,11 @@ use Illuminate\Support\Str;
 
 class AIController extends Controller
 {
-    public function __construct(protected SuggestedQuestionInterface $suggestedQuestions) {}
+    public function __construct(protected SuggestedQuestionInterface $suggestedQuestions)
+    {
+        // The chat only exists on a machine's page, so it needs the same permission as that page.
+        $this->middleware('permission:machines.view');
+    }
 
     /**
      * Handle chat message and dispatch AI processing job
@@ -28,10 +32,10 @@ class AIController extends Controller
         $userMessage = $request->input('message');
 
         // Generate a unique cache key for this request
-        $cacheKey = 'ai_insight_' . Str::uuid()->toString();
+        $cacheKey = 'ai_insight_'.Str::uuid()->toString();
 
         // Check if we have a recent cached response for similar queries
-        $cachedResponseKey = 'ai_cache_' . md5($machineId . '_' . $userMessage);
+        $cachedResponseKey = 'ai_cache_'.md5($machineId.'_'.$userMessage);
         $cachedResponse = Cache::get($cachedResponseKey);
 
         if ($cachedResponse) {
@@ -41,6 +45,10 @@ class AIController extends Controller
                 'message' => $cachedResponse,
             ]);
         }
+
+        // Who asked, so checkStatus() only ever hands an answer back to the user it was made for
+        // (the queued job overwrites $cacheKey itself, so ownership lives under its own key).
+        Cache::put($cacheKey.'_owner', $request->user()->id, now()->addHours(1));
 
         // Initialize cache entry as processing
         Cache::put($cacheKey, [
@@ -65,13 +73,18 @@ class AIController extends Controller
     public function checkStatus(Request $request): JsonResponse
     {
         $request->validate([
-            'cache_key' => 'required|string',
+            'cache_key' => ['required', 'string', 'regex:/^ai_insight_[0-9a-f-]{36}$/'],
         ]);
 
         $cacheKey = $request->input('cache_key');
+
+        if (Cache::get($cacheKey.'_owner') !== $request->user()->id) {
+            abort(404);
+        }
+
         $cached = Cache::get($cacheKey);
 
-        if (!$cached) {
+        if (! $cached) {
             return response()->json([
                 'ready' => false,
                 'message' => 'Request not found or expired.',
@@ -80,7 +93,7 @@ class AIController extends Controller
 
         if ($cached['ready']) {
             // Cache the response for similar future queries if not an error
-            if (!isset($cached['error'])) {
+            if (! isset($cached['error'])) {
                 // We don't have the original query here, so skip caching for similar queries
             }
 

@@ -32,16 +32,20 @@ trait BuildsMachineContext
             'logs_this_week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
         ];
 
-        // Get sensor averages from recent logs
-        $sensorAverages = [
-            'avg_temperature' => $recentLogs->whereNotNull('temperature')->avg('temperature'),
-            'avg_power_consumption' => $recentLogs->whereNotNull('power_consumption')->avg('power_consumption'),
-            'avg_vibration_rms' => $recentLogs->whereNotNull('vibration_rms')->avg('vibration_rms'),
-            'avg_pressure' => $recentLogs->whereNotNull('pressure')->avg('pressure'),
-            'avg_humidity' => $recentLogs->whereNotNull('humidity')->avg('humidity'),
-            'avg_voltage' => $recentLogs->whereNotNull('voltage')->avg('voltage'),
-        ];
+        // Average each of the machine's own number parameters over the recent logs that reported it
+        $parameters = $machine->parameters()->get();
 
+        $sensorAverages = [];
+
+        foreach ($parameters->where('data_type', \App\Enums\ParameterDataType::Number) as $parameter) {
+            $values = $recentLogs
+                ->map(fn ($log) => $log->readings[$parameter->key] ?? null)
+                ->filter(fn ($value) => is_numeric($value));
+
+            if ($values->isNotEmpty()) {
+                $sensorAverages[$parameter->labelWithUnit()] = $values->avg();
+            }
+        }
         // Get recent alerts
         $recentAlerts = $machine->logs()
             ->whereIn('severity', ['error', 'critical'])
@@ -97,11 +101,8 @@ trait BuildsMachineContext
         $context .= "Warnings: {$stats['warning_count']}\n";
 
         $context .= "\n=== SENSOR AVERAGES (Last 50 Logs) ===\n";
-        foreach ($sensorAverages as $key => $value) {
-            if ($value !== null) {
-                $label = ucwords(str_replace(['avg_', '_'], ['', ' '], $key));
-                $context .= "{$label}: ".round($value, 2)."\n";
-            }
+        foreach ($sensorAverages as $label => $value) {
+            $context .= "{$label}: ".round($value, 2)."\n";
         }
 
         if ($recentAlerts->isNotEmpty()) {
@@ -123,19 +124,19 @@ trait BuildsMachineContext
                 $context .= "Type: {$log->log_type}, Severity: {$log->severity}, Event: {$log->event}";
 
                 $sensors = [];
-                if ($log->temperature) {
-                    $sensors[] = "Temp: {$log->temperature}°C";
-                }
-                if ($log->power_consumption) {
-                    $sensors[] = "Power: {$log->power_consumption}kW";
-                }
-                if ($log->vibration_rms) {
-                    $sensors[] = "Vibration: {$log->vibration_rms}RMS";
-                }
-                if ($log->pressure) {
-                    $sensors[] = "Pressure: {$log->pressure}bar";
-                }
+                foreach ($parameters as $parameter) {
+                    $value = $log->readings[$parameter->key] ?? null;
 
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    if (is_bool($value)) {
+                        $value = $value ? 'Yes' : 'No';
+                    }
+
+                    $sensors[] = "{$parameter->label}: {$value}".($parameter->unit ? " {$parameter->unit}" : '');
+                }
                 if (! empty($sensors)) {
                     $context .= ' | '.implode(', ', $sensors);
                 }
@@ -151,7 +152,7 @@ trait BuildsMachineContext
      */
     protected function buildPrompt(string $context, string $userMessage): string
     {
-        $systemPrompt = 'You are an expert Building Management System (BMS) AI assistant specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
+        $systemPrompt = 'You are an expert data logging and monitoring AI assistant for LogXense Enterprise, specializing in industrial machine analysis for manufacturing facilities. Your role is to analyze machine data, logs, and sensor readings to provide actionable insights.
 
 When analyzing machine data:
 1. Identify patterns in sensor readings and log events

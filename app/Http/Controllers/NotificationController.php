@@ -16,9 +16,17 @@ class NotificationController extends Controller
         $notification = auth()->user()->notifications()->findOrFail($id);
         $notification->markAsRead();
 
-        return redirect($notification->data['machine_id'] ?? null
-            ? route('machines.show', $notification->data['machine_id'])
-            : route('alerts.index'));
+        $data = $notification->data;
+
+        // An alert opens its trail, a work order its page; anything else falls back to the machine.
+        $target = match (true) {
+            isset($data['alert_id']) => route('alerts.show', $data['alert_id']),
+            isset($data['work_order_id']) && auth()->user()->can('work-orders.view') => route('work-orders.show', $data['work_order_id']),
+            isset($data['machine_id']) && auth()->user()->can('machines.view') => route('machines.show', $data['machine_id']),
+            default => route('alerts.index'),
+        };
+
+        return redirect($target);
     }
 
     public function readAll(): RedirectResponse

@@ -1,6 +1,6 @@
-# NexBuild BMS — Documentation
+# LogXense Enterprise — Documentation
 
-This is the technical documentation for the NexBuild Building Management System (BMS), a Laravel 12 application for tracking buildings, floors, and industrial machines, ingesting sensor readings (temperature, humidity, vibration, power, etc.) from hardware devices, and (in later phases) alerting on abnormal readings and managing work orders.
+This is the technical documentation for LogXense Enterprise (formerly the NexBuild BMS), a Laravel 12 application for tracking buildings, floors, and industrial machines, ingesting sensor readings (temperature, humidity, vibration, power, etc.) from hardware devices, and (in later phases) alerting on abnormal readings and managing work orders.
 
 ## Reading order
 

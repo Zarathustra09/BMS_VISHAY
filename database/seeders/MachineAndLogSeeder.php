@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Building;
 use App\Models\Machine;
+use App\Models\MachineParameter;
 use App\Models\MachineType;
 use Carbon\Carbon;
 use Faker\Factory as Faker;
@@ -29,6 +30,26 @@ class MachineAndLogSeeder extends Seeder
     private const SPEC_KEYS = [
         'capacity_tons', 'fuel', 'autostart', 'capacity_persons',
         'speed_m_s', 'flow_lpm', 'head_m', 'cells', 'makeup_valve',
+    ];
+
+    /**
+     * Label and unit of each reading key generateSensorData() produces - becomes the machine's
+     * MachineParameter rows, so the seeded logs' `readings` have parameters to belong to.
+     *
+     * @var array<string, array{0: string, 1: ?string}>
+     */
+    private const PARAMETER_META = [
+        'temperature' => ['Temperature', '°C'],
+        'humidity' => ['Humidity', '%'],
+        'pressure' => ['Pressure', 'bar'],
+        'power_consumption' => ['Power Consumption', 'kW'],
+        'voltage' => ['Voltage', 'V'],
+        'current' => ['Current', 'A'],
+        'frequency' => ['Frequency', 'Hz'],
+        'runtime_hours' => ['Runtime', 'h'],
+        'vibration_rms' => ['Vibration RMS', null],
+        'bearing_temp' => ['Bearing Temp', '°C'],
+        'oil_level' => ['Oil Level', '%'],
     ];
 
     /**
@@ -506,6 +527,7 @@ class MachineAndLogSeeder extends Seeder
             $machine = Machine::create($mData);
 
             $logs = [];
+            $usedKeys = [];
 
             for ($i = 0; $i < $logsPerMachine; $i++) {
                 // Spread logs over last 120 days with varied distribution
@@ -524,9 +546,13 @@ class MachineAndLogSeeder extends Seeder
                 }
 
                 // Generate sensor readings based on machine type
-                $sensorData = $this->generateSensorData($machineType, $mData['power_rating'] ?? 100, $faker);
+                $readings = array_filter(
+                    $this->generateSensorData($machineType, $mData['power_rating'] ?? 100, $faker),
+                    fn ($value) => $value !== null
+                );
+                $usedKeys += array_fill_keys(array_keys($readings), true);
 
-                $logs[] = array_merge([
+                $logs[] = [
                     'machine_id' => $machine->id,
                     'log_type' => $logType,
                     'event' => $this->generateEvent($machineType, $logType, $faker),
@@ -535,10 +561,11 @@ class MachineAndLogSeeder extends Seeder
                     'current_status' => $currentStatus,
                     'notes' => $faker->optional(0.4)->sentence(12),
                     'performed_by' => $performedByOptions[array_rand($performedByOptions)],
+                    'readings' => $readings === [] ? null : json_encode($readings),
                     'logged_at' => $loggedAt->toDateTimeString(),
                     'created_at' => Carbon::now()->toDateTimeString(),
                     'updated_at' => Carbon::now()->toDateTimeString(),
-                ], $sensorData);
+                ];
 
                 if (count($logs) >= $insertChunkSize) {
                     DB::table('machine_logs')->insert($logs);
@@ -549,6 +576,33 @@ class MachineAndLogSeeder extends Seeder
             if (! empty($logs)) {
                 DB::table('machine_logs')->insert($logs);
             }
+
+            $this->createParameters($machine, array_keys($usedKeys));
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $keys
+     */
+    private function createParameters(Machine $machine, array $keys): void
+    {
+        $order = 0;
+
+        foreach (array_keys(self::PARAMETER_META) as $key) {
+            if (! in_array($key, $keys, true)) {
+                continue;
+            }
+
+            [$label, $unit] = self::PARAMETER_META[$key];
+
+            MachineParameter::create([
+                'machine_id' => $machine->id,
+                'key' => $key,
+                'label' => $label,
+                'unit' => $unit,
+                'data_type' => 'number',
+                'sort_order' => $order++,
+            ]);
         }
     }
 
