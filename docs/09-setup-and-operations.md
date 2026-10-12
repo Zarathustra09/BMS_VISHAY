@@ -81,6 +81,8 @@ Any single module can still be forced independently of the edition — e.g. a li
 
 ## Queue worker
 
+**Alert and work-order emails are sent by the queue, never inside the request** - a slow or unreachable mail server must not hold up a device's POST or a button click. `MachineAlertNotification` / `WorkOrderAssignedNotification` are queued per channel: the **bell row is written immediately** (`viaConnections()` -> sync), while **email and the live push wait for the worker** (3 tries, 10 s then 60 s back-off). In Docker the `queue` container is that worker; for local `php artisan serve` run `php artisan queue:work` (or `composer run dev`), or emails stay queued. The only immediate email is Settings' "Send test email", so its error can be shown on screen.
+
 AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the `database` queue driver — nothing is processed until a worker is running.
 
 **Local development**: `php artisan queue:listen --tries=1` (already included in `composer run dev`), or `php artisan queue:work`.
@@ -189,6 +191,8 @@ Set `BOOST_RULES_ENABLED=false` to disable the `.ai/rules` feature entirely (rem
 
 | Symptom | Likely cause |
 |---|---|
+| Live chart/alerts do nothing (page looks normal, pill missing, chart says "Live · every 5s") while using `npm run dev` and opening the app by its LAN address | The browser refused the Vite dev server's scripts (CORS) so Echo never loaded. `vite.config.js` sets `server.cors: true` for this - restart `npm run dev`. `public/hot` is also stale if `npm run dev` is not running: delete it or run `npm run build` |
+| Live updates stop after a restart | `php artisan reverb:start` and `php artisan queue:work` must both be running (`composer run dev` starts them); the header pill shows Live / Offline |
 | AI chat stays "processing..." forever | No queue worker running — start `php artisan queue:work` (or `queue:listen`) |
 | AI chat returns a generic error message | Check `storage/logs/laravel.log` for `Gemini API...`/`OpenAI...` log entries — usually a missing/invalid API key |
 | Sensor POST returns 401 | Device key missing, wrong, or regenerated since the device last got it — see [05-device-api.md](05-device-api.md) |

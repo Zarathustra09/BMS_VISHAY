@@ -182,6 +182,13 @@ The UI follows the same rule: a button, link, tab, modal or card is hidden (`@ca
 
 As of Phase 10, `notify()` **also** routes the same notification to every address in the `alert_emails` setting (`Notification::route('mail', $email)->notify(...)`) — for recipients who need alert emails without holding `admin`/`manager` (an external contractor, a shared ops inbox). Configured on the Settings page, admin-only.
 
+## Live alerts and the alert trail
+
+- **Trail.** Every change to an alert is appended to `alert_events` with the user who did it (null = the system), so there is a record of how people and the system interacted with a machine's alerts. `alerts.show` and the machine page's Alert trail need `alerts.view`; the trail card is hidden from users without it.
+- **Channels.** `private-alerts` (everyone with `alerts.view`) and `private-machines.{id}` carry `App\Events\AlertChanged`; each person's bell uses `private-App.Models.User.{id}`. Subscribing needs the same permission as seeing the page (`routes/channels.php`). The payload only names the alert, machine, severity, status, action and actor - pages re-fetch their own (permission-checked) HTML/JSON, so nothing is exposed that the page endpoints wouldn't show.
+- **Reverb never blocks anything.** Broadcasts go through `SafeBroadcaster` (a 30 s circuit breaker shared with live readings), so a stopped Reverb cannot fail a device's POST or a user's Acknowledge click.
+- **A user can't be notified about an alert they can't see:** an address on the Settings recipients list is email-only (no bell, no push).
+
 ## Live updates (Reverb, Phase 12)
 
 - **Private channels.** A machine's readings are broadcast on `private-machines.{id}`. Subscribing needs a signature from `POST /broadcasting/auth`, which only a logged-in user holding `machines.view` — the same permission that opens the page — can get (`routes/channels.php`). A guest gets `403`, as does a user without that permission.
@@ -206,4 +213,3 @@ As of Phase 10, `notify()` **also** routes the same notification to every addres
 - No 2FA / password policy beyond Laravel UI defaults.
 - No idempotency protection on the sensor ingestion endpoint (a resent reading creates a duplicate row) — acceptable for telemetry, called out in [05-device-api.md](05-device-api.md).
 - Rate limiting on `/api/machine-logs` is per-IP (Laravel's default throttle key), not per-device — a shared NAT/gateway in front of many devices would share one bucket. Not an issue at current scale.
-- An **acknowledged threshold alert never auto-resolves** even after the reading returns to normal — `AlertService::evaluate()`'s auto-resolve only matches `Alert::open()`. This is the opposite of offline alerts, which resolve from both `open` and `acknowledged` (see [03-data-model.md](03-data-model.md)). The asymmetry is intentional for now (a person who acknowledged a threshold breach is expected to also resolve it once satisfied it's handled) but is worth revisiting.

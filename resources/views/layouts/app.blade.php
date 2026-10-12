@@ -6,6 +6,11 @@
 
     <!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @can('alerts.view')
+        {{-- Tells resources/js/alerts-live.js to follow alert changes over Reverb for this user. --}}
+        <meta name="live-alerts" content="1">
+        <meta name="live-user-id" content="{{ auth()->id() }}">
+    @endcan
 
     <title>{{ config('app.name', 'Laravel') }} - @yield('title', 'Dashboard')</title>
 
@@ -62,7 +67,7 @@
                                 <div class="text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                                     {{ $companyName }}
                                 </div>
-                                <div class="text-xs opacity-70">LogXense Enterprise</div>
+                                <div class="text-xs opacity-70">Data Logging &amp; Monitoring</div>
                             </div>
                         </a>
                     </div>
@@ -135,9 +140,8 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                                 </svg>
                                 Alerts
-                                @if($unreadAlertCount > 0)
-                                    <span class="badge badge-error badge-sm">{{ $unreadAlertCount }}</span>
-                                @endif
+                                {{-- Open alerts only (not unread notifications); kept current by alerts-live.js --}}
+                                <span id="sidebarAlertCount" data-stats-url="{{ route('alerts.stats') }}" class="badge badge-error badge-sm tabular-nums {{ $openAlertCount > 0 ? '' : 'hidden' }}" aria-label="Open alerts">{{ $openAlertCount > 99 ? '99+' : $openAlertCount }}</span>
                             </a>
                         </li>
                         @endcan
@@ -286,6 +290,11 @@
     </div>
 
     @stack('scripts')
+
+    @can('alerts.view')
+        {{-- New alerts pop up here on any page (see resources/js/alerts-live.js). --}}
+        <div id="liveToasts" class="toast toast-top toast-end z-[100] mt-20 max-w-sm" aria-live="polite"></div>
+    @endcan
     <script>
         // Hide skeleton loader and show actual content. `.content-hidden`/`.content-visible`
         // only started actually doing anything once app.css was compiled for real (see

@@ -22,8 +22,12 @@ interface AlertInterface
      * raising, escalating, or auto-resolving alerts as needed. Also clears any open/
      * acknowledged offline alert for this machine, since a reading is proof of life.
      * Called from MachineLogService::store() so it runs for every reading regardless of caller.
+     *
+     * @return string|null the worst severity this reading breaches ('critical' or 'warning'), or null
+     *                     when it is within bounds (or the machine has no thresholds) - used to stamp
+     *                     the log's own severity
      */
-    public function evaluate(MachineLog $log): void;
+    public function evaluate(MachineLog $log): ?string;
 
     /**
      * Raise an 'offline' alert for every machine whose last reading is older than $minutes.
@@ -60,5 +64,16 @@ interface AlertInterface
 
     public function acknowledge(Alert $alert, User $user): Alert;
 
-    public function resolve(Alert $alert): Alert;
+    /**
+     * Resolve an alert and record who did it. $by is null when the system did (a reading back in
+     * range, the device coming back online). $resolution is one of manual, auto, work_order,
+     * device_back_online - it decides the trail entry. $value is the reading that cleared it, if any.
+     */
+    public function resolve(Alert $alert, ?User $by = null, string $resolution = 'manual', mixed $value = null): Alert;
+
+    /**
+     * The latest entries of every alert trail on this machine (who raised/acknowledged/resolved
+     * what, and when), newest first - the machine page's "Alert trail".
+     */
+    public function getTrailForMachine(Machine $machine, int $limit = 20): Collection;
 }

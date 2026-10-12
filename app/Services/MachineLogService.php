@@ -9,9 +9,6 @@ use App\Models\Machine;
 use App\Models\MachineLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class MachineLogService implements MachineLogInterface
 {
@@ -56,14 +53,6 @@ class MachineLogService implements MachineLogInterface
     private const DEFAULT_POLL_SECONDS = 30;
 
     /**
-     * Set for BROADCAST_PAUSE_SECONDS after a failed live broadcast, so a stopped Reverb costs
-     * a device's POST one failed attempt per half minute instead of one on every reading.
-     */
-    private const BROADCAST_DOWN_KEY = 'live-broadcast-down';
-
-    private const BROADCAST_PAUSE_SECONDS = 30;
-
-    /**
      * A firehose machine (many readings/second) could return hundreds of thousands of rows
      * for a 7-day window — cap it and lose the oldest part of the window rather than the
      * request ballooning memory. Rows are fetched newest-first so the cap keeps the most
@@ -71,7 +60,13 @@ class MachineLogService implements MachineLogInterface
      */
     private const MAX_RAW_ROWS = 20000;
 
-    public function __construct(protected AlertInterface $alerts) {}
+    /** Order used to decide whether a derived severity should replace the one the device sent. */
+    private const SEVERITY_RANK = ['info' => 0, 'warning' => 1, 'error' => 2, 'critical' => 3];
+
+    public function __construct(
+        protected AlertInterface $alerts,
+        protected SafeBroadcaster $broadcaster,
+    ) {}
 
     public function store(array $data): MachineLog
     {
@@ -88,7 +83,15 @@ class MachineLogService implements MachineLogInterface
         // store() — not just the sensor API — keeps this in sync with offline detection.
         $log->machine?->forceFill(['last_seen_at' => now()])->save();
 
-        $this->alerts->evaluate($log);
+        // A reading that breaches an alert threshold is stored as a warning/critical log, so the logs
+        // table and the machine's "alert-level logs" agree with the alert it raised. A device that
+        // sends its own (higher) severity keeps it; a device that sends none used to be left at
+        // the column default, "info", even for a critical breach.
+        $derived = $this->alerts->evaluate($log);
+
+        if ($derived !== null && self::SEVERITY_RANK[$derived] > self::SEVERITY_RANK[$log->severity ?? 'info']) {
+            $log->update(['severity' => $derived]);
+        }
 
         if (! empty($log->readings)) {
             $this->broadcastReading($log);
@@ -98,23 +101,13 @@ class MachineLogService implements MachineLogInterface
     }
 
     /**
-     * Live push to anyone watching this machine (Laravel Reverb). Reverb is strictly an add-on:
-     * a stopped or unreachable server can never turn a device's already-stored reading into a
-     * 500 — the chart just falls back to polling. A failure also opens a short circuit breaker
-     * (BROADCAST_DOWN_KEY) so the next readings skip the attempt rather than each waiting out
-     * the connect timeout, and logs one line rather than a stack trace per reading.
+     * Live push to anyone watching this machine (Laravel Reverb), through SafeBroadcaster: a
+     * stopped or unreachable server can never turn a device's already-stored reading into a 500 -
+     * the chart just falls back to polling.
      */
     private function broadcastReading(MachineLog $log): void
     {
-        if (Cache::has(self::BROADCAST_DOWN_KEY)) {
-            return;
-        }
-
-        rescue(fn () => event(new MachineReadingRecorded($log)), function (Throwable $e) {
-            Cache::put(self::BROADCAST_DOWN_KEY, true, self::BROADCAST_PAUSE_SECONDS);
-
-            Log::warning('Live broadcast failed (is Reverb running?); readings are still stored and the chart falls back to polling. '.$e->getMessage());
-        }, report: false);
+        $this->broadcaster->dispatch(new MachineReadingRecorded($log));
     }
 
     public function getQueryForDataTable(Machine $machine, array $filters = []): Builder

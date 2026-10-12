@@ -12,14 +12,41 @@ class WorkOrderAssignedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public WorkOrder $workOrder) {}
+    public function __construct(public WorkOrder $workOrder)
+    {
+        $this->afterCommit();
+    }
+
+    /**
+     * Email and the live push wait for the queue worker (a slow or unreachable mail server must
+     * never hold up a device's request), retried with a back-off if the mail server or Reverb
+     * hiccups. The bell row is written immediately instead: it is only a database insert, and
+     * waiting for the worker would make it appear late, or never if no worker is running.
+     */
+    public int $tries = 3;
+
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [10, 60];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function viaConnections(): array
+    {
+        return ['database' => 'sync'];
+    }
 
     /**
      * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return ['database', 'broadcast', 'mail'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -42,6 +69,9 @@ class WorkOrderAssignedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
+            'kind' => 'work_order',
+            'message' => "Work order {$this->workOrder->code} assigned to you: {$this->workOrder->title}",
+            'severity' => 'info',
             'work_order_id' => $this->workOrder->id,
             'code' => $this->workOrder->code,
             'title' => $this->workOrder->title,

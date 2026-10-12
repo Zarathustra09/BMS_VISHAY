@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Events\AlertChanged;
 use App\Interfaces\AlertInterface;
 use App\Interfaces\SettingInterface;
 use App\Models\Alert;
+use App\Models\AlertEvent;
 use App\Models\Machine;
 use App\Models\MachineLog;
 use App\Models\MachineParameter;
@@ -16,9 +18,12 @@ use Illuminate\Support\Facades\Notification;
 
 class AlertService implements AlertInterface
 {
-    public function __construct(protected SettingInterface $settings) {}
+    public function __construct(
+        protected SettingInterface $settings,
+        protected SafeBroadcaster $broadcaster,
+    ) {}
 
-    public function evaluate(MachineLog $log): void
+    public function evaluate(MachineLog $log): ?string
     {
         // A reading arriving is proof of life — clear any offline alert first. This MUST
         // stay above the thresholds early-return below, or a machine with no configured
@@ -33,10 +38,11 @@ class AlertService implements AlertInterface
             ->filter(fn (MachineParameter $parameter) => $parameter->hasThresholds());
 
         if ($parameters->isEmpty() || empty($log->readings)) {
-            return;
+            return null;
         }
 
         $machine = $log->machine;
+        $worst = null;
 
         foreach ($parameters as $parameter) {
             $metric = $parameter->key;
@@ -46,9 +52,16 @@ class AlertService implements AlertInterface
                 continue;
             }
 
-            $severity = $this->determineSeverity($parameter, (float) $value);
+            $severity = $parameter->severityFor((float) $value);
 
-            $openAlert = Alert::open()
+            if ($severity === 'critical' || ($severity === 'warning' && $worst === null)) {
+                $worst = $severity;
+            }
+
+            // An acknowledged alert is still an unresolved problem: it must auto-resolve when the
+            // reading recovers, and a new breach must reuse it rather than open a duplicate.
+            $openAlert = Alert::query()
+                ->whereIn('status', ['open', 'acknowledged'])
                 ->where('machine_id', $log->machine_id)
                 ->where('type', 'threshold')
                 ->where('metric', $metric)
@@ -57,25 +70,38 @@ class AlertService implements AlertInterface
             if ($severity === null) {
                 // Reading is back within bounds — clear whatever was open for this metric.
                 if ($openAlert) {
-                    $this->resolve($openAlert);
+                    $this->resolve($openAlert, null, 'auto', $value);
                 }
 
                 continue;
             }
 
             if ($openAlert) {
-                // Keep one open alert per machine+metric. Only escalate (never downgrade —
+                // Keep one alert per machine+metric. Only escalate (never downgrade —
                 // downgrading to "still abnormal but less severe" isn't the same as normal,
                 // so it doesn't get a fresh notification either) and always track the
                 // latest reading behind it.
+                $wasCritical = $openAlert->severity === 'critical';
+
                 $openAlert->update([
                     'value' => $value,
                     'machine_log_id' => $log->id,
-                    'severity' => $openAlert->severity === 'critical' ? 'critical' : $severity,
+                    'severity' => $wasCritical ? 'critical' : $severity,
                 ]);
 
-                if ($openAlert->severity === 'critical' && $severity === 'critical' && $openAlert->wasChanged('severity')) {
-                    $openAlert->update(['message' => $this->buildMessage($machine, $parameter, $value, $severity)]);
+                if (! $wasCritical && $severity === 'critical') {
+                    $previousStatus = $openAlert->status;
+
+                    // Getting worse after someone acknowledged it re-opens it: an earlier "I'm on
+                    // it" must not hide a problem that has since become critical.
+                    $openAlert->update([
+                        'message' => $this->buildMessage($machine, $parameter, $value, $severity),
+                        'status' => 'open',
+                        'acknowledged_by' => null,
+                        'acknowledged_at' => null,
+                    ]);
+
+                    $this->recordEvent($openAlert, 'escalated', null, $previousStatus, 'open', $value);
                     $this->notify($openAlert);
                     $this->maybeAutoFault($machine, $severity);
                 }
@@ -94,9 +120,12 @@ class AlertService implements AlertInterface
                 'message' => $this->buildMessage($machine, $parameter, $value, $severity),
             ]);
 
+            $this->recordEvent($alert, 'raised', null, null, 'open', $value);
             $this->notify($alert);
             $this->maybeAutoFault($machine, $severity);
         }
+
+        return $worst;
     }
 
     public function raiseOfflineAlerts(int $minutes = self::OFFLINE_AFTER_MINUTES): array
@@ -126,6 +155,7 @@ class AlertService implements AlertInterface
                 'message' => $this->buildOfflineMessage($machine, $minutes),
             ]);
 
+            $this->recordEvent($alert, 'raised', null, null, 'open');
             $this->notify($alert);
             $raised[$machine->id] = $machine->name;
         }
@@ -140,7 +170,7 @@ class AlertService implements AlertInterface
             ->whereIn('status', ['open', 'acknowledged'])
             ->get();
 
-        $alerts->each(fn (Alert $alert) => $this->resolve($alert));
+        $alerts->each(fn (Alert $alert) => $this->resolve($alert, null, 'device_back_online'));
 
         return $alerts->count();
     }
@@ -156,7 +186,7 @@ class AlertService implements AlertInterface
 
     public function getQueryForDataTable(array $filters): Builder
     {
-        $query = Alert::with('machine');
+        $query = Alert::with(['machine', 'acknowledgedBy', 'resolvedBy']);
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
@@ -189,44 +219,75 @@ class AlertService implements AlertInterface
 
     public function acknowledge(Alert $alert, User $user): Alert
     {
+        $previousStatus = $alert->status;
+
         $alert->update([
             'status' => 'acknowledged',
             'acknowledged_by' => $user->id,
             'acknowledged_at' => now(),
         ]);
 
+        $this->recordEvent($alert, 'acknowledged', $user, $previousStatus, 'acknowledged');
+
         return $alert->fresh();
     }
 
-    public function resolve(Alert $alert): Alert
+    public function resolve(Alert $alert, ?User $by = null, string $resolution = 'manual', mixed $value = null): Alert
     {
+        $previousStatus = $alert->status;
+
         $alert->update([
             'status' => 'resolved',
             'resolved_at' => now(),
+            'resolved_by' => $by?->id,
+            'resolution' => $resolution,
         ]);
+
+        $action = match ($resolution) {
+            'auto' => 'auto_resolved',
+            'work_order' => 'resolved_by_work_order',
+            'device_back_online' => 'device_back_online',
+            default => 'resolved',
+        };
+
+        $this->recordEvent($alert, $action, $by, $previousStatus, 'resolved', $value);
 
         return $alert->fresh();
     }
 
-    private function determineSeverity(MachineParameter $parameter, float $value): ?string
+    public function getTrailForMachine(Machine $machine, int $limit = 20): Collection
     {
-        if ($parameter->critical_min !== null && $value < (float) $parameter->critical_min) {
-            return 'critical';
-        }
+        return AlertEvent::query()
+            ->whereHas('alert', fn (Builder $query) => $query->where('machine_id', $machine->id))
+            ->with(['user', 'alert'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
 
-        if ($parameter->critical_max !== null && $value > (float) $parameter->critical_max) {
-            return 'critical';
-        }
+    /**
+     * Append one entry to the alert's trail and push it to browsers. Every state change in this
+     * class goes through here, so nothing can change an alert without being recorded and shown live.
+     * $user null means the system acted (a device reading, the scheduler).
+     */
+    private function recordEvent(Alert $alert, string $action, ?User $user, ?string $from, ?string $to, mixed $value = null): AlertEvent
+    {
+        $event = AlertEvent::create([
+            'alert_id' => $alert->id,
+            'user_id' => $user?->id,
+            'action' => $action,
+            'from_status' => $from,
+            'to_status' => $to,
+            'severity' => $alert->severity,
+            'value' => is_numeric($value) ? $value : null,
+        ]);
 
-        if ($parameter->warning_min !== null && $value < (float) $parameter->warning_min) {
-            return 'warning';
-        }
+        $event->setRelation('alert', $alert->loadMissing('machine'))->setRelation('user', $user);
 
-        if ($parameter->warning_max !== null && $value > (float) $parameter->warning_max) {
-            return 'warning';
-        }
+        $this->broadcaster->dispatch(new AlertChanged($event));
 
-        return null;
+        return $event;
     }
 
     private function buildMessage(Machine $machine, MachineParameter $parameter, mixed $value, string $severity): string

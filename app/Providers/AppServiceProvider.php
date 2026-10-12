@@ -21,6 +21,7 @@ use App\Interfaces\SettingInterface;
 use App\Interfaces\SuggestedQuestionInterface;
 use App\Interfaces\UserInterface;
 use App\Interfaces\WorkOrderInterface;
+use App\Models\Alert;
 use App\Services\AlertService;
 use App\Services\BuildingService;
 use App\Services\DashboardService;
@@ -111,6 +112,8 @@ class AppServiceProvider extends ServiceProvider
             $user = Auth::user();
 
             $view->with('unreadAlertCount', $user ? $user->unreadNotifications()->count() : 0);
+            // The sidebar's Alerts badge: alerts that still need someone, not notifications nobody has read.
+            $view->with('openAlertCount', $user?->can('alerts.view') ? Alert::where('status', 'open')->count() : 0);
             $view->with('recentAlertNotifications', $user ? $user->notifications()->latest()->limit(5)->get() : collect());
         });
 

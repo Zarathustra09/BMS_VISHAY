@@ -27,8 +27,8 @@ x-app: &app
     SESSION_DRIVER: database
     CACHE_STORE: database
     QUEUE_CONNECTION: database
-    # Real SMTP is configured from Settings in the app; these are only the fallback.
-    MAIL_MAILER: ${MAIL_MAILER:-log}
+    # Fixed on purpose (not read from a host .env): real SMTP is configured on the Settings page.
+    MAIL_MAILER: log
     MAIL_FROM_NAME: "LogXense Enterprise"
     BROADCAST_CONNECTION: reverb
     REVERB_APP_ID: bms

@@ -2,6 +2,28 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Phase 16 - Sensor parameters on the machine page, clearer alert limits (2026-10-12)
+
+- **Sensor parameters card** on the Overview tab: each parameter's latest reading, live state pill, accepted range and alert limits in plain words.
+- **Alert limits made unmistakable.** The Edit page now labels the four boxes (Warning below / above, Critical below / above), shows a live sentence of what they mean and warns while typing; saving contradicting limits is rejected. Saved contradictions (e.g. warning 60-80 / critical 81-100, which makes every reading under 81 critical) are flagged on the machine page.
+- The severity rule moved onto `MachineParameter::severityFor()` (behaviour unchanged).
+
+## Phase 15 - Tabbed machine page, live counters, derived log severity (2026-10-12)
+
+- **Machine page as tabs** (Overview / Alerts / Logs / Details / Integration / Activity) under a headline strip, with the tab in the URL hash, keyboard navigation and empty states. The Alerts tab shows a live open count.
+- **Live, for real.** Verified in a real (headless) Chrome: a device reading updates the sidebar count, bell number, tab badge, KPI, Active Alerts, trail and a toast with no reload and no console errors. New header **connection pill** and a **15 s polling fallback** when the socket is down. The chart's threshold bands no longer use `x-for` inside the `<svg>` (that threw an Alpine error on every load).
+- **Bell shows a number; the sidebar Alerts badge counts open alerts** (it used to count unread notifications).
+- **Log severity is derived.** A breaching reading is stored as a critical/warning log (it was always `info` unless the device sent `severity`).
+- New endpoints `machines.summary`; `machines.alerts-panel` now returns JSON.
+
+## Phase 14 - Real-time alerts, alert trail, queued emails (2026-10-12)
+
+- **Live alerts over Reverb.** `AlertChanged` (`private-alerts` + `private-machines.{id}`) is fired on every alert change through the new shared `SafeBroadcaster`. New `resources/js/alerts-live.js`: toast for a new/escalated alert, the bell updates instantly, the Alerts page redraws its table and counters, the machine page's alert cards and the dashboard counters/recent list refresh, an open alert page reloads. With Reverb down everything still works with a reload.
+- **Alert trail.** New `alert_events` table (who raised/escalated/acknowledged/resolved, with the reading; null user = system), `alerts.resolved_by` / `resolution`, a new `alerts.show` page, and an **Alert trail** card on the machine page; the alerts table and cards now say who acknowledged and who resolved. Existing alerts were backfilled.
+- **Acknowledged alerts fixed.** They now auto-resolve when the reading recovers and are reused (not duplicated) by a new breach; a worsening acknowledged alert is re-opened as critical and notified again.
+- **Queued emails.** Emails and the push wait for the worker with retries and back-off; the bell row is written immediately. The Settings test email stays immediate.
+- Bell: "Mark all read", work-order notifications render properly, items open the alert trail / work order.
+
 ## Phase 13 - LogXense Enterprise: rename, Groups, real email (2026-10-11)
 
 - **Renamed** to LogXense Enterprise everywhere users see it (UI, login, error pages, emails, README, Docker/Windows scripts, AI prompts); the old default company name is migrated. Internal identifiers (`bms` DB/containers, `BMS-*` services) are unchanged. The Docker install now defaults to the **lite** edition - which is never named in the UI.

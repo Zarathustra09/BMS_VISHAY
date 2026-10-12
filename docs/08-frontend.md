@@ -99,6 +99,29 @@ Gate UI elements with Blade's `@can` directive, backed by Spatie permissions (se
 
 Always pair this with the same permission on the route/controller side — `@can` hides the button, but the server-side `permission:` middleware is what actually enforces it. Never rely on `@can` alone.
 
+## Machine page tabs (`machines/show.blade.php`)
+
+The page is a headline strip (open alerts, last reading, readings today, next maintenance) above **tabs**: Overview (live chart + "Needs attention" + "At a glance"), Alerts (Active Alerts + Alert trail; only with `alerts.view`), Logs (counters, alert-level logs, the logs table), Details, Integration (device key + API examples) and Activity. State lives in the URL hash (`#alerts`), so links, refresh and Back keep the tab. `machineTabs()` (Alpine) follows the WAI-ARIA tabs pattern: `role=tablist/tab/tabpanel`, `aria-selected`, Left/Right/Home/End keys. Only `[role=tab][data-tab]` are page tabs - the Integration tab has its own inner tabs. The logs DataTable recalculates its columns when the Logs tab is shown (it sized itself while hidden).
+
+**Sensor parameters card** (Overview tab, under the chart; `machines/_parameters-table.blade.php`, rows from `MachineParameterInterface::overview()`): per parameter its label/unit/key/type, **latest reading** (+ how long ago), a **state pill** (Normal / Warning / Critical / No limits / No data), the accepted range, and the alert limits in plain words, with a red note when saved limits contradict each other (and a "Fix on the Edit page" link for `machines.update`). The value, "ago" and pill carry `data-param-value|ago|state="{key}"` hooks and are refreshed from `machines.summary` (`parameters`) like the other counters.
+
+Live pieces: the alert fragments are re-fetched from `machines.alerts-panel` (JSON) and the counters from `machines.summary`, on a live reading, on `alert:changed`, and on the polling fallback. Elements are targeted by `#machine-alerts-active|trail|compact`, `[data-open-alert-count]` and `[data-kpi="..."]`.
+
+**The chart's threshold bands and limit lines are HTML overlays** (`.chart-hband`, `.chart-hline`), not `<rect>`/`<line>` inside an `x-for` `<template>` in the `<svg>`: Alpine cannot clone a template into an SVG and threw `Cannot read properties of undefined (reading 'children')` on every load.
+
+## Live alerts (`resources/js/alerts-live.js`)
+
+Loaded from `app.js`, active only when the layout emits `<meta name="live-alerts">` (users with `alerts.view`). It subscribes through Echo (waiting for `echo:ready` like the machine page) to `private-alerts` and to the user's own notification channel and:
+
+- re-emits every `AlertChanged` as a `window` **`alert:changed`** event (`detail` = alert id, machine id/name, severity, status, action, actor);
+- shows a **toast** (`#liveToasts`, top-right) for a new or escalated alert, linking to `alerts.show`;
+- prepends new notifications to the **bell** (`#bellList`, `#bellBadge`, `#bellCount`);
+- refreshes the **machine page** panel (`#machineAlertsPanel`, via `machines.alerts-panel`), the **dashboard** counters/list (`[data-live-stat]`, `#recentAlertsList`, via `home.alerts-live`), and reloads an open **alert page**.
+
+A **connection pill** in the header (`#liveStatus`, driven by Echo's `state_change`) shows *Live* / *Connecting…* / *Offline · refreshing*. While the socket is not connected the same refreshes run every 15 s (and once on reconnect), so pages stay current instead of silently going stale. The **sidebar Alerts badge counts open alerts** (`#sidebarAlertCount`, refreshed from `alerts.stats`); the **bell** shows the unread-notification count (capped at 99+).
+
+The Alerts page listens to `alert:changed` itself (it owns the DataTable): it redraws the current page and refreshes its counters from `alerts.stats`. With Reverb down none of this runs and every page behaves as before (reload to see changes).
+
 ## Header bell (Phase 5)
 
 The alerts dropdown in [layouts/header.blade.php](../resources/views/layouts/header.blade.php) and the sidebar's "Alerts" badge in [layouts/app.blade.php](../resources/views/layouts/app.blade.php) both read `$unreadAlertCount`/`$recentAlertNotifications`, shared by a `View::composer()` in `AppServiceProvider::boot()` rather than queried inline in the view — see the "Shared view data" section in [02-architecture.md](02-architecture.md). Each notification in the dropdown is a small `<form>` that POSTs to `notifications.read` (marks it read, then redirects to the machine it's about) rather than a plain link, since marking-as-read needs a state change.

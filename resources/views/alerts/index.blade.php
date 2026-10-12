@@ -39,7 +39,7 @@
                 </svg>
             </div>
             <div class="stat-title">Open</div>
-            <div class="stat-value text-error">{{ $stats['open'] }}</div>
+            <div class="stat-value text-error" data-stat="open">{{ $stats['open'] }}</div>
             <div class="stat-desc">Need attention</div>
         </div>
 
@@ -50,7 +50,7 @@
                 </svg>
             </div>
             <div class="stat-title">Critical (open)</div>
-            <div class="stat-value text-error">{{ $stats['critical'] }}</div>
+            <div class="stat-value text-error" data-stat="critical">{{ $stats['critical'] }}</div>
             <div class="stat-desc">Highest priority</div>
         </div>
 
@@ -61,7 +61,7 @@
                 </svg>
             </div>
             <div class="stat-title">Acknowledged</div>
-            <div class="stat-value text-warning">{{ $stats['acknowledged'] }}</div>
+            <div class="stat-value text-warning" data-stat="acknowledged">{{ $stats['acknowledged'] }}</div>
             <div class="stat-desc">Being handled</div>
         </div>
 
@@ -72,7 +72,7 @@
                 </svg>
             </div>
             <div class="stat-title">Resolved today</div>
-            <div class="stat-value text-success">{{ $stats['resolved_today'] }}</div>
+            <div class="stat-value text-success" data-stat="resolved_today">{{ $stats['resolved_today'] }}</div>
             <div class="stat-desc">Back to normal</div>
         </div>
     </div>
@@ -158,6 +158,27 @@
 
         $('#statusFilter, #severityFilter, #machineFilter, #typeFilter').on('change', function () {
             table.draw();
+        });
+
+        // Live: the moment anyone raises, acknowledges or resolves an alert, redraw the current page
+        // of the table (keeping filters and paging) and refresh the four counters. Debounced, since a
+        // burst of events (several metrics breaching at once) would otherwise fire a request each.
+        var refreshTimer = null;
+        window.addEventListener('alert:changed', function () {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(function () {
+                table.ajax.reload(null, false);
+
+                fetch('{{ route('alerts.stats') }}', {headers: {'Accept': 'application/json'}})
+                    .then(function (r) { return r.json(); })
+                    .then(function (stats) {
+                        Object.keys(stats).forEach(function (key) {
+                            var el = document.querySelector('[data-stat="' + key + '"]');
+                            if (el) el.textContent = stats[key];
+                        });
+                    })
+                    .catch(function () {});
+            }, 250);
         });
     });
 </script>

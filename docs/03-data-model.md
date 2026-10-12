@@ -258,6 +258,8 @@ Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severi
 
 **Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days`, and the outgoing-email keys `mail_host`, `mail_port`, `mail_username`, `mail_password` (stored **encrypted**), `mail_encryption`, `mail_from_address`, `mail_from_name`, `app_url` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
 
+> **Alert limits - how they are read.** For a number parameter: *critical* when the reading is **below `critical_min` or above `critical_max`**; otherwise *warning* when **below `warning_min` or above `warning_max`**; otherwise normal (`MachineParameter::severityFor()` - the one definition, used by `AlertService` and the machine page). So "critical below" must be the **lower** number and "critical above" the **higher** one. Entering "warning 60-80, critical 81-100" as ranges makes every reading under 81 critical. The Edit page labels the boxes, shows the rule as a sentence and rejects contradictions on save (`MachineController::limitRule()`); `MachineParameter::thresholdProblems()` reports them for limits saved before that.
+
 ### `machine_parameters`
 
 Migration: [2026_10_07_175019_create_machine_parameters_table.php](../database/migrations/2026_10_07_175019_create_machine_parameters_table.php)
@@ -302,13 +304,28 @@ A threshold breach or a device-offline event raised against a machine. Created/e
 | acknowledged_by | bigint FK → users.id | ✓ | `nullOnDelete()` |
 | acknowledged_at | timestamp | ✓ | |
 | resolved_at | timestamp | ✓ | |
+| resolved_by | bigint FK → users.id | ✓ | `nullOnDelete()`; null when the system resolved it |
+| resolution | string(30) | ✓ | `manual`, `auto`, `work_order` or `device_back_online` |
 | timestamps | | | |
 
 Indexes: `(machine_id, metric, status)` (the lookup `AlertService::evaluate()` does on every reading), `type`, `status`.
 
 **Relationships** ([Alert.php](../app/Models/Alert.php)): `belongsTo(Machine)`, `belongsTo(MachineLog)`, `belongsTo(User, 'acknowledged_by')` (as `acknowledgedBy()`).
 
-**Scopes**: `open()` (status = open).
+**Scopes**: `open()` (status = open). Note `AlertService::evaluate()` looks for an alert in **`open` or `acknowledged`** (not just `open`): an acknowledged alert still auto-resolves when the reading recovers, and a new breach reuses it instead of opening a duplicate. If an acknowledged alert becomes critical it is **re-opened** (`escalated`, acknowledgement cleared) and notified again.
+
+**`alert_events`** - the alert trail: one row per thing that happened to an alert, appended by `AlertService::recordEvent()` (the only place alert state changes are made), never edited.
+
+| Column | Notes |
+|---|---|
+| `alert_id` | FK, cascade |
+| `user_id` | FK, `nullOnDelete`; **null = the system** (a device reading, the scheduler) |
+| `action` | `raised`, `escalated`, `acknowledged`, `resolved`, `auto_resolved`, `resolved_by_work_order`, `device_back_online` |
+| `from_status`, `to_status` | the status change, when there was one |
+| `severity`, `value` | severity at the time and the reading that caused it |
+| `note`, `created_at` | (no `updated_at`) |
+
+Index `(alert_id, created_at)`. Alerts that predate the table were backfilled with raised/acknowledged/resolved rows by the migration. Shown on the alert page (`alerts.show`) and as the machine page's **Alert trail**.
 
 **Threshold alert rules enforced in `AlertService`, not the schema**: at most one **open** alert per `(machine_id, metric)` at a time — a second breach updates the existing row (raising `severity` from `warning` to `critical` if the new reading is worse, never downgrading it) rather than inserting a new row; a reading back within both bounds auto-resolves whatever was **open** (not acknowledged) for that metric.
 

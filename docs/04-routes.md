@@ -147,6 +147,11 @@ New in Phase 5. Same controller-constructor permission-gating pattern; `alerts.a
 
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
+| GET | `/alerts/{alert}` | `alerts.show` | `AlertController@show` | `alerts.view` | One alert with its trail (who raised/acknowledged/resolved it, and when) |
+| GET | `/alerts/stats` | `alerts.stats` | `AlertController@stats` | `alerts.view` | The four counters as JSON - re-fetched by the Alerts page whenever an alert changes |
+| GET | `/machines/{machine}/alerts-panel` | `machines.alerts-panel` | `MachineController@alertsPanel` | `machines.view` + `alerts.view` | JSON: `open_count` plus HTML fragments (`active_html`, `trail_html`, `compact_html`) for the machine page's Alerts tab and Overview card |
+| GET | `/machines/{machine}/summary` | `machines.summary` | `MachineController@summary` | `machines.view` | JSON: last reading, log totals/today/week/critical/errors/warnings and (with `alerts.view`) the open-alert count - re-fetched as readings and alerts arrive |
+| GET | `/home/alerts-live` | `home.alerts-live` | `HomeController@alertsLive` | `alerts.view` | JSON: the dashboard's open/critical counters and Recent Alerts list HTML |
 | GET | `/alerts` | `alerts.index` | `AlertController@index` | `alerts.view` | List page shell + stat tiles — the table loads via `alerts.data` |
 | GET | `/alerts/data` | `alerts.data` | `AlertController@data` | `alerts.view` | **Ajax source for the alerts DataTable** — status/severity/machine filters |
 | POST | `/alerts/{alert}/acknowledge` | `alerts.acknowledge` | `AlertController@acknowledge` | `alerts.acknowledge` | Mark an open alert as being handled |

@@ -33,7 +33,7 @@ class MachineController extends Controller
         protected MachineParameterInterface $parameterService,
         protected GroupInterface $groupService,
     ) {
-        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings', 'parameters']);
+        $this->middleware('permission:machines.view')->only(['index', 'show', 'data', 'logsData', 'readings', 'parameters', 'alertsPanel', 'summary']);
         $this->middleware('permission:machines.create')->only(['create', 'store']);
         $this->middleware('permission:machines.update')->only(['edit', 'update']);
         $this->middleware('permission:machines.delete')->only(['destroy', 'confirmDelete']);
@@ -85,6 +85,9 @@ class MachineController extends Controller
         $recentAlerts = $this->machineService->getRecentAlerts($machine);
         $logTypeDistribution = $this->machineService->getLogTypeDistribution($machine);
         $activeAlerts = $this->alertService->getActiveForMachine($machine);
+        $alertTrail = auth()->user()->can('alerts.view') ? $this->alertService->getTrailForMachine($machine) : collect();
+        $openAlertCount = $machine->alerts()->where('status', 'open')->count();
+        $parameterRows = $this->parameterService->overview($machine);
         $activityFeed = $this->machineService->getActivityFeed($machine);
         $specRows = $this->machineService->specificationRows($machine);
         // Rendered once here so the page loads with the chart fully drawn — no fetch on
@@ -96,7 +99,7 @@ class MachineController extends Controller
         $deviceKeyPlain = $canViewDeviceKey ? $machine->decryptDeviceKey() : null;
 
         return view('machines.show', compact(
-            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'activityFeed', 'chart',
+            'machine', 'logStats', 'recentAlerts', 'logTypeDistribution', 'activeAlerts', 'alertTrail', 'openAlertCount', 'parameterRows', 'activityFeed', 'chart',
             'specRows', 'canViewDeviceKey', 'deviceKeyPlain', 'apiExample'
         ));
     }
@@ -144,6 +147,51 @@ class MachineController extends Controller
      * JSON source for the machine form's "Copy parameters from..." picker - another machine's
      * parameters as id-less builder rows.
      */
+    /**
+     * The numbers shown in the machine page's headline strip and Logs tab, as JSON, so they can keep
+     * up with readings and alerts without a reload. open_count is only included for users who may
+     * see alerts.
+     */
+    public function summary(Machine $machine)
+    {
+        $machine->refresh();
+        $logStats = $this->machineService->getLogStats($machine);
+
+        return response()->json([
+            'open_count' => auth()->user()->can('alerts.view') ? $machine->alerts()->where('status', 'open')->count() : null,
+            'last_seen' => $machine->last_seen_at?->diffForHumans() ?? 'Never',
+            'last_seen_at' => $machine->last_seen_at?->format('M d, H:i') ?? 'No data received yet',
+            'logs' => $logStats,
+            'parameters' => collect($this->parameterService->overview($machine))
+                ->map(fn ($row) => \Illuminate\Support\Arr::only($row, ['key', 'display', 'ago', 'state']))
+                ->values(),
+        ]);
+    }
+
+    /**
+     * The machine page's alert pieces as HTML fragments (+ the open count), for the live refresh:
+     * the Alerts tab's Active Alerts and Alert trail, and the Overview tab's "Needs attention"
+     * card. One request updates every place on the page that shows alerts. Needs alerts.view on
+     * top of machines.view, like the cards themselves.
+     */
+    public function alertsPanel(Machine $machine)
+    {
+        abort_unless(auth()->user()->can('alerts.view'), 403);
+
+        $data = [
+            'machine' => $machine,
+            'activeAlerts' => $this->alertService->getActiveForMachine($machine),
+            'alertTrail' => $this->alertService->getTrailForMachine($machine),
+        ];
+
+        return response()->json([
+            'open_count' => $machine->alerts()->where('status', 'open')->count(),
+            'active_html' => view('machines._alerts-active', $data)->render(),
+            'trail_html' => view('machines._alerts-trail', $data)->render(),
+            'compact_html' => view('machines._alerts-compact', $data)->render(),
+        ]);
+    }
+
     public function parameters(Machine $machine)
     {
         return response()->json($this->parameterService->copyableRows($machine));
@@ -311,10 +359,46 @@ class MachineController extends Controller
             }],
             'parameters.*.max' => $number,
             'parameters.*.warning_min' => $number,
-            'parameters.*.warning_max' => $number,
-            'parameters.*.critical_min' => $number,
-            'parameters.*.critical_max' => $number,
+            'parameters.*.warning_max' => [...$number, $this->limitRule($request, 'warning_min',
+                'Warning above must be higher than Warning below.', '>')],
+            'parameters.*.critical_min' => [...$number,
+                $this->limitRule($request, 'warning_min',
+                    'Critical below must be at or below Warning below - otherwise every reading under it is critical and the warning level is never reached.', '<='),
+            ],
+            'parameters.*.critical_max' => [...$number,
+                $this->limitRule($request, 'critical_min',
+                    'Critical above must be higher than Critical below.', '>'),
+                $this->limitRule($request, 'warning_max',
+                    'Critical above must be at or above Warning above - otherwise every reading over it is critical and the warning level is never reached.', '>='),
+            ],
         ];
+    }
+
+    /**
+     * A closure rule for one alert limit relative to $other on the same parameter row: it only applies
+     * when both are filled in. $operator is how the field being validated must compare to $other.
+     */
+    private function limitRule(Request $request, string $other, string $message, string $operator): \Closure
+    {
+        return function ($attribute, $value, $fail) use ($request, $other, $message, $operator) {
+            $index = explode('.', $attribute)[1];
+            $otherValue = $request->input("parameters.{$index}.{$other}");
+
+            if (! is_numeric($value) || ! is_numeric($otherValue)) {
+                return;
+            }
+
+            $ok = match ($operator) {
+                '>' => (float) $value > (float) $otherValue,
+                '>=' => (float) $value >= (float) $otherValue,
+                '<=' => (float) $value <= (float) $otherValue,
+                default => true,
+            };
+
+            if (! $ok) {
+                $fail($message);
+            }
+        };
     }
 
     /**

@@ -57,4 +57,17 @@ interface MachineParameterInterface
      * @return array{endpoint: string, body_json: string, curl: string, responses: list<array{status: int, title: string, json: string}>, parameters: Collection}
      */
     public function apiExample(Machine $machine): array;
+
+    /**
+     * One row per parameter for the machine page's "Sensor parameters" table: what it is, its
+     * accepted range, its alert limits in plain words (and any contradiction in them), the latest
+     * value the machine reported for it and which alert state that value is in.
+     *
+     * `state` is 'critical' | 'warning' | 'normal' when there is a number to judge against limits,
+     * 'no_limits' when the parameter has no alert limits (or is not a number), 'no_data' when it has
+     * limits but nothing has been reported yet.
+     *
+     * @return list<array{key: string, label: string, unit: ?string, type: string, required: bool, range: string, limits: array<string, string>, problems: array<int, string>, value: mixed, display: string, ago: ?string, state: string}>
+     */
+    public function overview(Machine $machine): array;
 }

@@ -117,6 +117,10 @@ void sendReading(float temperatureC, float humidityPct) {
   http.end();
 }
 ```
+### `severity` is optional - the server works it out
+
+A device does not need to send `severity`. If a reading breaches one of the machine's alert thresholds, the log is stored as **`critical`** or **`warning`** to match the alert it raised (`MachineLogService::store()`, using the result of `AlertService::evaluate()`); a reading within bounds stays `info`. A `severity` the device sends itself is kept whenever it is higher than the derived one (e.g. an explicit `error`). The response's `data.severity` shows what was stored. Before this, a device that sent no `severity` always got `info` - even for a critical breach.
+
 ## 7. Responses
 
 | Status | Meaning | Body |

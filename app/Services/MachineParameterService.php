@@ -293,4 +293,78 @@ class MachineParameterService implements MachineParameterInterface
 
         return $responses;
     }
+
+    public function overview(Machine $machine): array
+    {
+        $parameters = $machine->parameters()->get();
+
+        if ($parameters->isEmpty()) {
+            return [];
+        }
+
+        $latest = $this->latestReadings($machine, $parameters->pluck('key')->all());
+
+        return $parameters->map(function (MachineParameter $parameter) use ($latest) {
+            $reading = $latest[$parameter->key] ?? null;
+            $isNumber = $parameter->data_type === ParameterDataType::Number;
+
+            $state = match (true) {
+                ! $isNumber || ! $parameter->hasThresholds() => 'no_limits',
+                $reading === null || ! is_numeric($reading['value']) => 'no_data',
+                default => $parameter->severityFor((float) $reading['value']) ?? 'normal',
+            };
+
+            return [
+                'key' => $parameter->key,
+                'label' => $parameter->label,
+                'unit' => $parameter->unit,
+                'type' => $parameter->data_type->value,
+                'required' => (bool) $parameter->required,
+                'range' => $isNumber ? $parameter->rangeText() : '—',
+                'limits' => $isNumber ? $parameter->limitLines() : [],
+                'problems' => $isNumber ? $parameter->thresholdProblems() : [],
+                'value' => $reading['value'] ?? null,
+                'display' => $reading === null ? '—' : $this->displayValue($reading['value'], $parameter),
+                'ago' => ($reading['at'] ?? null)?->diffForHumans(),
+                'state' => $state,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * The newest reported value for each of $keys, scanning the latest logs only (a parameter a
+     * device stopped sending long ago simply shows as no data rather than scanning the whole table).
+     *
+     * @param  array<int, string>  $keys
+     * @return array<string, array{value: mixed, at: ?\Illuminate\Support\Carbon}>
+     */
+    private function latestReadings(Machine $machine, array $keys, int $scan = 300): array
+    {
+        $found = [];
+
+        $machine->logs()
+            ->whereNotNull('readings')
+            ->orderByDesc('logged_at')
+            ->orderByDesc('id')
+            ->limit($scan)
+            ->get(['id', 'readings', 'logged_at'])
+            ->each(function ($log) use (&$found, $keys) {
+                foreach ($keys as $key) {
+                    if (! isset($found[$key]) && array_key_exists($key, $log->readings ?? [])) {
+                        $found[$key] = ['value' => $log->readings[$key], 'at' => $log->logged_at];
+                    }
+                }
+            });
+
+        return $found;
+    }
+
+    private function displayValue(mixed $value, MachineParameter $parameter): string
+    {
+        return match (true) {
+            is_bool($value) => $value ? 'Yes' : 'No',
+            is_numeric($value) => rtrim(rtrim(number_format((float) $value, 3, '.', ''), '0'), '.').($parameter->unit ? " {$parameter->unit}" : ''),
+            default => (string) $value,
+        };
+    }
 }

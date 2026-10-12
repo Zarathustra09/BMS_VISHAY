@@ -97,32 +97,72 @@
                             </div>
 
                             <template x-if="row.data_type === 'number'">
-                                <div class="md:col-span-2 space-y-3">
+                                <div class="md:col-span-2 space-y-4">
                                     <div>
                                         <p class="text-xs font-medium opacity-70 mb-1">Accepted range — a reading outside it is rejected by the API</p>
                                         <div class="grid grid-cols-2 gap-3">
-                                            <div class="flex flex-col gap-1.5">
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70">Lowest accepted</span>
                                                 <input type="number" step="any" x-bind:name="`parameters[${i}][min]`" x-model="row.min"
                                                        class="input input-sm w-full" x-bind:class="parameterError(i, 'min') ? 'input-error' : ''"
-                                                       placeholder="Min" aria-label="Minimum accepted value" />
+                                                       placeholder="No minimum" aria-label="Lowest accepted" />
                                                 <p class="text-error text-xs" x-show="parameterError(i, 'min')" x-text="parameterError(i, 'min')"></p>
-                                            </div>
-                                            <input type="number" step="any" x-bind:name="`parameters[${i}][max]`" x-model="row.max"
-                                                   class="input input-sm w-full" placeholder="Max" aria-label="Maximum accepted value" />
+                                            </label>
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70">Highest accepted</span>
+                                                <input type="number" step="any" x-bind:name="`parameters[${i}][max]`" x-model="row.max"
+                                                       class="input input-sm w-full" x-bind:class="parameterError(i, 'max') ? 'input-error' : ''"
+                                                       placeholder="No maximum" aria-label="Highest accepted" />
+                                                <p class="text-error text-xs" x-show="parameterError(i, 'max')" x-text="parameterError(i, 'max')"></p>
+                                            </label>
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <p class="text-xs font-medium opacity-70 mb-1">Alert thresholds — leave a bound blank to skip it; with none set, this parameter isn't alerted on</p>
+                                    <div class="rounded-lg border border-base-300 p-3 space-y-3">
+                                        <div>
+                                            <p class="text-xs font-medium opacity-70">Alert limits</p>
+                                            <p class="text-xs opacity-60">Fill in only the limits you need - a blank box is skipped, and with none filled in this parameter never raises an alert. "Critical" must be further out than "Warning".</p>
+                                        </div>
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                            <input type="number" step="any" x-bind:name="`parameters[${i}][warning_min]`" x-model="row.warning_min"
-                                                   class="input input-sm w-full" placeholder="Warning min" aria-label="Warning minimum" />
-                                            <input type="number" step="any" x-bind:name="`parameters[${i}][warning_max]`" x-model="row.warning_max"
-                                                   class="input input-sm w-full" placeholder="Warning max" aria-label="Warning maximum" />
-                                            <input type="number" step="any" x-bind:name="`parameters[${i}][critical_min]`" x-model="row.critical_min"
-                                                   class="input input-sm w-full" placeholder="Critical min" aria-label="Critical minimum" />
-                                            <input type="number" step="any" x-bind:name="`parameters[${i}][critical_max]`" x-model="row.critical_max"
-                                                   class="input input-sm w-full" placeholder="Critical max" aria-label="Critical maximum" />
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70"><span class="inline-block w-2 h-2 rounded-full mr-1 bg-warning" aria-hidden="true"></span>Warning below</span>
+                                                <input type="number" step="any" x-bind:name="`parameters[${i}][warning_min]`" x-model="row.warning_min"
+                                                       class="input input-sm w-full" x-bind:class="parameterError(i, 'warning_min') ? 'input-error' : ''"
+                                                       placeholder="e.g. 20" aria-label="Warning below" />
+                                                <p class="text-error text-xs" x-show="parameterError(i, 'warning_min')" x-text="parameterError(i, 'warning_min')"></p>
+                                            </label>
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70"><span class="inline-block w-2 h-2 rounded-full mr-1 bg-warning" aria-hidden="true"></span>Warning above</span>
+                                                <input type="number" step="any" x-bind:name="`parameters[${i}][warning_max]`" x-model="row.warning_max"
+                                                       class="input input-sm w-full" x-bind:class="parameterError(i, 'warning_max') ? 'input-error' : ''"
+                                                       placeholder="e.g. 80" aria-label="Warning above" />
+                                                <p class="text-error text-xs" x-show="parameterError(i, 'warning_max')" x-text="parameterError(i, 'warning_max')"></p>
+                                            </label>
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70"><span class="inline-block w-2 h-2 rounded-full mr-1 bg-error" aria-hidden="true"></span>Critical below</span>
+                                                <input type="number" step="any" x-bind:name="`parameters[${i}][critical_min]`" x-model="row.critical_min"
+                                                       class="input input-sm w-full" x-bind:class="parameterError(i, 'critical_min') ? 'input-error' : ''"
+                                                       placeholder="e.g. 10" aria-label="Critical below" />
+                                                <p class="text-error text-xs" x-show="parameterError(i, 'critical_min')" x-text="parameterError(i, 'critical_min')"></p>
+                                            </label>
+                                            <label class="flex flex-col gap-1">
+                                                <span class="text-xs opacity-70"><span class="inline-block w-2 h-2 rounded-full mr-1 bg-error" aria-hidden="true"></span>Critical above</span>
+                                                <input type="number" step="any" x-bind:name="`parameters[${i}][critical_max]`" x-model="row.critical_max"
+                                                       class="input input-sm w-full" x-bind:class="parameterError(i, 'critical_max') ? 'input-error' : ''"
+                                                       placeholder="e.g. 100" aria-label="Critical above" />
+                                                <p class="text-error text-xs" x-show="parameterError(i, 'critical_max')" x-text="parameterError(i, 'critical_max')"></p>
+                                            </label>
+                                        </div>
+
+                                        <p class="text-xs" x-show="limitsSentence(row)" x-text="limitsSentence(row)"></p>
+
+                                        <div class="rounded-lg border border-error/50 bg-error/10 px-3 py-2 text-xs text-error" role="alert" x-show="limitProblems(row).length">
+                                            <p class="font-semibold">These limits contradict each other</p>
+                                            <ul class="list-disc ml-4 mt-1 space-y-1">
+                                                <template x-for="problem in limitProblems(row)" :key="problem">
+                                                    <li x-text="problem"></li>
+                                                </template>
+                                            </ul>
                                         </div>
                                     </div>
                                 </div>

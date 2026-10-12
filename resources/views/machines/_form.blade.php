@@ -414,6 +414,37 @@ function machineForm(seed) {
             return this.parameterErrors[index + '.' + attribute] || null;
         },
 
+        // "Alerts: warning when below 20 or above 80 °C · critical when below 10 or above 100 °C" - the
+        // limits as one sentence, so what the four boxes mean is never a guess.
+        limitsSentence(row) {
+            const n = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v))) ? null : Number(v);
+            const unit = row.unit ? ' ' + row.unit : '';
+            const line = (label, lo, hi) => {
+                const parts = [];
+                if (lo !== null) parts.push('below ' + lo + unit);
+                if (hi !== null) parts.push('above ' + hi + unit);
+                return parts.length ? label + ' when ' + parts.join(' or ') : null;
+            };
+            const out = [
+                line('warning', n(row.warning_min), n(row.warning_max)),
+                line('critical', n(row.critical_min), n(row.critical_max)),
+            ].filter(Boolean);
+            return out.length ? 'Alerts: ' + out.join(' · ') : '';
+        },
+
+        // The same contradictions MachineParameter::thresholdProblems() and the server-side validation
+        // reject - shown while typing so the mistake is visible before saving.
+        limitProblems(row) {
+            const n = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v))) ? null : Number(v);
+            const [wMin, wMax, cMin, cMax] = [n(row.warning_min), n(row.warning_max), n(row.critical_min), n(row.critical_max)];
+            const problems = [];
+            if (wMin !== null && wMax !== null && wMin > wMax) problems.push(`Warning below (${wMin}) is higher than Warning above (${wMax}).`);
+            if (cMin !== null && cMax !== null && cMin > cMax) problems.push(`Critical below (${cMin}) is higher than Critical above (${cMax}).`);
+            if (cMin !== null && wMin !== null && cMin > wMin) problems.push(`Critical below (${cMin}) is higher than Warning below (${wMin}): every reading under ${cMin} would be critical and the warning level would never be reached. Critical below should be the lower number.`);
+            if (cMax !== null && wMax !== null && cMax < wMax) problems.push(`Critical above (${cMax}) is lower than Warning above (${wMax}): every reading over ${cMax} would be critical and the warning level would never be reached. Critical above should be the higher number.`);
+            return problems;
+        },
+
         addParameter() {
             this.parameters.push(newParameterRow(this.nextParameterUid++, {}, false));
         },

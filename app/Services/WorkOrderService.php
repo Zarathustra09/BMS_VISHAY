@@ -20,19 +20,19 @@ class WorkOrderService implements WorkOrderInterface
     {
         $query = WorkOrder::with(['machine', 'assignedTo']);
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
+        if (! empty($filters['priority']) && $filters['priority'] !== 'all') {
             $query->where('priority', $filters['priority']);
         }
 
-        if (!empty($filters['type']) && $filters['type'] !== 'all') {
+        if (! empty($filters['type']) && $filters['type'] !== 'all') {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['machine_id']) && $filters['machine_id'] !== 'all') {
+        if (! empty($filters['machine_id']) && $filters['machine_id'] !== 'all') {
             $query->where('machine_id', $filters['machine_id']);
         }
 
@@ -88,13 +88,13 @@ class WorkOrderService implements WorkOrderInterface
         // Anyone with the broader work-orders.update permission (manager/admin) can update
         // any work order's status; anyone without it (technician) may only touch one
         // assigned to them.
-        if (!$actor->can('work-orders.update') && $workOrder->assigned_to !== $actor->id) {
+        if (! $actor->can('work-orders.update') && $workOrder->assigned_to !== $actor->id) {
             throw new WorkOrderActionException('You can only update the status of work orders assigned to you.');
         }
 
         $update = ['status' => $status];
 
-        if ($status === 'in_progress' && !$workOrder->started_at) {
+        if ($status === 'in_progress' && ! $workOrder->started_at) {
             $update['started_at'] = now();
         }
 
@@ -107,7 +107,7 @@ class WorkOrderService implements WorkOrderInterface
 
         if ($status === 'completed') {
             if ($workOrder->alert_id && $workOrder->alert) {
-                $this->alerts->resolve($workOrder->alert);
+                $this->alerts->resolve($workOrder->alert, $actor, 'work_order');
             }
 
             if ($workOrder->type === 'preventive' && $workOrder->machine) {
@@ -144,7 +144,7 @@ class WorkOrderService implements WorkOrderInterface
             $this->create([
                 'title' => "Preventive maintenance due — {$machine->name}",
                 'description' => 'Automatically generated from the machine\'s maintenance schedule ('
-                    . $machine->next_maintenance_date->format('M d, Y') . ').',
+                    .$machine->next_maintenance_date->format('M d, Y').').',
                 'machine_id' => $machine->id,
                 'type' => 'preventive',
                 'priority' => $overdue ? 'high' : 'medium',
@@ -175,6 +175,6 @@ class WorkOrderService implements WorkOrderInterface
         $year = now()->year;
         $count = WorkOrder::withTrashed()->whereYear('created_at', $year)->count() + 1;
 
-        return "WO-{$year}-" . str_pad((string) $count, 4, '0', STR_PAD_LEFT);
+        return "WO-{$year}-".str_pad((string) $count, 4, '0', STR_PAD_LEFT);
     }
 }
