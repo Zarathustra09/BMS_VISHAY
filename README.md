@@ -12,7 +12,7 @@ Full technical documentation lives in **[docs/](docs/README.md)** — architectu
 
 You only need **Docker Desktop** running.
 
-1. Double-click **`docker-start.bat`**. The first run builds everything (a few minutes).
+1. **Windows:** double-click **`docker-start.bat`**. **Linux:** run **`./docker-start.sh`** (or `bash docker-start.sh`). The first run builds everything (a few minutes).
 2. Your browser opens at **http://localhost** (or **http://localhost:8080** if port 80 is busy - the script tells you which). Log in:
 
    | Account | Email | Password | Can see |
@@ -45,9 +45,9 @@ You only need **Docker Desktop** running.
 
 It runs five containers: `app` (the website: runs `php artisan serve --host=0.0.0.0 --port=80` inside the container, published on port 80, or 8080 if 80 is busy), `db` (MySQL), `queue` (queue worker), `scheduler` (offline-device checks and other timed tasks) and `reverb` (live chart updates on port 8081). Data survives restarts.
 
-- **Stop:** `docker-stop.bat` (keeps your data). **Wipe everything and start fresh:** `docker compose down -v`.
-- **Ports:** `docker-start.bat` uses port 80 if it is free, otherwise 8080. To force a port, run `set APP_PORT=8090` and then `docker-start.bat` in the same Command Prompt window.
-- **Other devices can't connect?** Allow the website port (80 or 8080) and 8081 in the Windows firewall (Private network).
+- **Stop:** `docker-stop.bat` / `./docker-stop.sh` (keeps your data). **Wipe everything and start fresh:** `docker compose down -v`.
+- **Ports:** the start script uses port 80 if it is free, otherwise 8080. To force a port on Windows, run `set APP_PORT=8090` and then `docker-start.bat` in the same Command Prompt window; on Linux, run `APP_PORT=8090 ./docker-start.sh`.
+- **Other devices can't connect?** Allow the website port (80 or 8080) and 8081 in the Windows firewall (Private network). On Linux with ufw: `sudo ufw allow 80/tcp` (or 8080) and `sudo ufw allow 8081/tcp`.
 - **Different device key?** `set DEMO_DEVICE_KEY=your-key` before the first start (the key is created on first run only).
 - **Something wrong?** `docker compose logs app` (or `queue`, `reverb`, `db`).
 - Optional AI chat: `set OPENAI_API_KEY=...` before starting.
