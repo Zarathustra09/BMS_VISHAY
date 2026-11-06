@@ -139,6 +139,7 @@
             serverSide: true,
             autoWidth: false,
             pageLength: 25,
+            search: {search: @js($search ?? '')},
             order: [[0, 'asc']],
             ajax: {
                 url: '{{ route('machines.data') }}',

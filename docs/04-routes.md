@@ -59,7 +59,7 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 
 | Method | URI | Name | Controller@Method | Permission | Purpose |
 |---|---|---|---|---|---|
-| GET | `/machines` | `machines.index` | `MachineController@index` | `machines.view` | List page shell + stat tiles — the table loads via `machines.data` |
+| GET | `/machines` | `machines.index` | `MachineController@index` | `machines.view` | List page shell + stat tiles — the table loads via `machines.data`. An optional `?search=` query param pre-fills the DataTable's search box (the header search's "see all results" target). |
 | GET | `/machines/data` | `machines.data` | `MachineController@data` | `machines.view` | **Ajax source for the machines DataTable.** Registered before `Route::resource('machines', ...)`, same ordering reason as `buildings.data`. |
 | GET | `/machines/create` | `machines.create` | `MachineController@create` | `machines.create` | Create form |
 | POST | `/machines` | `machines.store` | `MachineController@store` | `machines.create` | Create |
@@ -72,6 +72,14 @@ Same controller-constructor permission-gating pattern; `machines.device-key.gene
 | POST | `/machines/{machine}/device-key` | `machines.device-key.generate` | `MachineController@generateDeviceKey` | `machines.view-device-key` | Generate/regenerate this machine's sensor device API key |
 | GET | `/machines/{machine}/parameters` | `machines.parameters` | `MachineController@parameters` | `machines.view` | JSON — another machine's parameters as id-less builder rows, for the create form's "Copy parameters from…" picker (Phase 10). Parameters themselves are saved as part of the machine form (`machines.store` / `machines.update`, `parameters[i][...]`) |
 | GET | `/machines/{machine}/readings` | `machines.readings` | `MachineController@readings` | `machines.view` | **JSON source for the Live Sensor Readings chart** (Phase 6) — `?metric=` (a parameter key; unknown falls back to the first number parameter) and `?range=` — `auto` (default: the smallest preset that contains the parameter's latest reading), a preset (`5m`\|`15m`\|`1h`\|`6h`\|`24h`\|`7d`\|`30d`) or `custom` with `from`/`to` (required, `to` after `from`, at most 90 days apart). Re-polled by the chart's Alpine component at the `poll_seconds` the response asks for (5s / 10s / 30s by window length, none for a custom window that already ended) |
+
+## Search
+
+The header search box's JSON source. Gated by **both** `permission:machines.view` and `permission:machines.search` in the controller constructor (the box itself is hidden unless the user holds both). `viewer` has `machines.view` but not `machines.search`, so a viewer sees no search box and gets a 403 from this route. Registered inside the `auth` group, before the Machine routes.
+
+| Method | URI | Name | Controller@Method | Permission | Purpose |
+|---|---|---|---|---|---|
+| GET | `/search` | `search` | `SearchController@index` | `machines.view` + `machines.search` | **JSON source for the header live search.** `?q=` is required, 2–100 chars (422 otherwise). Returns `{"data": [...]}` — at most 8 machines matching `name`, `machine_code`, `serial_number` or `model_number`, each with `id`, `name`, `code`, `type`, `status`, `status_label`, `status_badge` and `url` (`machines.show`). |
 
 ## Machine Types
 
