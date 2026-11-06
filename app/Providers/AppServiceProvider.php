@@ -15,6 +15,7 @@ use App\Interfaces\MachineParameterInterface;
 use App\Interfaces\MachineTypeInterface;
 use App\Interfaces\MaintenanceInterface;
 use App\Interfaces\PermissionInterface;
+use App\Interfaces\ReadingRollupInterface;
 use App\Interfaces\ReportInterface;
 use App\Interfaces\RoleInterface;
 use App\Interfaces\SettingInterface;
@@ -36,17 +37,21 @@ use App\Services\MailSettings;
 use App\Services\MaintenanceService;
 use App\Services\OpenAIService;
 use App\Services\PermissionService;
+use App\Services\ReadingRollupService;
 use App\Services\ReportService;
 use App\Services\RoleService;
 use App\Services\SettingService;
 use App\Services\SuggestedQuestionService;
 use App\Services\UserService;
 use App\Services\WorkOrderService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -81,6 +86,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DashboardInterface::class, DashboardService::class);
         $this->app->bind(ReportInterface::class, ReportService::class);
         $this->app->bind(SettingInterface::class, SettingService::class);
+        $this->app->bind(ReadingRollupInterface::class, ReadingRollupService::class);
 
         // Registered here, not in boot(): spatie/laravel-permission adds its own Gate::before
         // in its provider's boot(), and Gate callbacks run in registration order with the first
@@ -98,6 +104,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The sensor API's limit is per device (the machine its X-Device-Key belongs to, set by
+        // the device.auth middleware that runs first), not per IP: several devices behind one
+        // router must not share a budget. 1200 a minute = 20 a second, twice what a sensor
+        // posting every 100 ms needs. Falls back to the IP for a request that has no device.
+        RateLimiter::for('device-api', function (Request $request) {
+            $machine = $request->attributes->get('device_machine');
+
+            return Limit::perMinute(1200)->by($machine ? 'device:'.$machine->id : 'ip:'.$request->ip());
+        });
+
         // @module('buildings') … @endmodule — for UI that isn't already behind an @can (the
         // Building/Floor selects on the machine form, the Buildings sidebar link, …). An
         // unknown module name counts as enabled, so a typo can't silently hide a section.

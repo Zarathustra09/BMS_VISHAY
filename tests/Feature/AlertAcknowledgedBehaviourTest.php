@@ -53,6 +53,7 @@ class AlertAcknowledgedBehaviourTest extends TestCase
         $alert = Alert::sole();
         $this->acknowledge($alert);
 
+        $this->travel(6)->seconds(); // past AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS: a recovery resolves only once readings stay normal
         $this->reading(22);
 
         $this->assertSame('resolved', $alert->fresh()->status);

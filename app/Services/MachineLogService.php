@@ -9,6 +9,7 @@ use App\Models\Machine;
 use App\Models\MachineLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class MachineLogService implements MachineLogInterface
 {
@@ -63,12 +64,176 @@ class MachineLogService implements MachineLogInterface
     /** Order used to decide whether a derived severity should replace the one the device sent. */
     private const SEVERITY_RANK = ['info' => 0, 'warning' => 1, 'error' => 2, 'critical' => 3];
 
+    /** A log with any of these is an event in its own right and is never merged into another. */
+    private const STANDALONE_FIELDS = ['logged_at', 'event', 'notes', 'previous_status', 'current_status', 'performed_by'];
+
+    /**
+     * Windows longer than this (seconds) are drawn from the per-minute summaries plus the
+     * newest, not yet summarised, detailed readings; shorter ones from the detailed readings.
+     */
+    private const SUMMARY_WINDOW_SECONDS = 3600;
+
+    /** A summary can't be finer than the minute it was built from. */
+    private const MIN_SUMMARY_BUCKET = 60;
+
     public function __construct(
         protected AlertInterface $alerts,
         protected SafeBroadcaster $broadcaster,
     ) {}
 
     public function store(array $data): MachineLog
+    {
+        // A device that posts several readings a second (an ESP32 every 100 ms) gets them folded
+        // into one log per second instead of one row each - see mergeIntoCurrentSecond().
+        if ($this->isPlainReading($data) && ($merged = $this->mergeIntoCurrentSecond($data)) !== null) {
+            return $merged;
+        }
+
+        return $this->insert($data);
+    }
+
+    /**
+     * A reading that is only telemetry: a sensor_reading with values and nothing else, sent
+     * without its own timestamp. Events, status changes, notes and replayed (time-stamped)
+     * readings always keep their own row.
+     */
+    private function isPlainReading(array $data): bool
+    {
+        if (($data['log_type'] ?? null) !== 'sensor_reading' || empty($data['readings'])) {
+            return false;
+        }
+
+        foreach (self::STANDALONE_FIELDS as $field) {
+            if (filled($data[$field] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Folds this reading into the machine's log for the current second, if one exists: number
+     * parameters become the running average of the second's readings (with the lowest, highest
+     * and count kept in reading_stats, so a spike the average hides is still on the chart), yes/no
+     * and text parameters keep the latest value. Returns null when this is the second's first
+     * reading, which the caller then inserts as usual.
+     *
+     * Alerts are still judged on this reading as sent, so a one-reading spike raises at once.
+     * Only the second's first reading does the once-a-second work (last_seen_at, the offline
+     * alert, the live broadcast), which is what keeps a 10-per-second device cheap.
+     */
+    private function mergeIntoCurrentSecond(array $data): ?MachineLog
+    {
+        $second = now()->startOfSecond();
+
+        $id = MachineLog::query()
+            ->toBase()
+            ->where('machine_id', $data['machine_id'])
+            ->where('log_type', 'sensor_reading')
+            ->where('logged_at', $second)
+            ->whereNotNull('readings')
+            ->whereNull('event')
+            ->whereNull('notes')
+            ->whereNull('previous_status')
+            ->whereNull('current_status')
+            ->whereNull('performed_by')
+            ->value('id');
+
+        if ($id === null) {
+            return null;
+        }
+
+        // Only the row that already exists is locked (never an empty range, which can deadlock
+        // two workers that both found nothing): concurrent readings merge one after the other.
+        $log = DB::transaction(function () use ($id, $data) {
+            $log = MachineLog::query()->lockForUpdate()->find($id);
+
+            if ($log === null) {
+                return null;
+            }
+
+            [$readings, $stats] = $this->mergeReadings($log->readings ?? [], $log->reading_stats ?? [], $data['readings']);
+
+            $log->readings = $readings;
+            $log->reading_stats = $stats;
+            $log->severity = $this->higherSeverity($log->severity, $data['severity'] ?? null);
+            $log->save();
+
+            return $log;
+        }, 3);
+
+        if ($log === null) {
+            return null;
+        }
+
+        $derived = $this->alerts->evaluate($log, $data['readings'], clearOffline: false);
+
+        if ($derived !== null && self::SEVERITY_RANK[$derived] > self::SEVERITY_RANK[$log->severity ?? 'info']) {
+            $log->update(['severity' => $derived]);
+        }
+
+        return $log;
+    }
+
+    /**
+     * @param  array<string, mixed>  $readings  the log's current values (averages for number parameters)
+     * @param  array<string, array{min: float, max: float, n: int}>  $stats
+     * @param  array<string, mixed>  $sample  the new reading
+     * @return array{0: array<string, mixed>, 1: array<string, array{min: float, max: float, n: int}>}
+     */
+    private function mergeReadings(array $readings, array $stats, array $sample): array
+    {
+        // A number parameter's value is an int/float (normalizeReadings() casts it); a text
+        // parameter holding "42" is a string and must not be averaged.
+        $isNumber = fn (mixed $value): bool => is_int($value) || is_float($value);
+
+        foreach ($sample as $key => $value) {
+            if (! $isNumber($value)) {
+                $readings[$key] = $value;
+
+                continue;
+            }
+
+            $value = (float) $value;
+            $current = $stats[$key] ?? null;
+
+            if (! is_array($current) && isset($readings[$key]) && $isNumber($readings[$key])) {
+                $current = ['min' => (float) $readings[$key], 'max' => (float) $readings[$key], 'n' => 1];
+            }
+
+            if (! is_array($current)) {
+                $readings[$key] = $value;
+                $stats[$key] = ['min' => $value, 'max' => $value, 'n' => 1];
+
+                continue;
+            }
+
+            $count = max(1, (int) $current['n']);
+
+            $readings[$key] = round(((float) $readings[$key] * $count + $value) / ($count + 1), 6);
+            $stats[$key] = [
+                'min' => min((float) $current['min'], $value),
+                'max' => max((float) $current['max'], $value),
+                'n' => $count + 1,
+            ];
+        }
+
+        return [$readings, $stats];
+    }
+
+    private function higherSeverity(?string $current, ?string $incoming): string
+    {
+        $current ??= 'info';
+
+        if ($incoming !== null && (self::SEVERITY_RANK[$incoming] ?? 0) > self::SEVERITY_RANK[$current]) {
+            return $incoming;
+        }
+
+        return $current;
+    }
+
+    private function insert(array $data): MachineLog
     {
         if (empty($data['logged_at'])) {
             $data['logged_at'] = now();
@@ -149,9 +314,11 @@ class MachineLogService implements MachineLogInterface
 
         [$resolved, $windowStart, $windowEnd] = $this->resolveRange($range, $from, $to, $latestReadingAt);
 
-        $rows = $column ? $this->fetchRows($machine, $column, $windowStart, $windowEnd, $resolved === 'custom') : [];
+        [$rows, $summaryBucket] = $column
+            ? $this->fetchSeries($machine, $parameter->key, $windowStart, $windowEnd, $resolved === 'custom')
+            : [[], null];
 
-        [$points, $resolution, $gapSeconds] = $this->buildPoints($rows);
+        [$points, $resolution, $gapSeconds] = $this->buildPoints($rows, $summaryBucket);
 
         $bound = fn (?string $name) => $parameter && $parameter->{$name} !== null ? (float) $parameter->{$name} : null;
 
@@ -165,7 +332,8 @@ class MachineLogService implements MachineLogInterface
             'window_start_input' => $windowStart->format('Y-m-d\TH:i'),
             'window_end_input' => $windowEnd->format('Y-m-d\TH:i'),
             'resolution' => $resolution,
-            'reading_count' => count($rows),
+            // Samples, not rows: a merged per-second log or a per-minute summary stands for many.
+            'reading_count' => array_sum(array_column($rows, 4)),
             'gap_seconds' => $gapSeconds,
             'poll_seconds' => $this->pollSeconds($resolved, $windowStart, $windowEnd),
             'available_metrics' => $available->map(fn ($p) => ['value' => $p->key, 'label' => $p->labelWithUnit()])->values()->all(),
@@ -201,7 +369,17 @@ class MachineLogService implements MachineLogInterface
             ->orderByDesc('logged_at')
             ->value('logged_at');
 
-        return $latest ? Carbon::parse($latest) : null;
+        if ($latest) {
+            return Carbon::parse($latest);
+        }
+
+        // The detailed readings may all be past reading_retention_days; the summaries outlive them.
+        $summarised = DB::table('machine_reading_rollups')
+            ->where('machine_id', $machine->id)
+            ->where('metric', substr($column, strlen('readings->')))
+            ->max('period_start');
+
+        return $summarised !== null ? Carbon::createFromTimestamp((int) $summarised) : null;
     }
 
     /**
@@ -243,15 +421,109 @@ class MachineLogService implements MachineLogInterface
     }
 
     /**
-     * The window's readings as [epoch seconds, value] pairs, oldest first. ->toBase() skips
-     * Eloquent hydration and the JSON cast — only logged_at and one value are needed, which
-     * MySQL returns as a string and SQLite as a number. Fetched newest-first so the
-     * MAX_RAW_ROWS cap keeps the most recent readings.
+     * The window's readings as [epoch seconds, average, lowest, highest, samples] rows, oldest
+     * first, plus the bucket size (seconds) the rows were already grouped at, or null when they
+     * are individual logs.
      *
-     * @return list<array{0: int, 1: float}>
+     * A short window comes straight from the detailed logs. A long one (more than an hour) is
+     * the per-minute summaries, grouped in SQL into the chart's bucket size, joined with the
+     * detailed logs of the newest minutes that have not been summarised yet - so a 30-day window
+     * is about 150 rows to read however fast the device posts. Before any summary exists (a new
+     * machine, or the summariser has not run) it falls back to the detailed logs.
+     *
+     * @return array{0: list<array{0: int, 1: float, 2: float, 3: float, 4: int}>, 1: ?int}
      */
-    private function fetchRows(Machine $machine, string $column, Carbon $start, Carbon $end, bool $bounded): array
+    private function fetchSeries(Machine $machine, string $key, Carbon $start, Carbon $end, bool $bounded): array
     {
+        if ($start->diffInSeconds($end, true) > self::SUMMARY_WINDOW_SECONDS) {
+            $summarised = $this->fetchSummarised($machine, $key, $start, $end, $bounded);
+
+            if ($summarised !== null) {
+                return $summarised;
+            }
+        }
+
+        return [$this->fetchRows($machine, $key, $start, $end, $bounded), null];
+    }
+
+    /**
+     * @return array{0: list<array{0: int, 1: float, 2: float, 3: float, 4: int}>, 1: int}|null
+     *                                                                                          null when no summary exists inside the window
+     */
+    private function fetchSummarised(Machine $machine, string $key, Carbon $start, Carbon $end, bool $bounded): ?array
+    {
+        $startAt = $start->getTimestamp();
+        $endAt = $end->getTimestamp();
+
+        $summaries = fn () => DB::table('machine_reading_rollups')
+            ->where('machine_id', $machine->id)
+            ->where('metric', $key)
+            ->where('period_start', '>=', $startAt);
+
+        $bounds = $summaries()->where('period_start', '<=', $endAt)
+            ->selectRaw('MIN(period_start) as first_at, MAX(period_start) as last_at')
+            ->first();
+
+        if ($bounds === null || $bounds->last_at === null) {
+            return null;
+        }
+
+        // A window that ended a while ago is wholly summarised. Otherwise the newest summarised
+        // minute may still have been filling when it was summarised, so it and everything after
+        // it come from the detailed logs - unless those have been pruned (a device that has been
+        // silent for longer than reading_retention_days), when the summary is all there is.
+        $finished = $bounded && $end->lessThan(now()->subMinutes(5));
+        $tail = [];
+        $summarisedUntil = $endAt + 1;
+
+        if (! $finished) {
+            $lastAt = (int) $bounds->last_at;
+            $tail = $this->fetchRows($machine, $key, Carbon::createFromTimestamp($lastAt), $end, $bounded);
+
+            $lastMinuteHasLogs = $tail !== [] && $tail[0][0] < $lastAt + 60;
+            $summarisedUntil = $lastMinuteHasLogs ? $lastAt : $lastAt + 60;
+        }
+
+        $span = max(self::MIN_SUMMARY_BUCKET, $endAt - max($startAt, (int) $bounds->first_at));
+        $bucket = max(self::MIN_SUMMARY_BUCKET, $this->bucketSizeFor($span));
+
+        $grammar = DB::getQueryGrammar();
+        [$min, $max, $sum, $count] = array_map(fn (string $column) => $grammar->wrap($column), ['min', 'max', 'sum', 'count']);
+
+        $grouped = $summaries()
+            ->where('period_start', '<', $summarisedUntil)
+            ->selectRaw("(period_start - (period_start % {$bucket})) as bucket, MIN({$min}) as lowest, MAX({$max}) as highest, SUM({$sum}) as total, SUM({$count}) as samples")
+            ->groupByRaw("period_start - (period_start % {$bucket})")
+            ->orderBy('bucket')
+            ->get();
+
+        $rows = [];
+
+        foreach ($grouped as $row) {
+            $samples = max(1, (int) $row->samples);
+
+            $rows[] = [(int) $row->bucket, (float) $row->total / $samples, (float) $row->lowest, (float) $row->highest, $samples];
+        }
+
+        return [[...$rows, ...$tail], $bucket];
+    }
+
+    /**
+     * The window's detailed readings as [epoch seconds, average, lowest, highest, samples] rows,
+     * oldest first. ->toBase() skips Eloquent hydration and the JSON cast — only logged_at and
+     * a few values are needed, which MySQL returns as strings and SQLite as numbers. Fetched
+     * newest-first so the MAX_RAW_ROWS cap keeps the most recent readings.
+     *
+     * A log that merged several readings of one second carries their lowest, highest and count
+     * in reading_stats; a single reading is its own lowest and highest.
+     *
+     * @return list<array{0: int, 1: float, 2: float, 3: float, 4: int}>
+     */
+    private function fetchRows(Machine $machine, string $key, Carbon $start, Carbon $end, bool $bounded): array
+    {
+        $column = "readings->{$key}";
+        $stats = "reading_stats->{$key}";
+
         $query = MachineLog::query()
             ->toBase()
             ->where('machine_id', $machine->id)
@@ -267,10 +539,18 @@ class MachineLogService implements MachineLogInterface
 
         $rows = [];
 
-        foreach ($query->get(['logged_at', "{$column} as reading"]) as $row) {
+        foreach ($query->get(['logged_at', "{$column} as reading", "{$stats}->min as stat_min", "{$stats}->max as stat_max", "{$stats}->n as stat_n"]) as $row) {
+            $average = (float) $row->reading;
+
             // strtotime(), not Carbon::parse() — only epoch seconds are needed, and avoiding a
             // Carbon instantiation per row matters at this volume.
-            $rows[] = [strtotime($row->logged_at), (float) $row->reading];
+            $rows[] = [
+                strtotime($row->logged_at),
+                $average,
+                $row->stat_min !== null ? (float) $row->stat_min : $average,
+                $row->stat_max !== null ? (float) $row->stat_max : $average,
+                $row->stat_n !== null ? max(1, (int) $row->stat_n) : 1,
+            ];
         }
 
         usort($rows, fn ($a, $b) => $a[0] <=> $b[0]);
@@ -285,10 +565,11 @@ class MachineLogService implements MachineLogInterface
      * line across the gap instead, which is how an outage should read; `gap_seconds` is how
      * wide a hole has to be before it does.
      *
-     * @param  list<array{0: int, 1: float}>  $rows
+     * @param  list<array{0: int, 1: float, 2: float, 3: float, 4: int}>  $rows
+     * @param  int|null  $forcedBucket  set when the rows came from summaries: always buckets of this size
      * @return array{0: list<array<string, mixed>>, 1: string, 2: int}
      */
-    private function buildPoints(array $rows): array
+    private function buildPoints(array $rows, ?int $forcedBucket = null): array
     {
         if ($rows === []) {
             return [[], 'No readings', 5];
@@ -300,33 +581,35 @@ class MachineLogService implements MachineLogInterface
         // inside a 24h window still needs seconds to tell its points apart.
         $format = $span <= 3600 ? 'H:i:s' : ($span <= 86400 ? 'H:i' : 'M j H:i');
 
-        if (count($rows) <= self::RAW_POINT_LIMIT) {
+        if ($forcedBucket === null && count($rows) <= self::RAW_POINT_LIMIT) {
             $points = array_map(fn ($row) => [
                 't' => $row[0],
                 'avg' => round($row[1], 3),
-                'min' => round($row[1], 3),
-                'max' => round($row[1], 3),
-                'n' => 1,
+                'min' => round($row[2], 3),
+                'max' => round($row[3], 3),
+                'n' => $row[4],
                 'label' => Carbon::createFromTimestamp($row[0])->format($format),
             ], $rows);
 
             return [$points, 'Raw readings', $this->rawGapSeconds($rows)];
         }
 
-        $bucketSeconds = $this->bucketSizeFor($span);
+        $bucketSeconds = $forcedBucket ?? $this->bucketSizeFor($span);
         $buckets = [];
 
-        foreach ($rows as [$ts, $value]) {
+        foreach ($rows as [$ts, $value, $low, $high, $samples]) {
             $key = intdiv($ts, $bucketSeconds) * $bucketSeconds;
 
             if (! isset($buckets[$key])) {
-                $buckets[$key] = ['sum' => 0.0, 'n' => 0, 'min' => $value, 'max' => $value];
+                $buckets[$key] = ['sum' => 0.0, 'n' => 0, 'min' => $low, 'max' => $high];
             }
 
-            $buckets[$key]['sum'] += $value;
-            $buckets[$key]['n']++;
-            $buckets[$key]['min'] = min($buckets[$key]['min'], $value);
-            $buckets[$key]['max'] = max($buckets[$key]['max'], $value);
+            // A row stands for $samples readings with this average, so the bucket's average is
+            // weighted by them.
+            $buckets[$key]['sum'] += $value * $samples;
+            $buckets[$key]['n'] += $samples;
+            $buckets[$key]['min'] = min($buckets[$key]['min'], $low);
+            $buckets[$key]['max'] = max($buckets[$key]['max'], $high);
         }
 
         ksort($buckets);
@@ -377,7 +660,7 @@ class MachineLogService implements MachineLogInterface
      * between readings, but never under 5 seconds (a burst sent every second shouldn't be
      * broken by one slow request).
      *
-     * @param  list<array{0: int, 1: float}>  $rows
+     * @param  list<array{0: int, 1: float, 2: float, 3: float, 4: int}>  $rows
      */
     private function rawGapSeconds(array $rows): int
     {

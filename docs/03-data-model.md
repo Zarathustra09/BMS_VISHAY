@@ -245,20 +245,37 @@ This is the sensor/event log table — every reading from a device and every man
 | severity | enum | | `info` (default), `warning`, `error`, `critical` |
 | previous_status, current_status | string | ✓ | used for `status_change` logs |
 | readings | json | ✓ | sensor values as `{parameter key: value}`, for the keys defined on the log's machine (see [`machine_parameters`](#machine_parameters)); numbers, booleans or strings per the parameter's `data_type`. Never holds a null value. Null when the log carries no readings (e.g. an alarm). Replaced the old fixed `temperature`/`humidity`/… columns |
+| reading_stats | json | ✓ | only on a log that folded several readings of one second together (a fast device, see [05-device-api.md](05-device-api.md#11-fast-devices-10-readings-a-second)): `{parameter key: {min, max, n}}` for the number parameters, where `readings` then holds the averages. Null for a single reading |
 | notes | text | ✓ | |
 | performed_by | string | ✓ | free text — a user's name, or "system"/the device identifier |
 | logged_at | timestamp | | defaults to `CURRENT_TIMESTAMP` at the DB level; app also defaults it in `MachineLogService::store()` if omitted |
 | timestamps | | | separate from `logged_at` — `created_at`/`updated_at` track when the *row* was written, `logged_at` is when the *event* happened |
 
-Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severity`.
+Indexes: `(machine_id, logged_at)`, `(log_type, severity)`, `logged_at`, `severity`, `(machine_id, severity)`.
 
 **Relationships** ([MachineLog.php](../app/Models/MachineLog.php)): `belongsTo(Machine)`.
 
 **Scopes**: `alerts()` (severity in error/critical), `byType($type)`, `recent($days = 7)`, `bySeverity($severity)`.
 
-**Retention**: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days`, and the outgoing-email keys `mail_host`, `mail_port`, `mail_username`, `mail_password` (stored **encrypted**), `mail_encryption`, `mail_from_address`, `mail_from_name`, `app_url` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
+**Retention**: `MachineLog` uses Laravel's `MassPrunable` trait (chunked bulk deletes) - a sensor reading is deleted after the `reading_retention_days` setting (default 7), but only once it has been summarised into `machine_reading_rollups` (its id is at or below the rollup cursor); everything else after `log_retention_days`. Previous wording follows: `MachineLog` uses Laravel's `Prunable` trait — rows older than the `log_retention_days`, and the outgoing-email keys `mail_host`, `mail_port`, `mail_username`, `mail_password` (stored **encrypted**), `mail_encryption`, `mail_from_address`, `mail_from_name`, `app_url` setting (default 365) are deleted daily by the scheduled `model:prune` command. See [02-architecture.md](02-architecture.md#data-retention-prunable-machinelog).
 
 > **Alert limits - how they are read.** For a number parameter: *critical* when the reading is **below `critical_min` or above `critical_max`**; otherwise *warning* when **below `warning_min` or above `warning_max`**; otherwise normal (`MachineParameter::severityFor()` - the one definition, used by `AlertService` and the machine page). So "critical below" must be the **lower** number and "critical above" the **higher** one. Entering "warning 60-80, critical 81-100" as ranges makes every reading under 81 critical. The Edit page labels the boxes, shows the rule as a sentence and rejects contradictions on save (`MachineController::limitRule()`); `MachineParameter::thresholdProblems()` reports them for limits saved before that.
+
+### `machine_reading_rollups`
+
+Migration: [2026_10_12_124112_create_machine_reading_rollups_table.php](../database/migrations/2026_10_12_124112_create_machine_reading_rollups_table.php)
+
+One row per machine, number parameter and **minute**: the summary the long chart windows are drawn from, so a fast device's 86,400 logs a day can be pruned after `reading_retention_days` without losing the history. Written by `ReadingRollupService::rollUp()` (`php artisan app:rollup-readings`, every minute).
+
+| Column | Type | Notes |
+|---|---|---|
+| machine_id | bigint FK → machines.id | `cascadeOnDelete()` |
+| metric | string(64) | the parameter key |
+| period_start | unsigned int | epoch seconds of the minute's start (an integer so charts can bucket in SQL on MySQL and SQLite alike) |
+| min, max, sum | double | lowest, highest and sum of the minute's samples (a merged per-second log counts its `reading_stats` n samples) |
+| count | unsigned int | samples in the minute |
+
+Unique `(machine_id, metric, period_start)`; index `period_start`. No timestamps. `MachineReadingRollup` is `MassPrunable` and keeps `log_retention_days`. The summariser reads logs added since a cursor (`Cache` key `readings-rollup-cursor` = highest summarised `machine_logs.id`), recomputes each minute they touch from all of that minute's logs (idempotent; a replayed old reading corrects its minute) and always re-rolls the last two minutes. A minute is never overwritten with fewer samples than it already has, so pruned logs never shrink a summary.
 
 ### `machine_parameters`
 
@@ -304,6 +321,7 @@ A threshold breach or a device-offline event raised against a machine. Created/e
 | acknowledged_by | bigint FK → users.id | ✓ | `nullOnDelete()` |
 | acknowledged_at | timestamp | ✓ | |
 | resolved_at | timestamp | ✓ | |
+| last_breach_at | timestamp | ✓ | the last time a reading breached this alert's limits; an open alert only auto-resolves once readings have stayed normal for `AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS` (5 s) after it - stops a sensor hovering on a limit from raising and re-raising on every reading |
 | resolved_by | bigint FK → users.id | ✓ | `nullOnDelete()`; null when the system resolved it |
 | resolution | string(30) | ✓ | `manual`, `auto`, `work_order` or `device_back_online` |
 | timestamps | | | |
@@ -388,7 +406,7 @@ A generic key-value store — one row per setting, rather than one column per se
 | value | text | ✓ | JSON-encoded (`json_encode`/`json_decode`), so a value can be a string, number, bool, or array (e.g. `alert_emails`) |
 | timestamps | | | |
 
-**Keys** (`SettingInterface::KEYS` / `::DEFAULTS`): `company_name`, `alert_emails` (array of strings), `offline_timeout_minutes`, `preventive_lead_days`, `auto_fault_on_critical` (bool), `log_retention_days`. A key with no row falls back to its default — `SettingService::all()` merges stored values over `DEFAULTS`, so a fresh install (or a key added later without a migration) never crashes on a missing setting.
+**Keys** (`SettingInterface::KEYS` / `::DEFAULTS`): `company_name`, `alert_emails` (array of strings), `offline_timeout_minutes`, `preventive_lead_days`, `auto_fault_on_critical` (bool), `log_retention_days`, `reading_retention_days` (default 7: how long detailed sensor logs are kept; the per-minute summaries live for `log_retention_days`). A key with no row falls back to its default — `SettingService::all()` merges stored values over `DEFAULTS`, so a fresh install (or a key added later without a migration) never crashes on a missing setting.
 
 `SettingService` caches the merged result forever under `app.settings` and calls `Cache::forget()` on every `update()` — see [02-architecture.md](02-architecture.md#container-binding-registry) for consumers (the offline/preventive commands, `AlertService`, `MachineService`, `MachineLog::prunable()`, the sidebar's company name).
 

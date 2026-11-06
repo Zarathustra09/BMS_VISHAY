@@ -2,6 +2,19 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Phase 17 - Fast devices: 10 readings a second (2026-10-12)
+
+The device's request is unchanged; the server was changed so a sensor posting every 100 ms does not mean 864,000 rows a day.
+
+- **One log per second.** Plain sensor readings within the same second are folded into one `machine_logs` row (average, plus lowest/highest/count in the new `reading_stats` column). Alerts still judge every reading as sent, so a one-reading spike raises at once with its value.
+- **No alert flapping.** New `alerts.last_breach_at`; an alert auto-resolves only after readings stay normal for 5 s (`AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS`), so a sensor on a limit makes one alert and one e-mail.
+- **Per-minute summaries.** New `machine_reading_rollups` table, `ReadingRollupService` and the scheduled `app:rollup-readings`. The 24h / 7d / 30d chart windows are drawn from them (about 150 rows to read however fast the device posts), plus the detailed logs of the newest minutes; the chart's min-max band and hover show the real range.
+- **Retention in two levels.** New setting `reading_retention_days` (default 7): detailed sensor readings are pruned after it - only once summarised; summaries and events keep `log_retention_days`. `MachineLog` is `MassPrunable` now.
+- **Rate limit per device**: 1200/min keyed on the machine, instead of 120/min per IP (which would have rejected 80 % of a 10 Hz device's posts and was shared by every device behind one router).
+- Cheaper per reading: one open-alert query instead of one per parameter; the offline-alert clear, `last_seen_at` and the live push happen once a second; "logs today" no longer uses `whereDate()`; new `(machine_id, severity)` index.
+- Migrations were edited in place (the system is not deployed): run `php artisan migrate:fresh --seed` (Docker: `docker compose down -v`, then start again).
+- `send-test-readings.bat`: option 7 / `fast <minutes> <normal|spike|edge>` posts one reading every 100 ms.
+
 ## Phase 16 - Sensor parameters on the machine page, clearer alert limits (2026-10-12)
 
 - **Sensor parameters card** on the Overview tab: each parameter's latest reading, live state pill, accepted range and alert limits in plain words.

@@ -32,6 +32,7 @@ class SettingController extends Controller
             'preventive_lead_days' => 'required|integer|min:0',
             'auto_fault_on_critical' => 'boolean',
             'log_retention_days' => 'required|integer|min:1',
+            'reading_retention_days' => 'required|integer|min:1',
             'mail_host' => 'nullable|string|max:255',
             'mail_port' => 'nullable|integer|min:1|max:65535',
             'mail_username' => 'nullable|string|max:255',
@@ -65,6 +66,7 @@ class SettingController extends Controller
             'preventive_lead_days' => $validated['preventive_lead_days'],
             'auto_fault_on_critical' => $request->boolean('auto_fault_on_critical'),
             'log_retention_days' => $validated['log_retention_days'],
+            'reading_retention_days' => $validated['reading_retention_days'],
         ]);
 
         return redirect()->route('settings.index')->with('success', 'Settings saved.');

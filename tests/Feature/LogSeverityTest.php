@@ -56,6 +56,7 @@ class LogSeverityTest extends TestCase
     public function test_the_worst_breach_in_a_reading_wins(): void
     {
         $this->sendReading(['temperature' => 35, 'humidity' => 99]);
+        $this->travel(1)->second(); // a new second, so a new log (readings within one second merge)
         $this->sendReading(['temperature' => 45, 'humidity' => 99]);
 
         $this->assertSame(['warning', 'critical'], $this->machine->logs()->orderBy('id')->pluck('severity')->all());
@@ -71,7 +72,9 @@ class LogSeverityTest extends TestCase
     public function test_a_severity_the_device_sends_itself_is_kept_when_it_is_higher(): void
     {
         $this->sendReading(['temperature' => 22], ['severity' => 'error']);
+        $this->travel(1)->second();
         $this->sendReading(['temperature' => 35], ['severity' => 'critical']);
+        $this->travel(1)->second();
         $this->sendReading(['temperature' => 35], ['severity' => 'error']);
 
         $this->assertSame(['error', 'critical', 'error'], $this->machine->logs()->orderBy('id')->pluck('severity')->all());

@@ -93,21 +93,25 @@ AI insight generation ([07-ai-insights.md](07-ai-insights.md)) runs through the 
 - `php artisan app:run-queue-worker` — simpler variant, always runs `queue:work --stop-when-empty` and logs start/finish.
 - `php artisan app:check-offline-devices {--minutes=}` — raises an `offline` alert for any machine whose `last_seen_at` is older than `--minutes` (default 10, see `AlertInterface::OFFLINE_AFTER_MINUTES`). Prints a summary either way, but only writes to `storage/logs/laravel.log` when it actually raises something — see [02-architecture.md](02-architecture.md) for the full flow.
 - `php artisan app:generate-preventive-work-orders {--lead-days=}` — creates a `preventive` work order for any machine whose `next_maintenance_date` falls within `--lead-days` (default: the `preventive_lead_days` setting, see [Settings](#settings) below), skipping `inactive` machines and any machine that already has an open preventive work order (so a missed day, or running it twice, never produces a duplicate). The work order is system-generated (`created_by` null) and unassigned unless a technician is added afterward.
+- `php artisan app:rollup-readings` — summarises newly stored sensor readings into per-minute rows (`machine_reading_rollups`) that the 24h / 7d / 30d chart windows read and that let detailed logs be pruned after `reading_retention_days`. Prints how many logs it read and minutes it recomputed. Safe to run any time and as often as you like (idempotent).
 - `php artisan model:prune {--model=}` — Laravel's built-in pruning command; `--model=App\Models\MachineLog` (as passed on the scheduler entry below) deletes `machine_logs` rows older than the `log_retention_days` setting (default 365).
 
 `app:process-queue` and `app:check-offline-devices` run every minute; `app:generate-preventive-work-orders` and `model:prune` run once daily — all four are registered on the scheduler (below).
 
 ## Scheduler
 
-`routes/console.php` registers four `Schedule::command(...)` entries:
+`routes/console.php` registers five `Schedule::command(...)` entries (`app:rollup-readings` is the newest, every minute):
 
 ```php
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
+Schedule::command('app:rollup-readings')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 Schedule::command('app:generate-preventive-work-orders')->dailyAt('01:00')->withoutOverlapping()
     ->when(fn () => AppModule::WorkOrders->isEnabled());
-Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
+Schedule::command('model:prune', ['--model' => [MachineLog::class, MachineReadingRollup::class]])->daily();
 ```
+
+**Storage with a fast device** (one machine, two number parameters, a reading every 100 ms; the server keeps one log per second): about 86,400 logs a day, so `reading_retention_days` = 7 holds roughly 600,000 logs (about 180 MB) plus about 2,900 summary rows a day (about 80 MB a year). Without the merge it would be 864,000 logs a day. Lower `reading_retention_days` on the Settings page if the disk is tight - the long charts keep working from the summaries.
 
 (The `->when(...)` on the preventive-work-order entry is what skips it in a deployment with Work Orders switched off — see [Editions & module toggles](#editions--module-toggles). The entry still shows up in `schedule:list` either way.)
 

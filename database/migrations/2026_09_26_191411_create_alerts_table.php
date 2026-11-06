@@ -33,6 +33,11 @@ return new class extends Migration
             $table->timestamp('acknowledged_at')->nullable();
             $table->timestamp('resolved_at')->nullable();
 
+            // The last time a reading breached this alert's limits. A fast device's alert is only
+            // auto-resolved once readings have stayed normal for a few seconds past this, so a
+            // sensor hovering on a limit doesn't raise, clear and re-raise (and e-mail) every reading.
+            $table->timestamp('last_breach_at')->nullable();
+
             $table->timestamps();
 
             // AlertService::evaluate() looks up "the open alert for this machine+metric" on

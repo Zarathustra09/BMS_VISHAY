@@ -15,6 +15,7 @@ interface SettingInterface
         'preventive_lead_days',
         'auto_fault_on_critical',
         'log_retention_days',
+        'reading_retention_days',
         'mail_host',
         'mail_port',
         'mail_username',
@@ -36,6 +37,9 @@ interface SettingInterface
         'preventive_lead_days' => 7,
         'auto_fault_on_critical' => false,
         'log_retention_days' => 365,
+        // How long the detailed (per-reading / per-second) sensor logs are kept; the per-minute
+        // summaries behind the long chart windows live for log_retention_days.
+        'reading_retention_days' => 7,
         // Outgoing email (see MailSettings). Empty host = keep using the MAIL_* environment mailer.
         'mail_host' => '',
         'mail_port' => 587,

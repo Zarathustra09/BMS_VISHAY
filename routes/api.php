@@ -13,6 +13,8 @@ Route::get('/user', function (Request $request) {
 // so it doesn't belong in this stateless api.php file.
 
 // Hardware sensor ingestion — authenticated via per-machine X-Device-Key header, not user sessions.
-Route::prefix('machine-logs')->middleware(['device.auth', 'throttle:120,1'])->group(function () {
+// Throttled per device (see AppServiceProvider's `device-api` limiter), sized for a sensor that
+// posts every 100 ms.
+Route::prefix('machine-logs')->middleware(['device.auth', 'throttle:device-api'])->group(function () {
     Route::post('/', [MachineLogController::class, 'store'])->name('api.machine-logs.store');
 });

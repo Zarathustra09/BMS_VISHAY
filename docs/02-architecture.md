@@ -269,20 +269,32 @@ public function getActivityFeed(Machine $machine, int $limit = 20): Collection
 
 This gives one combined timeline — "who changed what on this machine, and what happened to the work orders and alerts raised against it" — instead of three separate, sparser feeds.
 
+## Fast devices: merge per second, summarise per minute
+
+A sensor posting every 100 ms must not mean 864,000 rows, 10 broadcasts and 10 offline checks a day-second. The device's request is unchanged; the server does the work (see [05-device-api.md](05-device-api.md#11-fast-devices-10-readings-a-second)):
+
+1. `MachineLogService::store()` folds a plain `sensor_reading` into the machine's log for the current second (`mergeIntoCurrentSecond()`: running average + `reading_stats` min/max/n, the row locked with `lockForUpdate()` only when it already exists, so two workers can't deadlock on an empty range). The second's first reading is inserted as before and does the once-a-second work (`last_seen_at`, offline-alert clear, Reverb push).
+2. `AlertService::evaluate($log, $readings, clearOffline: false)` judges every reading as sent. An alert only auto-resolves `RESOLVE_AFTER_NORMAL_SECONDS` (5) after its `last_breach_at`. Open alerts are fetched in one query per reading.
+3. `app:rollup-readings` (every minute) -> `ReadingRollupService::rollUp()` writes `machine_reading_rollups`.
+4. `MachineLogService::getReadingSeries()` draws windows longer than an hour from the summaries (grouped in SQL at the chart's bucket size, joined with the not-yet-summarised detailed logs of the newest minutes) and shorter ones from the detailed logs.
+5. `MachineLog::prunable()` deletes a detailed sensor reading after `reading_retention_days`, only once summarised.
+
+The sensor API is throttled per device (`device-api` limiter, 1200/min), not per IP.
+
 ## Data retention: `Prunable` `MachineLog`
 
-`MachineLog` uses Laravel's `Prunable` trait rather than a hand-rolled cleanup command, so `model:prune` (see [Scheduled commands](#scheduled-commands) above) handles deletion in chunks with the framework's usual `ModelsPruned` event:
+`MachineLog` and `MachineReadingRollup` use Laravel's `MassPrunable` trait rather than a hand-rolled cleanup command, so `model:prune` (see [Scheduled commands](#scheduled-commands) above) deletes them in chunked bulk queries:
 
 ```php
-public function prunable(): Builder
-{
-    $days = app(SettingInterface::class)->get('log_retention_days', 365);
-
-    return static::where('logged_at', '<', now()->subDays($days));
-}
+// MachineLog::prunable(): old logs, plus detailed sensor readings past reading_retention_days
+// that are already summarised (id <= the rollup cursor).
+$query->where('logged_at', '<', now()->subDays($days))
+    ->orWhere(fn ($q) => $q->where('log_type', 'sensor_reading')
+        ->where('id', '<=', $summarisedUpTo)
+        ->where('logged_at', '<', now()->subDays($readingDays)));
 ```
 
-The cutoff is read from the `log_retention_days` setting (default 365) on every run rather than being a fixed constant, so lowering it in Settings takes effect on the very next scheduled prune with no deploy.
+The cutoffs are read from the `log_retention_days` (default 365) and `reading_retention_days` (default 7) settings on every run rather than being fixed constants, so lowering one in Settings takes effect on the very next scheduled prune with no deploy.
 
 ## Interface → Service → Controller: layer responsibilities
 

@@ -23,30 +23,42 @@ class AlertService implements AlertInterface
         protected SafeBroadcaster $broadcaster,
     ) {}
 
-    public function evaluate(MachineLog $log): ?string
+    public function evaluate(MachineLog $log, ?array $readings = null, bool $clearOffline = true): ?string
     {
         // A reading arriving is proof of life — clear any offline alert first. This MUST
         // stay above the thresholds early-return below, or a machine with no configured
         // thresholds could never clear its offline alert.
-        if ($log->machine) {
+        if ($clearOffline && $log->machine) {
             $this->resolveOfflineAlerts($log->machine);
         }
+
+        $readings ??= $log->readings;
 
         $parameters = MachineParameter::where('machine_id', $log->machine_id)
             ->where('data_type', 'number')
             ->get()
             ->filter(fn (MachineParameter $parameter) => $parameter->hasThresholds());
 
-        if ($parameters->isEmpty() || empty($log->readings)) {
+        if ($parameters->isEmpty() || empty($readings)) {
             return null;
         }
 
         $machine = $log->machine;
         $worst = null;
 
+        // One query for all of the machine's unresolved threshold alerts, not one per parameter.
+        // An acknowledged alert is still an unresolved problem: it must auto-resolve when the
+        // reading recovers, and a new breach must reuse it rather than open a duplicate.
+        $openAlerts = Alert::query()
+            ->whereIn('status', ['open', 'acknowledged'])
+            ->where('machine_id', $log->machine_id)
+            ->where('type', 'threshold')
+            ->get()
+            ->keyBy('metric');
+
         foreach ($parameters as $parameter) {
             $metric = $parameter->key;
-            $value = $log->readings[$metric] ?? null;
+            $value = $readings[$metric] ?? null;
 
             if ($value === null || ! is_numeric($value)) {
                 continue;
@@ -58,18 +70,12 @@ class AlertService implements AlertInterface
                 $worst = $severity;
             }
 
-            // An acknowledged alert is still an unresolved problem: it must auto-resolve when the
-            // reading recovers, and a new breach must reuse it rather than open a duplicate.
-            $openAlert = Alert::query()
-                ->whereIn('status', ['open', 'acknowledged'])
-                ->where('machine_id', $log->machine_id)
-                ->where('type', 'threshold')
-                ->where('metric', $metric)
-                ->first();
+            $openAlert = $openAlerts->get($metric);
 
             if ($severity === null) {
-                // Reading is back within bounds — clear whatever was open for this metric.
-                if ($openAlert) {
+                // Reading is back within bounds — clear whatever was open for this metric, but
+                // only once it has stayed there (see RESOLVE_AFTER_NORMAL_SECONDS).
+                if ($openAlert && $this->hasStayedNormal($openAlert)) {
                     $this->resolve($openAlert, null, 'auto', $value);
                 }
 
@@ -87,6 +93,7 @@ class AlertService implements AlertInterface
                     'value' => $value,
                     'machine_log_id' => $log->id,
                     'severity' => $wasCritical ? 'critical' : $severity,
+                    'last_breach_at' => now(),
                 ]);
 
                 if (! $wasCritical && $severity === 'critical') {
@@ -118,6 +125,7 @@ class AlertService implements AlertInterface
                 'severity' => $severity,
                 'status' => 'open',
                 'message' => $this->buildMessage($machine, $parameter, $value, $severity),
+                'last_breach_at' => now(),
             ]);
 
             $this->recordEvent($alert, 'raised', null, null, 'open', $value);
@@ -126,6 +134,15 @@ class AlertService implements AlertInterface
         }
 
         return $worst;
+    }
+
+    /**
+     * An alert with no recorded breach time (raised before it was tracked) resolves at once.
+     */
+    private function hasStayedNormal(Alert $alert): bool
+    {
+        return $alert->last_breach_at === null
+            || $alert->last_breach_at->lte(now()->subSeconds(self::RESOLVE_AFTER_NORMAL_SECONDS));
     }
 
     public function raiseOfflineAlerts(int $minutes = self::OFFLINE_AFTER_MINUTES): array

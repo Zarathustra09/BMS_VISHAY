@@ -36,6 +36,7 @@ class MailSettingsTest extends TestCase
             'offline_timeout_minutes' => 10,
             'preventive_lead_days' => 7,
             'log_retention_days' => 365,
+            'reading_retention_days' => 7,
             'mail_host' => 'smtp.example.com',
             'mail_port' => 587,
             'mail_username' => 'alerts@example.com',

@@ -41,6 +41,10 @@ return new class extends Migration
             // Additional indexes useful for BMS queries and alerts
             $table->index('logged_at');
             $table->index('severity');
+
+            // The machine page counts a machine's critical / error / warning logs on every live
+            // refresh; with a fast device that is a lot of rows to filter without this.
+            $table->index(['machine_id', 'severity']);
         });
     }
 

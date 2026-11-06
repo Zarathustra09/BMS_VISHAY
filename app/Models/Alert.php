@@ -45,12 +45,14 @@ class Alert extends Model
         'resolved_at',
         'resolved_by',
         'resolution',
+        'last_breach_at',
     ];
 
     protected $casts = [
         'value' => 'decimal:3',
         'acknowledged_at' => 'datetime',
         'resolved_at' => 'datetime',
+        'last_breach_at' => 'datetime',
     ];
 
     public function machine(): BelongsTo

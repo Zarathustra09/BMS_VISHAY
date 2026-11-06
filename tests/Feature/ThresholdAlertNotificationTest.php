@@ -81,6 +81,7 @@ class ThresholdAlertNotificationTest extends TestCase
 
         $logService = app(MachineLogInterface::class);
         $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 45]]);
+        $this->travel(6)->seconds(); // past AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS: a recovery resolves only once readings stay normal
         $logService->store(['machine_id' => $machine->id, 'log_type' => 'sensor_reading', 'readings' => ['temperature' => 30]]);
 
         $this->assertDatabaseHas('alerts', [

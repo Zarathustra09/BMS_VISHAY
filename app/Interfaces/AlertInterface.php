@@ -18,16 +18,31 @@ interface AlertInterface
     public const OFFLINE_AFTER_MINUTES = 10;
 
     /**
+     * How long readings must stay within bounds before an open threshold alert auto-resolves,
+     * counted from the last reading that breached it. A device sending many readings a second
+     * that sits on a limit would otherwise raise, clear and re-raise (e-mailing everyone) every
+     * reading; a device sending one reading every few seconds is barely affected.
+     */
+    public const RESOLVE_AFTER_NORMAL_SECONDS = 5;
+
+    /**
      * Check a newly stored sensor reading against the alert bounds on the machine's number parameters,
      * raising, escalating, or auto-resolving alerts as needed. Also clears any open/
      * acknowledged offline alert for this machine, since a reading is proof of life.
      * Called from MachineLogService::store() so it runs for every reading regardless of caller.
      *
+     * @param  array<string, mixed>|null  $readings  the values to judge, when they are not the
+     *                                               log's own: a fast device's reading is merged
+     *                                               into that second's log, but each reading is
+     *                                               judged as sent, so a one-sample spike is not
+     *                                               averaged away
+     * @param  bool  $clearOffline  false when this device was already proven alive within the
+     *                              last second, which skips one query per reading
      * @return string|null the worst severity this reading breaches ('critical' or 'warning'), or null
      *                     when it is within bounds (or the machine has no thresholds) - used to stamp
      *                     the log's own severity
      */
-    public function evaluate(MachineLog $log): ?string;
+    public function evaluate(MachineLog $log, ?array $readings = null, bool $clearOffline = true): ?string;
 
     /**
      * Raise an 'offline' alert for every machine whose last reading is older than $minutes.

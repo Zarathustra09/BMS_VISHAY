@@ -32,7 +32,7 @@ Content-Type: application/json
 X-Device-Key: <your machine's key>
 ```
 
-Rate limit: **120 requests per minute** per client (Laravel's default throttle keying, i.e. per IP). A temperature sensor reporting every few seconds is well within this; if you need higher-frequency reporting, batch readings client-side or raise the limit in [routes/api.php](../routes/api.php).
+Rate limit: **1200 requests per minute per device** (20 a second; keyed on the machine the key belongs to, not on the IP, so several devices behind one router don't share it - the `device-api` limiter in [AppServiceProvider.php](../app/Providers/AppServiceProvider.php)). That is double what a sensor posting every 100 ms needs. See [section 11](#11-fast-devices-10-readings-a-second) for what the server does with that many readings.
 
 ## 4. Payload fields
 
@@ -128,7 +128,7 @@ A device does not need to send `severity`. If a reading breaches one of the mach
 | `201 Created` | Reading stored | `{"success": true, "message": "...", "data": { ...the created log... }}` |
 | `401 Unauthorized` | Missing or invalid `X-Device-Key` | `{"success": false, "message": "Missing X-Device-Key header."}` or `"Invalid device key."` |
 | `422 Unprocessable Entity` | A field or reading failed validation (unknown parameter key, wrong type, outside min/max, missing required parameter, or a sensor value sent at the top level) | Standard Laravel validation error body: `{"message": "...", "errors": {"readings.temperature": ["reason"]}}` — an unknown key is reported under `readings` |
-| `429 Too Many Requests` | Rate limit exceeded (120/min) | Standard Laravel throttle response |
+| `429 Too Many Requests` | Rate limit exceeded (1200/min for this device) | Standard Laravel throttle response |
 
 ## 8. Threshold alerts (Phase 5)
 
@@ -136,7 +136,7 @@ Every stored reading is checked against the alert thresholds on that machine's n
 
 - The `severity` field you send is independent of this — it's your own event classification (e.g. a device might send `severity: "info"` for a routine reading that still happens to breach a threshold). Alerts are driven entirely by the numeric parameter values against the configured bounds, not by whatever `severity` you pass.
 - Sending the same out-of-range value repeatedly does **not** create a new alert each time — there's at most one open alert per machine per parameter, and it just gets its `value`/timestamp updated. You'll only trigger a fresh notification if the reading escalates the alert from `warning` to `critical`.
-- A reading back within both the warning and critical bounds automatically resolves whatever alert was open for that parameter — no separate "all clear" call needed.
+- A reading back within both the warning and critical bounds automatically resolves whatever alert was open for that parameter — no separate "all clear" call needed. It resolves once readings have **stayed** within bounds for `AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS` (5 s) after the last breaching reading, so a sensor hovering on a limit makes one alert instead of raising and clearing it on every reading.
 - See [02-architecture.md](02-architecture.md) for the full evaluate/escalate/resolve sequence, and [06-security.md](06-security.md) for who receives the notification.
 
 ## 9. Offline detection (Phase 6)
@@ -157,3 +157,14 @@ If a device stops POSTing entirely, the platform notices on its own — there's 
 ## 10. Live updates (nothing to do on the device)
 
 Every accepted reading is also pushed to any browser currently watching that machine, over the plant PC's own Reverb WebSocket server, so the chart updates as the reading arrives. The device does not connect to it, change its payload or wait for it: it only ever talks to `POST /api/machine-logs`. If Reverb is stopped the POST still returns `201` (see [02-architecture.md](02-architecture.md)).
+
+## 11. Fast devices (10 readings a second)
+
+A device may post as often as it likes (up to the rate limit above) - **nothing about the request changes**: the same `POST /api/machine-logs`, the same body, one reading per request. The server copes on its side:
+
+- **One log per second.** Plain sensor readings (a `sensor_reading` with `readings` and none of `logged_at`, `event`, `notes`, `previous_status`, `current_status`, `performed_by`) that arrive within the same second are folded into one `machine_logs` row by `MachineLogService::store()`. A number parameter becomes the **average** of the second's readings, and the lowest, highest and count are kept in `reading_stats` (`{"temperature": {"min": 69.8, "max": 71.2, "n": 10}}`), so the chart still shows a spike the average hides. A yes/no or text parameter keeps its latest value. Anything else (events, status changes, replayed readings with their own `logged_at`) keeps its own row. A device that posts every few seconds is not affected: each reading is the only one in its second.
+- **Alerts judge every reading as sent.** A one-reading spike over a limit raises the alert at once with the spike value, even though the second's average looks fine; the log's severity is raised to match.
+- **Cheap per reading.** Only the first reading of a second stamps `last_seen_at`, clears an offline alert and is pushed to browsers over Reverb (once a second, not ten times).
+- **Detailed readings are kept for a short time** (Settings > Data Retention, `reading_retention_days`, default 7), and the scheduler's `app:rollup-readings` writes **per-minute summaries** (lowest, highest, average, samples per parameter, table `machine_reading_rollups`) that the 24h / 7d / 30d chart windows are drawn from and that are kept for `log_retention_days`. 10 readings a second is about 86,400 logs a day per machine, not 864,000.
+
+The chart's hover shows the real range (`min - max`) and the number of readings in each point.

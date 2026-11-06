@@ -274,7 +274,11 @@
 
                     <x-form.input type="number" name="log_retention_days" label="Machine Log Retention (days)" required min="1"
                                   :value="$settings['log_retention_days']"
-                                  help="Sensor readings older than this are pruned daily (<code>app:generate-preventive-work-orders</code>'s sibling scheduled job, <code>model:prune</code>)" />
+                                  help="Events, alarms and per-minute sensor summaries older than this are deleted daily." />
+
+                    <x-form.input type="number" name="reading_retention_days" label="Detailed Sensor Readings (days)" required min="1"
+                                  :value="$settings['reading_retention_days']"
+                                  help="Every stored sensor reading is kept this long. After that only the per-minute summaries remain, which is what the 24h, 7d and 30d charts use. Lower this if a fast device fills the disk." />
                 </div>
             </div>
         </div>

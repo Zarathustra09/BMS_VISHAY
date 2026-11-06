@@ -2,6 +2,7 @@
 
 use App\Enums\AppModule;
 use App\Models\MachineLog;
+use App\Models\MachineReadingRollup;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -16,6 +17,11 @@ Artisan::command('inspire', function () {
 // misbehaves under Windows Task Scheduler, a supported deployment target here (see
 // docs/09-setup-and-operations.md).
 Schedule::command('app:check-offline-devices')->everyMinute()->withoutOverlapping();
+
+// Per-minute min/max/average summaries of sensor readings, which the long chart windows read
+// and which let the detailed logs be pruned after reading_retention_days. Cheap (only logs
+// added since the last run), and before process-queue for the reason above.
+Schedule::command('app:rollup-readings')->everyMinute()->withoutOverlapping();
 Schedule::command('app:process-queue')->everyMinute()->withoutOverlapping();
 
 // Preventive work orders only need to be (re)checked once a day — a machine's
@@ -28,8 +34,10 @@ Schedule::command('app:generate-preventive-work-orders')
     ->withoutOverlapping()
     ->when(fn () => AppModule::WorkOrders->isEnabled());
 
-// Deletes machine_logs older than Settings' log_retention_days (MachineLog::prunable()).
+// Deletes machine_logs past Settings' log_retention_days, and summarised sensor readings past
+// reading_retention_days (MachineLog::prunable()), plus per-minute summaries past
+// log_retention_days (MachineReadingRollup::prunable()).
 // --model is explicit rather than letting model:prune auto-discover every Prunable model in
 // app/Models, so adding a second Prunable model later can't silently start getting pruned
 // by this same schedule entry without a deliberate change here.
-Schedule::command('model:prune', ['--model' => [MachineLog::class]])->daily();
+Schedule::command('model:prune', ['--model' => [MachineLog::class, MachineReadingRollup::class]])->daily();

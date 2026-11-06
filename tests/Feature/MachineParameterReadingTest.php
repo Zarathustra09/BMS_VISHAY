@@ -181,6 +181,7 @@ class MachineParameterReadingTest extends TestCase
         $this->postReading(['log_type' => 'sensor_reading', 'readings' => ['coolant_temp' => 90]])->assertCreated();
         $this->assertSame('warning', Alert::where('machine_id', $this->machine->id)->sole()->severity);
 
+        $this->travel(6)->seconds(); // past AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS: a recovery resolves only once readings stay normal
         $this->postReading(['log_type' => 'sensor_reading', 'readings' => ['coolant_temp' => 60]])->assertCreated();
         $this->assertSame('resolved', Alert::where('machine_id', $this->machine->id)->sole()->status);
     }

@@ -126,6 +126,7 @@ class LiveReadingBroadcastTest extends TestCase
 
         foreach ([10, 11, 12] as $value) {
             $this->postReading(['log_type' => 'sensor_reading', 'readings' => ['coolant_temp' => $value]])->assertCreated();
+            $this->travel(1)->second(); // readings within one second merge into one log
         }
 
         // One failed attempt opened the breaker; the other two readings were stored without trying.

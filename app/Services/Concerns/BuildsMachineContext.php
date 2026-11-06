@@ -28,7 +28,7 @@ trait BuildsMachineContext
             'critical_count' => $machine->logs()->where('severity', 'critical')->count(),
             'error_count' => $machine->logs()->where('severity', 'error')->count(),
             'warning_count' => $machine->logs()->where('severity', 'warning')->count(),
-            'logs_today' => $machine->logs()->whereDate('logged_at', today())->count(),
+            'logs_today' => $machine->logs()->where('logged_at', '>=', today())->count(),
             'logs_this_week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
         ];
 

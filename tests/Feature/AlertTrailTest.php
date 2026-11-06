@@ -101,6 +101,7 @@ class AlertTrailTest extends TestCase
         $this->reading(45);
         $alert = Alert::sole();
 
+        $this->travel(6)->seconds(); // past AlertInterface::RESOLVE_AFTER_NORMAL_SECONDS: a recovery resolves only once readings stay normal
         $this->reading(22);
 
         $alert = $alert->fresh();

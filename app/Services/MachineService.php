@@ -67,7 +67,8 @@ class MachineService implements MachineInterface
     {
         return [
             'total' => $machine->logs()->count(),
-            'today' => $machine->logs()->whereDate('logged_at', today())->count(),
+            // A range, not whereDate(): DATE(logged_at) can't use the (machine_id, logged_at) index.
+            'today' => $machine->logs()->where('logged_at', '>=', today())->count(),
             'week' => $machine->logs()->where('logged_at', '>=', now()->subWeek())->count(),
             'critical' => $machine->logs()->where('severity', 'critical')->count(),
             'errors' => $machine->logs()->where('severity', 'error')->count(),
