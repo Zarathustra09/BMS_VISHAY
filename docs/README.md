@@ -18,6 +18,7 @@ Then, as needed:
 - **[07-ai-insights.md](07-ai-insights.md)** — the AI chat/insights feature.
 - **[08-frontend.md](08-frontend.md)** — Blade/Tailwind/DaisyUI/Alpine conventions.
 - **[09-setup-and-operations.md](09-setup-and-operations.md)** — local setup, queue worker, scheduler, deployment.
+- **[12-software-requirements.md](12-software-requirements.md)** — what software to install: the Docker approach, and the full manual install (PHP, Composer, MySQL, Node.js, web server, background processes).
 - **[10-conventions.md](10-conventions.md)** — naming, folder layout, and the phase-based workflow this project is being built under.
 - **[11-testing.md](11-testing.md)** — how to run the test suite and write new feature tests.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed, phase by phase.
