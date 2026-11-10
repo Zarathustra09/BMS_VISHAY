@@ -45,7 +45,10 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Seconds before a stalled SMTP connection gives up. Must stay set: on Windows the queue
+            // worker cannot enforce job timeouts (no pcntl), so without this one hung mail server
+            // would block every later job. Kept under the queue's retry_after (90).
+            'timeout' => env('MAIL_TIMEOUT', 30),
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 

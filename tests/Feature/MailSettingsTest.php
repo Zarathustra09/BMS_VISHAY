@@ -94,6 +94,18 @@ class MailSettingsTest extends TestCase
         $this->assertSame('Plant Alerts', config('mail.from.name'));
     }
 
+    public function test_the_smtp_connection_gives_up_on_a_stalled_server_after_the_saved_settings_are_applied(): void
+    {
+        $this->actingAs($this->admin())->put(route('settings.update'), $this->settingsPayload());
+
+        app(MailSettings::class)->apply();
+
+        $transport = Mail::mailer('smtp')->getSymfonyTransport();
+
+        $this->assertInstanceOf(\Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport::class, $transport);
+        $this->assertEquals(30, $transport->getStream()->getTimeout());
+    }
+
     public function test_with_no_host_saved_the_environment_mailer_is_left_alone(): void
     {
         config(['mail.default' => 'log']);

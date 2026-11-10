@@ -2,6 +2,39 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Full Windows installer and installation test (2026-11-10)
+
+- **`deploy\windows\install.bat`**: one script for a full XAMPP install, run as administrator. Run it again after a `git pull` to update; `install.bat check` lists missing prerequisites without changing anything. It:
+  - checks the prerequisites;
+  - offers to switch on OPcache and intl;
+  - asks for the website port (80 or 8080), this PC's IP and the MySQL login (typed hidden), and the edition;
+  - writes `.env` in production mode with fresh secrets, and creates the database;
+  - installs the app (`composer install --no-dev`, migrations, the seeders on the first run only, `npm ci`, `npm run build`, `php artisan optimize`);
+  - installs XAMPP's Apache as the `Apache2.4` service on the chosen port;
+  - installs the background services and adds the firewall rules;
+  - finishes with the test below.
+- **Apache layout.** The site lives in `conf\extra\httpd-logxense.conf`. XAMPP's `Listen 80` and its HTTPS-on-443 include are commented out, with a backup of `httpd.conf`. The access log leaves out the sensor API.
+- **Reverb moves to port 8081** in installed setups, the same as Docker, so the website can use 8080.
+- **`deploy\windows\test-install.bat`**: a smoke test that needs no admin rights. It checks:
+  - the files and the four services;
+  - the database, with a real job through the queue worker, and the scheduler;
+  - `/up` and the login page;
+  - Reverb, through a browser-style WebSocket and a signed private-channel subscription;
+  - a test device reading, and that it's pushed back live;
+  - the firewall rules.
+- **`BMS-Scheduler` service** (`schedule:work`), installed by `install-services.bat` next to Reverb and the queue worker. It replaces the Task Scheduler entry. `install-services.bat unattended` skips the key presses.
+- **Firewall rules** are now `LogXense website (LAN)` and `LogXense Reverb (LAN)`, on the **Domain and Private** profiles. A company PC on a plant LAN is usually on the Domain profile. The old `BMS Reverb (private network)` rule is removed.
+- `deploy\windows\installer.php` holds the logic that's awkward in batch: hidden password input, `.env` quoting that phpdotenv reads back exactly, the Apache site, and the test.
+
+## Windows services for Reverb and the queue worker (2026-11-10)
+
+- **`deploy\windows\install-services.bat` needs no editing.** It finds the project (its own folder), `php.exe` (`where php`, else XAMPP), `nssm.exe` (`C:\tools\nssm\`, else `where nssm`) and the Reverb port (`REVERB_SERVER_PORT` in `.env`, else 8080). `PHP=` / `NSSM=` still override.
+- **New `check` mode** (`install-services.bat check`): no admin rights, changes nothing, reports what it found and whether the Reverb port is free.
+- **Safer install.** It stops instead of installing when another program holds the Reverb port (for example `composer run dev`), restarting any services it had paused; and after installing it waits up to a minute for Reverb to actually listen instead of trusting NSSM's "started" (the first start as a service took about 20 s on a test PC), stopping early if the service dies.
+- `uninstall-services.bat` finds `nssm.exe` the same way.
+- **SMTP timeout.** `config/mail.php` sets `timeout` from `MAIL_TIMEOUT` (default 30 s, was none). On Windows the queue worker can't enforce job timeouts (no `pcntl`), so a stalled mail server could otherwise block the queue.
+- NSSM is installed with `winget install NSSM.NSSM`.
+
 ## Phase 17 - Fast devices: 10 readings a second (2026-10-12)
 
 The device's request is unchanged; the server was changed so a sensor posting every 100 ms does not mean 864,000 rows a day.

@@ -148,10 +148,10 @@ A manual install is not just a website. Five things must run, and the Docker set
 | MySQL | the MySQL service | Database | Its own service |
 | **Queue worker** | `php artisan queue:work --tries=3` | Sends alert e-mails and AI replies | Windows: NSSM service. Linux: systemd or Supervisor |
 | **Reverb** | `php artisan reverb:start` | Live chart and alert updates in the browser | Windows: NSSM service. Linux: systemd or Supervisor |
-| **Scheduler** | `* * * * * cd /path/to/project && php artisan schedule:run` | Offline-device checks, per-minute summaries, cleanup of old data | Linux: cron. Windows: Task Scheduler, every minute |
+| **Scheduler** | `* * * * * cd /path/to/project && php artisan schedule:run` | Offline-device checks, per-minute summaries, cleanup of old data | Linux: cron. Windows: NSSM service running `php artisan schedule:work` |
 
 Extra software for these:
-- **Windows:** **NSSM** (https://nssm.cc/download, a single `nssm.exe`) to run the queue worker and Reverb as Windows services. The project includes [deploy/windows/install-services.bat](../deploy/windows/install-services.bat) for this. Task Scheduler is built into Windows.
+- **Windows:** **NSSM** (`winget install NSSM.NSSM`, or https://nssm.cc/download; copy the 64-bit `nssm.exe` to `C:\tools\nssm\`) to run the queue worker, Reverb and the scheduler as Windows services. With XAMPP, [deploy/windows/install.bat](../deploy/windows/install.bat) does the whole install: Apache as a service, `.env`, the database, the build and the three services. Afterwards [deploy/windows/test-install.bat](../deploy/windows/test-install.bat) checks it. Run `install.bat check` first to see what is missing. [deploy/windows/install-services.bat](../deploy/windows/install-services.bat) reinstalls just the services.
 - **Linux:** **Supervisor** (`sudo apt install supervisor`) or a systemd unit per process, and cron (installed by default).
 - **Development only:** `npm run dev` runs Vite for live asset reloading, or `composer run dev` starts the server, queue, Vite and Reverb together. You do not need Vite running in production.
 

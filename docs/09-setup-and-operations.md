@@ -52,6 +52,7 @@ See `.env.example` for the full list. Application-specific ones worth knowing:
 | `REVERB_SERVER_HOST` / `REVERB_SERVER_PORT` | What the Reverb process listens on — `0.0.0.0` so browsers on the LAN can connect | `0.0.0.0` / `8080` |
 | `VITE_REVERB_HOST` | **Leave blank**: the browser then connects to the host the page was opened from, so the build works unchanged if the PC's IP changes. Any `VITE_*` change needs `npm run build` | blank |
 | `MAIL_MAILER` | Mail driver | `log` (emails write to `storage/logs/laravel.log` instead of sending — fine for local dev, must be changed before Phase 5's email alerts are useful in production) |
+| `MAIL_TIMEOUT` | Seconds before a stalled SMTP server gives up. Keep it set: on Windows the queue worker can't time jobs out | `30` |
 
 ## Editions & module toggles
 
@@ -124,7 +125,7 @@ A single cron/Task Scheduler entry drives all of them:
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-**Windows (Task Scheduler)**: create a task that runs every minute:
+**Windows**: `deploy\windows\install.bat` (or `install-services.bat`) installs the `BMS-Scheduler` service, which runs `php artisan schedule:work`, so nothing else is needed. Without that service, create a Task Scheduler task that runs every minute:
 ```
 Program: php.exe
 Arguments: artisan schedule:run
@@ -140,26 +141,81 @@ For local development, `php artisan schedule:work` runs the scheduler in the for
 It is deliberately an **add-on**: if Reverb isn't running, readings are still accepted and stored, and the page falls back to polling (the footer under the chart says `Live · instant` when pushed, `Live · every 5s` when polling).
 
 ```
-ESP32 --HTTP POST--> Apache/Nginx (Laragon) --> Laravel --stores--> database
+ESP32 --HTTP POST--> Apache (XAMPP) :80/8080 --> Laravel --stores--> database
                                                    |
-                                                   +--publishes--> Reverb :8080 --WebSocket--> browsers on the LAN
+                                                   +--publishes--> Reverb :8081 --WebSocket--> browsers on the LAN
 ```
 
 ### Setting up the plant PC (Windows, same LAN as the ESP32s)
 
 1. **Fixed IP.** Give the PC a DHCP reservation on the router (or a static IP). The ESP32 firmware posts to `http://<pc-ip>/api/machine-logs` and browsers open `http://<pc-ip>/`; if the address changes, devices go silent.
-2. **Web server.** Install [Laragon](https://laragon.org) (free) and let it serve `public/` of this app (Apache or Nginx, PHP 8.2+, MySQL). In Laragon's preferences enable *Run Laragon when Windows starts* and *Start All automatically* — or install its Apache/MySQL as services. Don't use `php artisan serve` for production: it handles one request at a time, so several ESP32s and browsers would queue behind each other.
-3. **The app.** `composer install --no-dev --optimize-autoloader`, copy `.env.example` to `.env` and fill it in (`APP_ENV=production`, `APP_DEBUG=false`, database, the `REVERB_*` secrets), `php artisan key:generate`, `php artisan migrate --force`, `php artisan storage:link`, then `npm ci && npm run build`. Make sure there is **no `public/hot` file** (a leftover from `npm run dev` makes pages load assets from a dev server that isn't running).
-4. **Always-on processes.** Download [NSSM](https://nssm.cc/download) (free, a single `nssm.exe`), edit the three paths at the top of `deploy\windows\install-services.bat`, and run it **as Administrator**. It installs `BMS-Reverb` (`reverb:start`) and `BMS-Queue` (`queue:work`) as Windows services that start with Windows and restart if they crash, and opens port 8080 on the **Private** network profile only. `deploy\windows\uninstall-services.bat` reverses it. With a real queue worker running, AI chat replies and alert e-mails no longer wait for the per-minute scheduler (which stays in place as a backup).
-5. **Scheduler.** Add the Task Scheduler entry from [Scheduler](#scheduler) (every minute) — offline detection and preventive work orders depend on it.
-6. **Power.** Windows power options: never sleep or hibernate, and set Windows Update's active hours so restarts don't land mid-shift (the services come back on their own after a reboot).
-7. **Check it.** Open a machine page from another PC on the LAN: the footer should read `Live · instant`. Smoke test: post a reading (see [05-device-api.md](05-device-api.md)) and watch the chart move with no refresh.
+2. **Prerequisites.** Install the Windows software in [12-software-requirements.md](12-software-requirements.md): XAMPP (PHP 8.2), MySQL Community Server 8, Composer, Node.js, Git and NSSM (`winget install NSSM.NSSM`, then copy the 64-bit `nssm.exe` to `C:\tools\nssm\nssm.exe`). Clone the project, then run `deploy\windows\install.bat check`. It needs no admin rights, changes nothing, and lists anything missing.
+3. **Run the installer.** Right-click `deploy\windows\install.bat` and choose **Run as administrator**. It asks for:
+   - the website port (80, or 8080 if 80 is taken);
+   - this PC's fixed IP (detected for you);
+   - the MySQL login, typed hidden;
+   - the edition (lite or full).
 
-**After changing code or `.env`:** `php artisan reverb:restart` and `php artisan queue:restart` (the long-running processes only re-read config when restarted), and `npm run build` if any `VITE_*` value changed.
+   Then it:
+   - offers to switch on OPcache and intl in XAMPP's `php.ini`;
+   - writes `.env` in production mode, with fresh `APP_KEY` and Reverb secrets;
+   - creates the database;
+   - runs `composer install --no-dev`, the migrations, and the seeders, but only on the first install;
+   - runs `storage:link`, `npm ci`, `npm run build` (deleting any `public\hot`) and `php artisan optimize`;
+   - installs XAMPP's Apache as the Windows service `Apache2.4`, serving `public\` on your port only. It comments out XAMPP's own `Listen 80` and HTTPS-on-443 lines, and keeps `httpd.conf.logxense-backup`. The site is `conf\extra\httpd-logxense.conf`, and its access log leaves out the sensor API;
+   - installs the background services `BMS-Reverb` (live updates on port 8081), `BMS-Queue` and `BMS-Scheduler`;
+   - adds inbound firewall rules for both ports on the **Domain and Private** profiles;
+   - finally runs `deploy\windows\test-install.bat`.
+
+   Run it again after every `git pull`. It keeps `.env` (and backs it up), never seeds twice, and puts the site in maintenance mode while it updates. Don't use `php artisan serve` for production: on Windows it handles one request at a time.
+
+   **Test any time** with `deploy\windows\test-install.bat`. It needs no admin rights and checks:
+   - the files;
+   - the four services (running, and starting with Windows);
+   - the database and migrations;
+   - a real job through the queue worker, and that the scheduler log is fresh;
+   - `/up` and the login page, on 127.0.0.1 and on the IP in `APP_URL`;
+   - Reverb, with a browser-style WebSocket and a signed private-channel subscription;
+   - a test reading posted with `DEMO_DEVICE_KEY` (labelled "Installation test" in the demo machine's logs), and that it's pushed back over the WebSocket;
+   - the firewall rules.
+
+   `--no-post` skips the test reading.
+
+4. **Power.** Windows power options: never sleep or hibernate, and set Windows Update's active hours so restarts don't land mid-shift (the services come back on their own after a reboot).
+5. **Check it from another PC.** Open a machine page from another PC on the LAN. The footer should read `Live · instant`. Point the ESP32 at `http://<pc-ip>[:port]/api/machine-logs` with its `X-Device-Key` (see [05-device-api.md](05-device-api.md)) and watch the chart move with no refresh.
+
+#### What the installer does, for a manual install
+
+- **The app.** `composer install --no-dev --optimize-autoloader`, then copy `.env.example` to `.env` and fill it in:
+  - `APP_ENV=production`, `APP_DEBUG=false`;
+  - the database;
+  - the `REVERB_*` secrets;
+  - `REVERB_PORT` / `REVERB_SERVER_PORT` = 8081 if the website uses 8080.
+
+  Then run `php artisan key:generate`, `php artisan migrate --force`, `php artisan storage:link`, `npm ci && npm run build` and `php artisan optimize`. Make sure there is **no `public/hot` file**: a leftover from `npm run dev` makes pages load assets from a dev server that isn't running.
+- **Website.** Point Apache at `public\` with `AllowOverride All`, using `deploy\windows\installer.php apache` or your own vhost. Install it as a service with `C:\xampp\apache\bin\httpd.exe -k install -n Apache2.4`, then open the port in the firewall.
+- **Always-on processes.** `deploy\windows\install-services.bat` installs three services. Run it **as Administrator**; `install-services.bat check` previews it without admin rights:
+
+  | Service | Runs | For |
+  |---|---|---|
+  | `BMS-Reverb` | `reverb:start` | live updates |
+  | `BMS-Queue` | `queue:work` | alert e-mails, AI replies |
+  | `BMS-Scheduler` | `schedule:work` | offline detection, per-minute summaries, pruning (the same as the Docker `scheduler` container) |
+
+  The services start with Windows and restart if they crash. There is nothing to edit:
+  - **`php.exe`:** `where php`, else `C:\xampp\php\php.exe`.
+  - **`nssm.exe`:** `C:\tools\nssm\`, else `where nssm`. Set `PHP=` or `NSSM=` first to use others.
+  - **Reverb port:** `REVERB_SERVER_PORT` in `.env`, else 8080.
+
+  The script waits up to a minute for Reverb to listen. The first start as a service can take about 20 s. It opens the Reverb port on the Domain and Private profiles, and stops without installing if something else holds that port, typically a `composer run dev` window on a development PC. `deploy\windows\uninstall-services.bat` reverses it. With the scheduler service, no Task Scheduler entry is needed. Use one *instead* only if you skip `BMS-Scheduler`; see [Scheduler](#scheduler).
+
+**Windows can't time jobs out.** The queue worker's job timeout needs PHP's `pcntl` extension, which doesn't exist on Windows, so a job that hangs would block every job behind it. The likeliest hang is a stalled SMTP server. That's capped by `MAIL_TIMEOUT` (30 seconds, `config/mail.php`): the send fails and is retried.
+
+**After changing code or `.env`:** run `install.bat` again. By hand: `php artisan optimize` (config is cached), then `php artisan reverb:restart` and `php artisan queue:restart`, because the long-running processes only re-read config when restarted. Also run `npm run build` if any `VITE_*` value changed.
 
 **Capacity.** One Reverb process comfortably serves the handful of dashboards a plant keeps open; Reverb's horizontal scaling (Redis) is not needed here.
 
-**Cost.** None beyond the PC: Reverb, NSSM, Laragon, Laravel Echo and `pusher-js` are all free and open source.
+**Cost.** None beyond the PC: XAMPP, MySQL Community, Reverb, NSSM, Laravel Echo and `pusher-js` are all free.
 
 ## Outgoing email (SMTP)
 
