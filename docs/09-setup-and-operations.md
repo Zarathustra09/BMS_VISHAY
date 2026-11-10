@@ -217,6 +217,23 @@ ESP32 --HTTP POST--> Apache (XAMPP) :80/8080 --> Laravel --stores--> database
 
 **Cost.** None beyond the PC: XAMPP, MySQL Community, Reverb, NSSM, Laravel Echo and `pusher-js` are all free.
 
+#### Database backups (Windows)
+
+`deploy\windows\backup-database.bat` dumps the database named in `.env`. It needs no admin rights and changes nothing in the database. Each run makes a folder, `storage\app\backups\<database>-<date and time>\`, with three files:
+
+| File | Contains |
+|---|---|
+| `schema.sql` | Tables, views, triggers and routines, with no rows |
+| `data.sql` | The rows only (`INSERT` statements) |
+| `full.sql` | Both |
+
+- **Finding `mysqldump.exe`:** `MYSQLDUMP=` if set, else the newest MySQL or MariaDB under `C:\Program Files`, else `where mysqldump`, else `C:\xampp\mysql\bin`.
+- **The login** goes in a temporary option file that is deleted afterwards, so the password never appears on a command line or the screen.
+- **Nothing is deleted.** Old backups stay until you remove them, and the folder is ignored by git. Copy it off the PC now and then.
+- **The three files are dumped one after another**, so sensor readings that arrive in between can make them differ slightly.
+- **Restore** into an empty database: `mysql -u USER -p DATABASE < full.sql`, or `schema.sql` and then `data.sql`.
+- **Scheduled:** `backup-database.bat unattended` skips the final pause, for a Task Scheduler entry.
+
 ## Outgoing email (SMTP)
 
 Alert emails are sent from the queue worker. Out of the box (`MAIL_MAILER=log`) they are only written to the log. To send real email, an admin opens **Settings -> Email (SMTP)**, fills in the server, port, username/password, encryption and From address, saves, and presses **Send test email to me** (it reports the server's own error if something is wrong). The password is stored encrypted and is never shown again; leaving it blank on a later save keeps it.

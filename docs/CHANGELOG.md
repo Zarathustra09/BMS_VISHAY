@@ -2,6 +2,13 @@
 
 Entries are added phase by phase (see [10-conventions.md](10-conventions.md) for the workflow this follows). Newest first.
 
+## Database backup script (2026-11-10)
+
+- **`deploy\windows\backup-database.bat`** (the work is in `installer.php backup`): dumps the database from `.env` with `mysqldump` into `storage\app\backups\<database>-<date and time>\` as `schema.sql` (structure only), `data.sql` (rows only) and `full.sql` (both). No admin rights, nothing in the database is changed, nothing is deleted. `backup-database.bat unattended` skips the pause, for Task Scheduler.
+- Each file is checked for mysqldump's closing `-- Dump completed` line; a cut-off file is deleted and the run reports a failure.
+- The password goes in a temporary option file, not on the command line.
+- Tested by restoring `full.sql`, and `schema.sql` then `data.sql`, into throwaway databases: all 30 tables and every row count matched.
+
 ## Full Windows installer and installation test (2026-11-10)
 
 - **`deploy\windows\install.bat`**: one script for a full XAMPP install, run as administrator. Run it again after a `git pull` to update; `install.bat check` lists missing prerequisites without changing anything. It:

@@ -13,6 +13,7 @@
  *   php installer.php get KEY                                        print one .env value
  *   php installer.php apache --httpd=<httpd.exe>                     write the Apache site and point httpd.conf at it
  *   php installer.php test [--no-post]                               smoke-test a running install
+ *   php installer.php backup                                         dump the database: schema, data, and both
  *
  * Exit code 0 = fine, 1 = something to fix (already explained on screen).
  */
@@ -47,13 +48,14 @@ function main(array $arguments): int
         'get' => printEnvValue($arguments[1] ?? ''),
         'apache' => writeApacheSite($options),
         'test' => smokeTest($options),
+        'backup' => backupDatabase(),
         default => usage(),
     };
 }
 
 function usage(): int
 {
-    fwrite(STDERR, "Usage: php installer.php check|php-ini|configure|web-port|get|apache|test [options]\n");
+    fwrite(STDERR, "Usage: php installer.php check|php-ini|configure|web-port|get|apache|test|backup [options]\n");
 
     return 1;
 }
@@ -665,6 +667,195 @@ function detectLanAddress(): string
     $byName = gethostbyname(gethostname());
 
     return filter_var($byName, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? $byName : 'localhost';
+}
+
+// ---- database backup --------------------------------------------------------------
+
+/**
+ * Dumps the database named in .env three ways into storage/app/backups/<name>-<timestamp>/:
+ * schema.sql (structure only), data.sql (rows only) and full.sql (both). Reads the database,
+ * never changes it.
+ */
+function backupDatabase(): int
+{
+    if (! is_file(envPath())) {
+        bad('No .env file - there is no database to back up yet.');
+
+        return 1;
+    }
+
+    $env = array_map('trim', readEnv((string) file_get_contents(envPath())));
+    $connection = $env['DB_CONNECTION'] ?? 'mysql';
+
+    if (! in_array($connection, ['mysql', 'mariadb'], true)) {
+        bad("DB_CONNECTION is \"{$connection}\"; this backup only handles MySQL and MariaDB.");
+
+        return 1;
+    }
+
+    $database = $env['DB_DATABASE'] ?? '';
+
+    if (! preg_match('/^[A-Za-z0-9_$]+$/', $database)) {
+        bad('DB_DATABASE in .env is empty or has unusual characters - not backing it up.');
+
+        return 1;
+    }
+
+    $mysqldump = findMysqldump();
+
+    if ($mysqldump === null) {
+        bad('mysqldump.exe not found. It comes with MySQL (and XAMPP\'s MariaDB). To use another copy, set MYSQLDUMP=C:\path\to\mysqldump.exe first.');
+
+        return 1;
+    }
+
+    $isMariaDb = stripos((string) shell_exec('"'.$mysqldump.'" --version 2>nul'), 'mariadb') !== false;
+    $host = ($env['DB_HOST'] ?? '') !== '' ? $env['DB_HOST'] : '127.0.0.1';
+    $port = ($env['DB_PORT'] ?? '') !== '' ? $env['DB_PORT'] : '3306';
+    $folder = APP_ROOT.'/storage/app/backups/'.$database.'-'.date('YmdHis');
+
+    if (! is_dir($folder) && ! mkdir($folder, 0777, true)) {
+        bad("Could not create {$folder}");
+
+        return 1;
+    }
+
+    $folder = (string) realpath($folder);
+    echo "     Database : {$database} on {$host}:{$port}\n";
+    echo "     Tool     : {$mysqldump}\n";
+    echo "     Saving to: {$folder}\n\n";
+
+    // The login goes in a private option file, so the password is never on a command line.
+    $optionFile = tempnam(sys_get_temp_dir(), 'lx');
+    $quote = fn (string $value): string => '"'.addcslashes($value, '\\"').'"';
+    file_put_contents($optionFile, "[client]\nuser={$quote($env['DB_USERNAME'] ?? 'root')}\npassword={$quote($env['DB_PASSWORD'] ?? '')}\nhost={$quote($host)}\nport={$port}\n");
+
+    $common = ['--single-transaction', '--quick', '--hex-blob', '--default-character-set=utf8mb4'];
+
+    if (! $isMariaDb) {
+        array_push($common, '--no-tablespaces', '--set-gtid-purged=OFF');
+    }
+
+    $dumps = [
+        'schema.sql' => ['label' => 'schema only', 'flags' => ['--no-data', '--routines', '--triggers']],
+        'data.sql' => ['label' => 'data only', 'flags' => ['--no-create-info', '--skip-triggers']],
+        'full.sql' => ['label' => 'schema + data', 'flags' => ['--routines', '--triggers']],
+    ];
+    $failed = false;
+
+    try {
+        foreach ($dumps as $file => $dump) {
+            $path = "{$folder}\\{$file}";
+            $error = runMysqldump($mysqldump, array_merge(["--defaults-extra-file={$optionFile}"], $common, $dump['flags'], ["--result-file={$path}", $database]));
+
+            if ($error === null && ! dumpIsComplete($path)) {
+                $error = 'the dump stopped before the end of the file';
+            }
+
+            if ($error !== null) {
+                @unlink($path);
+                bad("{$file} ({$dump['label']}) failed: {$error}");
+                $failed = true;
+
+                continue;
+            }
+
+            ok(sprintf('%-9s %-14s %s', $file, $dump['label'], formatBytes((int) filesize($path))));
+        }
+    } finally {
+        @unlink($optionFile);
+    }
+
+    echo "\n";
+
+    if ($failed) {
+        bad('The backup is incomplete - see the errors above.');
+
+        return 1;
+    }
+
+    ok('Backup finished.');
+    note('The three files are dumped one after another, so readings that arrive in between can make them differ slightly.');
+    note("To restore: mysql -u USER -p DATABASE < \"{$folder}\\full.sql\"  (or schema.sql, then data.sql)");
+    note('Copy the backups folder off this PC too - a backup on the same disk does not survive a dead disk.');
+
+    return 0;
+}
+
+/**
+ * Runs mysqldump with the given arguments (no shell, so nothing needs quoting). Returns null on
+ * success, or what mysqldump complained about.
+ *
+ * @param  list<string>  $arguments
+ */
+function runMysqldump(string $mysqldump, array $arguments): ?string
+{
+    $process = proc_open(array_merge([$mysqldump], $arguments), [1 => ['file', 'NUL', 'w'], 2 => ['pipe', 'w']], $pipes);
+
+    if (! is_resource($process)) {
+        return 'could not start mysqldump';
+    }
+
+    $stderr = trim((string) stream_get_contents($pipes[2]));
+    fclose($pipes[2]);
+
+    return proc_close($process) === 0 ? null : ($stderr !== '' ? $stderr : 'mysqldump exited with an error');
+}
+
+/**
+ * mysqldump ends a finished dump with a "-- Dump completed" comment.
+ */
+function dumpIsComplete(string $path): bool
+{
+    if (! is_file($path) || filesize($path) === 0) {
+        return false;
+    }
+
+    $handle = fopen($path, 'rb');
+    fseek($handle, -min(512, (int) filesize($path)), SEEK_END);
+    $tail = (string) fread($handle, 512);
+    fclose($handle);
+
+    return str_contains($tail, '-- Dump completed');
+}
+
+function formatBytes(int $bytes): string
+{
+    return match (true) {
+        $bytes >= 1_048_576 => number_format($bytes / 1_048_576, 1).' MB',
+        $bytes >= 1024 => number_format($bytes / 1024, 1).' KB',
+        default => $bytes.' bytes',
+    };
+}
+
+/**
+ * MYSQLDUMP if set, else the newest MySQL / MariaDB under Program Files, else PATH, else XAMPP's.
+ */
+function findMysqldump(): ?string
+{
+    $fromEnvironment = getenv('MYSQLDUMP');
+
+    if (is_string($fromEnvironment) && $fromEnvironment !== '') {
+        return is_file($fromEnvironment) ? $fromEnvironment : null;
+    }
+
+    $installed = array_merge(
+        glob('C:/Program Files/MySQL/MySQL Server */bin/mysqldump.exe') ?: [],
+        glob('C:/Program Files/MariaDB */bin/mysqldump.exe') ?: [],
+    );
+    usort($installed, 'strnatcmp');
+
+    if ($installed !== []) {
+        return str_replace('/', '\\', end($installed));
+    }
+
+    $onPath = trim((string) strtok((string) shell_exec('where mysqldump 2>nul'), "\r\n"));
+
+    if ($onPath !== '' && is_file($onPath)) {
+        return $onPath;
+    }
+
+    return is_file('C:/xampp/mysql/bin/mysqldump.exe') ? 'C:\\xampp\\mysql\\bin\\mysqldump.exe' : null;
 }
 
 // ---- apache ---------------------------------------------------------------------
